@@ -15,16 +15,25 @@ export default function AuthenticatedLayout({
 }) {
   return (
     <div className={styles.appLayout}>
-      <Sidebar />
-      <main className={styles.appMain}>
-        <header className={styles.topBar}>
-          <div className={styles.topBarRight}>
-            <NotificationBell />
-            <UserNav />
-          </div>
-        </header>
-        {children}
-      </main>
+      {/* 상단 헤더 (전체 너비) */}
+      <header className={styles.topBar}>
+        <div className={styles.topBarLeft}>
+          <span className={styles.topBarBrand}>KKA Workflow</span>
+        </div>
+        <div className={styles.topBarRight}>
+          <NotificationBell />
+          <UserNav />
+        </div>
+      </header>
+
+      {/* 헤더 아래: 사이드바 + 메인 */}
+      <div className={styles.bodyArea}>
+        <Sidebar />
+        <div className={styles.sidebarSpacer} />
+        <main className={styles.appMain}>
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

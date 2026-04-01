@@ -9,6 +9,8 @@ import {
   LuTrendingUp,
   LuUsers,
   LuBell,
+  LuClipboardList,
+  LuMessageSquare,
 } from 'react-icons/lu';
 import styles from './dashboard.module.css';
 
@@ -274,7 +276,7 @@ export default function DashboardPage() {
         {/* 최근 견적서 */}
         <div className={`card ${styles.listCard}`}>
           <div className={styles.listHeader}>
-            <h2 className="section-title">📋 최근 견적서</h2>
+            <h2 className="section-title"><LuClipboardList style={{ display: 'inline', verticalAlign: '-2px', marginRight: 6 }} /> 최근 견적서</h2>
             <Link href="/projects" className={styles.detailLink}>더보기</Link>
           </div>
           {RECENT_ESTIMATES.map((item, i) => (
@@ -292,7 +294,7 @@ export default function DashboardPage() {
         {/* 최근 계약서 */}
         <div className={`card ${styles.listCard}`}>
           <div className={styles.listHeader}>
-            <h2 className="section-title">📋 최근 계약서</h2>
+            <h2 className="section-title"><LuClipboardList style={{ display: 'inline', verticalAlign: '-2px', marginRight: 6 }} /> 최근 계약서</h2>
             <Link href="/projects" className={styles.detailLink}>더보기</Link>
           </div>
           {RECENT_CONTRACTS.map((item, i) => (
@@ -310,7 +312,7 @@ export default function DashboardPage() {
         {/* 고객 문의 */}
         <div className={`card ${styles.listCard}`}>
           <div className={styles.listHeader}>
-            <h2 className="section-title">🗨️ 고객 문의</h2>
+            <h2 className="section-title"><LuMessageSquare style={{ display: 'inline', verticalAlign: '-2px', marginRight: 6 }} /> 고객 문의</h2>
             <Link href="/clients" className={styles.detailLink}>더보기</Link>
           </div>
           {CUSTOMER_INQUIRIES.map((item, i) => (

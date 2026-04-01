@@ -12,15 +12,16 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { LuMegaphone, LuChartBar, LuRocket } from 'react-icons/lu';
 import { ActionButton } from '@/components/ui';
 import { SERVICE_TYPE_META } from '@/lib/domain/types';
 import type { ServiceType } from '@/lib/domain/types';
 import styles from './new-project.module.css';
 
-const SERVICE_ICONS: Record<ServiceType, string> = {
-  viral: '📢',
-  performance: '📊',
-  viral_performance: '🚀',
+const SERVICE_ICONS: Record<ServiceType, React.ReactNode> = {
+  viral: <LuMegaphone size={24} />,
+  performance: <LuChartBar size={24} />,
+  viral_performance: <LuRocket size={24} />,
 };
 
 /** 서비스 유형별 플로우 미리보기 */

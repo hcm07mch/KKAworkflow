@@ -1,6 +1,11 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* ============================================================================
+   KKA Workflow – Global Styles (no Tailwind)
+   ============================================================================ */
+
+/* ── Global Reset ── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
 
 /* ============================================================================
    Custom Utility Classes (brand colors for inline usage)
@@ -28,12 +33,42 @@
   /* Neutral */
   --color-bg: #f8f9fb;
   --color-surface: #ffffff;
+  --color-surface-hover: #f3f4f6;
   --color-border: #e5e7eb;
   --color-text-primary: #111827;
   --color-text-secondary: #6b7280;
   --color-text-muted: #9ca3af;
   --radius: 12px;
   --shadow-card: 0 1px 4px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(0, 0, 0, 0.02);
+  --shadow-dropdown: 0 8px 24px rgba(0, 0, 0, 0.1);
+
+  /* Table */
+  --color-table-row-hover: #fafbfc;
+  --color-table-border: #f3f4f6;
+}
+
+/* ── Dark Mode ── */
+[data-theme='dark'] {
+  --color-bg: #0f1117;
+  --color-surface: #1a1d27;
+  --color-surface-hover: #252830;
+  --color-border: #2e3140;
+  --color-text-primary: #e5e7eb;
+  --color-text-secondary: #9ca3af;
+  --color-text-muted: #6b7280;
+  --shadow-card: 0 1px 4px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --shadow-dropdown: 0 8px 24px rgba(0, 0, 0, 0.4);
+
+  --color-primary: #5b8def;
+  --color-primary-hover: #4a7be0;
+  --color-primary-light: #1e2a4a;
+  --color-primary-ring: rgba(91, 141, 239, 0.25);
+  --color-secondary: #f87171;
+  --color-secondary-hover: #ef4444;
+  --color-secondary-light: #3a1a16;
+
+  --color-table-row-hover: #1e2028;
+  --color-table-border: #252830;
 }
 
 /* ============================================================================
@@ -56,9 +91,8 @@ body {
    ============================================================================ */
 
 .page-container {
-  max-width: 1200px;
+  max-width: 1473px;
   margin: 0 auto;
-  padding: 0 32px 32px;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -101,7 +135,7 @@ body {
 .badge-sm { font-size: 11px; padding: 2px 8px; }
 .badge-md { font-size: 12px; padding: 3px 10px; }
 
-.badge-gray    { background: #f3f4f6; color: #4b5563; }
+.badge-gray    { background: var(--color-surface-hover); color: var(--color-text-secondary); }
 .badge-blue    { background: var(--color-primary-light); color: var(--color-primary); }
 .badge-red     { background: #fee2e2; color: #b91c1c; }
 .badge-indigo  { background: #e0e7ff; color: #4338ca; }
@@ -141,24 +175,24 @@ body {
 .btn-primary:hover:not(:disabled) { background: var(--color-primary-hover); }
 
 .btn-secondary {
-  background: #fff;
-  color: #374151;
-  border-color: #d1d5db;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  border-color: var(--color-border);
 }
-.btn-secondary:hover:not(:disabled) { background: #f9fafb; border-color: #9ca3af; }
+.btn-secondary:hover:not(:disabled) { background: var(--color-surface-hover); border-color: var(--color-text-muted); }
 
 .btn-danger {
-  background: #fff;
+  background: var(--color-surface);
   color: var(--color-secondary);
-  border-color: #f0a8a1;
+  border-color: var(--color-secondary-light);
 }
 .btn-danger:hover:not(:disabled) { background: var(--color-secondary-light); border-color: var(--color-secondary); }
 
 .btn-ghost {
   background: transparent;
-  color: #6b7280;
+  color: var(--color-text-secondary);
 }
-.btn-ghost:hover:not(:disabled) { background: #f3f4f6; }
+.btn-ghost:hover:not(:disabled) { background: var(--color-surface-hover); }
 
 /* ============================================================================
    Data Table
@@ -181,14 +215,14 @@ body {
 }
 .data-table td {
   padding: 10px 12px;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid var(--color-table-border);
   vertical-align: middle;
 }
 .data-table tbody tr:last-child td {
   border-bottom: none;
 }
 .data-table tbody tr:hover {
-  background: #fafbfc;
+  background: var(--color-table-row-hover);
 }
 
 /* ============================================================================

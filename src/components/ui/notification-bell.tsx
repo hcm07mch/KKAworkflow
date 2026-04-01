@@ -48,7 +48,16 @@ export function NotificationBell() {
   const fetchNotifications = useCallback(async () => {
     try {
       const res = await fetch('/api/notifications');
-      if (!res.ok) return;
+      if (!res.ok) {
+        // 401/403 → 인증·사용자 문제이므로 폴링 중단
+        if (res.status === 401 || res.status === 403) {
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+          }
+        }
+        return;
+      }
       const data = await res.json();
       setNotifications(data.notifications ?? []);
       setUnreadCount(data.unreadCount ?? 0);

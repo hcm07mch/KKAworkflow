@@ -2,10 +2,69 @@
    Authenticated Layout - scoped via CSS Module
    ============================================================================ */
 
-/* App Layout (Sidebar + Main) */
+/* Root: vertical stack (header → body) */
 .appLayout {
   display: flex;
+  flex-direction: column;
   min-height: 100vh;
+}
+
+/* ============================================================================
+   Top Bar — full-width, fixed at top
+   ============================================================================ */
+
+.topBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 48px;
+  padding: 0 24px;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+  z-index: 60;
+}
+
+.topBarLeft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.topBarBrand {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--color-primary);
+}
+
+.topBarRight {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ============================================================================
+   Body Area — sidebar + main, fills remaining height
+   ============================================================================ */
+
+.bodyArea {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  --sidebar-expand: 0px;
+}
+
+.bodyArea:has(aside:hover) {
+  --sidebar-expand: 166px;
+}
+
+/* Spacer pushes main content right to match sidebar width */
+.sidebarSpacer {
+  width: calc(54px + var(--sidebar-expand, 0px));
+  flex-shrink: 0;
+  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .appMain {
@@ -15,107 +74,167 @@
   background: var(--color-bg);
 }
 
-/* Top Bar - minimal, inside main area */
-.topBar {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding: 12px 32px;
-  background: transparent;
-  min-height: 48px;
-  box-sizing: border-box;
-}
+/* ============================================================================
+   Sidebar — fixed position, below header, hover to expand
+   ============================================================================ */
 
-.topBarBrand {
-  display: none;
-}
-
-.topBarRight {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-/* Sidebar - icon-only dark primary */
 .sidebar {
-  width: 64px;
-  flex-shrink: 0;
-  background: var(--color-primary);
+  position: fixed;
+  top: 48px;
+  left: 0;
+  width: 54px;
+  height: calc(100vh - 48px);
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 16px 0;
-  gap: 8px;
-  position: sticky;
-  top: 0;
-  height: 100vh;
+  overflow: hidden;
+  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 50;
 }
 
+.sidebar:hover {
+  width: 220px;
+  box-shadow: 4px 0 12px rgba(0, 0, 0, 0.06);
+}
+
+/* ── Brand ── */
+
 .sidebarBrand {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.15);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 12px 10px;
+  color: #fff;
+  text-decoration: none;
+  flex-shrink: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.brandIcon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--color-primary);
+  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 800;
-  margin-bottom: 12px;
+  flex-shrink: 0;
   letter-spacing: -0.03em;
 }
 
-.sidebarNav {
+/* ── Scrollable Content ── */
+
+.sidebarContent {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  flex: 1;
 }
 
+.sidebarContent::-webkit-scrollbar {
+  width: 0;
+}
+
+/* ── Menu Group ── */
+
+.sidebarGroup {
+  list-style: none;
+  margin: 0;
+  padding: 4px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* ── Divider ── */
+
+.sidebarDivider {
+  height: 1px;
+  background: var(--color-border);
+  margin: 4px 12px;
+  flex-shrink: 0;
+}
+
+/* ── Group Label ── */
+
+.sidebarGroupLabel {
+  display: block;
+  padding: 6px 18px 2px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* ── Menu Link ── */
+
 .sidebarLink {
-  width: 42px;
-  height: 42px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  border-radius: 12px;
-  color: rgba(255, 255, 255, 0.5);
-  transition: background 0.15s, color 0.15s;
+  gap: 10px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 6px;
+  color: var(--color-text-secondary);
+  transition: background 0.12s, color 0.12s;
   position: relative;
+  white-space: nowrap;
+  overflow: hidden;
+  font-size: 13px;
+  text-decoration: none;
 }
 
 .sidebarLink:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.85);
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
 }
+
+/* ── Active State ── */
 
 .sidebarLinkActive {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--color-primary);
   color: #fff;
-}
-
-.sidebarLinkActive::before {
-  content: '';
-  position: absolute;
-  left: -11px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 4px;
-  height: 20px;
-  border-radius: 0 4px 4px 0;
-  background: #fff;
+  font-weight: 500;
 }
 
 .sidebarLinkActive:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--color-primary-hover);
   color: #fff;
 }
 
+/* ── Icon ── */
+
 .sidebarIcon {
-  font-size: 20px;
+  width: 18px;
+  height: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+}
+
+/* ── Label (fade in on hover) ── */
+
+.sidebarLabel {
+  font-size: 13px;
+  font-weight: inherit;
+  color: inherit;
+  opacity: 0;
+  transition: opacity 0.15s 0.05s;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar:hover .sidebarLabel {
+  opacity: 1;
 }
