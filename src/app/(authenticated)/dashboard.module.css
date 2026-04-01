@@ -1,0 +1,330 @@
+/* ============================================================================
+   Dashboard (Overview) - scoped via CSS Module
+   ============================================================================ */
+
+.pageTitle {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-bottom: 4px;
+}
+
+/* ── KPI Cards Row ── */
+
+.kpiRow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.kpiCard {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 20px 22px;
+  box-shadow: var(--shadow-card);
+}
+
+.kpiHighlight {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+.kpiHighlight .kpiHeader {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.kpiHighlight .kpiValue {
+  color: #fff;
+}
+
+.kpiHighlight .kpiSub {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.kpiHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  margin-bottom: 8px;
+}
+
+.kpiValue {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--color-text-primary);
+  line-height: 1.2;
+  margin-bottom: 6px;
+  letter-spacing: -0.02em;
+}
+
+.kpiSub {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.detailLink {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-left: auto;
+  white-space: nowrap;
+}
+.detailLink:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+/* ── Charts Row ── */
+
+.chartsRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+}
+
+.chartCard {
+  display: flex;
+  flex-direction: column;
+  min-height: 260px;
+}
+
+.chartHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.chartTitleArea {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chartSelect {
+  font-size: 12px;
+  padding: 4px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+/* Bar Chart */
+.barChart {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around;
+  flex: 1;
+  padding: 0 8px;
+  gap: 12px;
+}
+
+.barCol {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.barTrack {
+  width: 100%;
+  max-width: 48px;
+  height: 140px;
+  background: #f3f4f6;
+  border-radius: 6px 6px 0 0;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+
+.bar {
+  width: 100%;
+  background: var(--color-primary);
+  border-radius: 6px 6px 0 0;
+  transition: height 0.4s ease;
+  min-height: 8px;
+}
+
+.barLabel {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+/* Line chart placeholder */
+.chartPlaceholder {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  padding: 0 4px;
+}
+
+.lineChartSvg {
+  width: 100%;
+  height: auto;
+}
+
+/* Donut Chart */
+.donutWrapper {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+}
+
+.donutLegend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.legendDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.donutSvgWrap {
+  position: relative;
+  width: 110px;
+  height: 110px;
+  flex-shrink: 0;
+}
+
+.donutSvg {
+  width: 100%;
+  height: 100%;
+}
+
+.donutCenter {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.donutTotal {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--color-text-primary);
+  line-height: 1;
+}
+
+.donutLabel {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+/* ── Bottom Lists Row ── */
+
+.listsRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+}
+
+.listCard {
+  display: flex;
+  flex-direction: column;
+}
+
+.listHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.listItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-top: 1px solid #f3f4f6;
+}
+
+.listItem:first-of-type {
+  border-top: none;
+}
+
+.listItemInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.listItemTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.listItemDesc {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.listItemTime {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.listItemAmount {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  margin-left: 12px;
+}
+
+/* Priority Badge */
+.priorityBadge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 4px;
+  white-space: nowrap;
+  margin-left: 12px;
+}
+
+.priorityUrgent {
+  background: #fee2e2;
+  color: var(--color-secondary);
+}
+
+.priorityNormal {
+  background: #f3f4f6;
+  color: var(--color-text-secondary);
+}
+
+/* ── Responsive ── */
+
+@media (max-width: 1024px) {
+  .kpiRow {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .chartsRow,
+  .listsRow {
+    grid-template-columns: 1fr;
+  }
+}

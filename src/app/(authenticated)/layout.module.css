@@ -1,0 +1,121 @@
+/* ============================================================================
+   Authenticated Layout - scoped via CSS Module
+   ============================================================================ */
+
+/* App Layout (Sidebar + Main) */
+.appLayout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.appMain {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  background: var(--color-bg);
+}
+
+/* Top Bar - minimal, inside main area */
+.topBar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 12px 32px;
+  background: transparent;
+  min-height: 48px;
+  box-sizing: border-box;
+}
+
+.topBarBrand {
+  display: none;
+}
+
+.topBarRight {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Sidebar - icon-only dark primary */
+.sidebar {
+  width: 64px;
+  flex-shrink: 0;
+  background: var(--color-primary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px 0;
+  gap: 8px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+
+.sidebarBrand {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 800;
+  margin-bottom: 12px;
+  letter-spacing: -0.03em;
+}
+
+.sidebarNav {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+
+.sidebarLink {
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  transition: background 0.15s, color 0.15s;
+  position: relative;
+}
+
+.sidebarLink:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.sidebarLinkActive {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.sidebarLinkActive::before {
+  content: '';
+  position: absolute;
+  left: -11px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 20px;
+  border-radius: 0 4px 4px 0;
+  background: #fff;
+}
+
+.sidebarLinkActive:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.sidebarIcon {
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

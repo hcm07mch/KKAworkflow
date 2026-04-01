@@ -1,0 +1,138 @@
+/* 문서 생성/편집 폼 */
+
+.formSection {
+  margin-bottom: 20px;
+}
+.formSection:last-child {
+  margin-bottom: 0;
+}
+
+.formLabel {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: 6px;
+}
+.formHint {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-top: 4px;
+}
+
+/* ── 문서 유형 선택 ── */
+
+.typeSelector {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+.typeCard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.15s;
+  background: var(--color-surface);
+}
+.typeCard:hover {
+  border-color: var(--color-primary-ring);
+}
+.typeCardSelected {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+.typeCardDisabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.typeCardDisabled:hover {
+  border-color: var(--color-border);
+}
+.typeName {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+.typeDesc {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+/* ── 견적서 아이템 테이블 ── */
+
+.itemsTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-top: 12px;
+}
+.itemsTable th {
+  text-align: left;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  border-bottom: 1px solid var(--color-border);
+}
+.itemsTable td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #f3f4f6;
+  vertical-align: middle;
+}
+.itemsTable input {
+  width: 100%;
+  padding: 5px 8px;
+  font-size: 13px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  outline: none;
+}
+.itemsTable input:focus {
+  border-color: var(--color-primary);
+}
+
+/* ── 합계 영역 ── */
+
+.totalArea {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+}
+.totalRow {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  font-size: 13px;
+}
+.totalLabel {
+  color: var(--color-text-secondary);
+  min-width: 60px;
+  text-align: right;
+}
+.totalValue {
+  font-weight: 600;
+  color: var(--color-text-primary);
+  min-width: 100px;
+  text-align: right;
+}
+.totalGrand {
+  font-size: 15px;
+  color: var(--color-primary);
+}
+
+/* ── 액션 ── */
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}

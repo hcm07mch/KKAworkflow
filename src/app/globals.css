@@ -1,0 +1,225 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================================
+   Custom Utility Classes (brand colors for inline usage)
+   ============================================================================ */
+
+.text-brand        { color: var(--color-primary); }
+.hover\:text-brand:hover { color: var(--color-primary-hover); }
+.text-accent       { color: var(--color-secondary); }
+.border-brand      { border-color: var(--color-primary); }
+
+/* ============================================================================
+   Design Tokens
+   ============================================================================ */
+
+:root {
+  /* Brand */
+  --color-primary: #13264E;
+  --color-primary-hover: #0e1c3a;
+  --color-primary-light: #e8ecf3;
+  --color-primary-ring: rgba(19, 38, 78, 0.15);
+  --color-secondary: #dc3d2a;
+  --color-secondary-hover: #b8321f;
+  --color-secondary-light: #fdeae8;
+
+  /* Neutral */
+  --color-bg: #f8f9fb;
+  --color-surface: #ffffff;
+  --color-border: #e5e7eb;
+  --color-text-primary: #111827;
+  --color-text-secondary: #6b7280;
+  --color-text-muted: #9ca3af;
+  --radius: 12px;
+  --shadow-card: 0 1px 4px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(0, 0, 0, 0.02);
+}
+
+/* ============================================================================
+   Base
+   ============================================================================ */
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  font-family: 'Pretendard Variable', -apple-system, BlinkMacSystemFont, system-ui,
+    'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ============================================================================
+   Layout
+   ============================================================================ */
+
+.page-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 32px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ============================================================================
+   Card
+   ============================================================================ */
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  box-shadow: var(--shadow-card);
+  transition: box-shadow 0.15s;
+}
+
+/* ============================================================================
+   Section Title
+   ============================================================================ */
+
+.section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+/* ============================================================================
+   Badge
+   ============================================================================ */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 500;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.badge-sm { font-size: 11px; padding: 2px 8px; }
+.badge-md { font-size: 12px; padding: 3px 10px; }
+
+.badge-gray    { background: #f3f4f6; color: #4b5563; }
+.badge-blue    { background: var(--color-primary-light); color: var(--color-primary); }
+.badge-red     { background: #fee2e2; color: #b91c1c; }
+.badge-indigo  { background: #e0e7ff; color: #4338ca; }
+.badge-emerald { background: #d1fae5; color: #047857; }
+.badge-yellow  { background: #fef9c3; color: #a16207; }
+.badge-orange  { background: #ffedd5; color: #c2410c; }
+.badge-green   { background: #dcfce7; color: #15803d; }
+.badge-pink    { background: #fce7f3; color: #be185d; }
+.badge-slate   { background: #f1f5f9; color: #475569; }
+
+/* ============================================================================
+   Buttons
+   ============================================================================ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 500;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+  white-space: nowrap;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.btn-sm { font-size: 12px; padding: 5px 12px; }
+.btn-md { font-size: 13px; padding: 7px 16px; }
+
+.btn-primary {
+  background: var(--color-primary);
+  color: #fff;
+}
+.btn-primary:hover:not(:disabled) { background: var(--color-primary-hover); }
+
+.btn-secondary {
+  background: #fff;
+  color: #374151;
+  border-color: #d1d5db;
+}
+.btn-secondary:hover:not(:disabled) { background: #f9fafb; border-color: #9ca3af; }
+
+.btn-danger {
+  background: #fff;
+  color: var(--color-secondary);
+  border-color: #f0a8a1;
+}
+.btn-danger:hover:not(:disabled) { background: var(--color-secondary-light); border-color: var(--color-secondary); }
+
+.btn-ghost {
+  background: transparent;
+  color: #6b7280;
+}
+.btn-ghost:hover:not(:disabled) { background: #f3f4f6; }
+
+/* ============================================================================
+   Data Table
+   ============================================================================ */
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.data-table th {
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  border-bottom: 1px solid var(--color-border);
+}
+.data-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f3f4f6;
+  vertical-align: middle;
+}
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.data-table tbody tr:hover {
+  background: #fafbfc;
+}
+
+/* ============================================================================
+   Utility
+   ============================================================================ */
+
+dt { font-size: 12px; }
+dd { font-size: 14px; }
+
+a { text-decoration: none; color: inherit; }
+a:hover { color: var(--color-primary); }
+
+/* ============================================================================
+   Form Input (shared across pages)
+   ============================================================================ */
+
+.form-input {
+  width: 100%;
+  padding: 9px 12px;
+  font-size: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  outline: none;
+  transition: border-color 0.15s;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+}
+.form-input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-ring);
+}
+.form-input::placeholder {
+  color: var(--color-text-muted);
+}

@@ -1,0 +1,156 @@
+/* WorkflowProgress styles */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.serviceLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+  padding: 3px 10px;
+  border-radius: 4px;
+}
+
+.cancelledBanner {
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 14px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+/* ── 타임라인 ── */
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: relative;
+}
+
+.step {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  position: relative;
+  padding-bottom: 24px;
+}
+.step:last-child {
+  padding-bottom: 0;
+}
+
+/* 커넥터 라인 */
+.connector {
+  position: absolute;
+  left: 15px;
+  top: -12px;
+  width: 2px;
+  height: 12px;
+  background: var(--color-border);
+}
+.connectorFilled {
+  background: var(--color-primary);
+}
+
+/* 노드 원형 */
+.node {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 700;
+  border: 2px solid var(--color-border);
+  background: #fff;
+  color: var(--color-text-muted);
+  transition: all 0.2s;
+}
+
+/* 완료 */
+.done .node {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+/* 활성 */
+.active .node {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  box-shadow: 0 0 0 4px var(--color-primary-ring);
+}
+
+/* 반려 */
+.rejected .node {
+  border-color: var(--color-secondary);
+  color: var(--color-secondary);
+  background: var(--color-secondary-light);
+}
+
+/* 아이콘 */
+.checkIcon {
+  width: 16px;
+  height: 16px;
+}
+.rejectIcon {
+  width: 14px;
+  height: 14px;
+}
+.stepNumber {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 라벨 그룹 */
+.labelGroup {
+  display: flex;
+  flex-direction: column;
+  padding-top: 4px;
+}
+.label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+.description {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-top: 1px;
+}
+
+.done .label,
+.active .label {
+  color: var(--color-text-primary);
+}
+.rejected .label {
+  color: var(--color-secondary);
+}
+
+/* 계약 유지 루프 힌트 */
+.loopHint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 16px;
+  padding: 10px 14px;
+  background: #f0f9ff;
+  color: #0369a1;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 6px;
+  border: 1px solid #bae6fd;
+}
+.loopIcon {
+  flex-shrink: 0;
+  color: #0284c7;
+}
