@@ -6,7 +6,8 @@
 .appLayout {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
 /* ============================================================================
@@ -53,18 +54,12 @@
   display: flex;
   flex: 1;
   min-height: 0;
-  --sidebar-expand: 0px;
 }
 
-.bodyArea:has(aside:hover) {
-  --sidebar-expand: 166px;
-}
-
-/* Spacer pushes main content right to match sidebar width */
+/* Spacer pushes main content right to match collapsed sidebar width */
 .sidebarSpacer {
-  width: calc(54px + var(--sidebar-expand, 0px));
+  width: 54px;
   flex-shrink: 0;
-  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .appMain {
@@ -84,6 +79,7 @@
   left: 0;
   width: 54px;
   height: calc(100vh - 48px);
+  padding-top: 4px;
   background: var(--color-surface);
   border-right: 1px solid var(--color-border);
   display: flex;

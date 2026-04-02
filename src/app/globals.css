@@ -96,6 +96,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  padding: 24px 28px 40px;
 }
 
 /* ============================================================================
@@ -256,4 +257,42 @@ a:hover { color: var(--color-primary); }
 }
 .form-input::placeholder {
   color: var(--color-text-muted);
+}
+
+/* ============================================================================
+   Print — 가이드 PDF 출력 시 레이아웃 크롬 숨기기
+   ============================================================================ */
+
+@media print {
+  body {
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* 사이드바, 탑바, 사이드바 스페이서 숨기기 */
+  nav, header,
+  [class*="topBar"],
+  [class*="sidebar"],
+  [class*="sidebarSpacer"] {
+    display: none !important;
+  }
+
+  /* 메인 영역 전체 너비 */
+  [class*="appLayout"] {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  [class*="bodyArea"] {
+    display: block !important;
+  }
+
+  [class*="appMain"] {
+    overflow: visible !important;
+  }
+
+  * {
+    box-shadow: none !important;
+  }
 }

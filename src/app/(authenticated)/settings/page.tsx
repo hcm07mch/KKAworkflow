@@ -1,32 +1,29 @@
 'use client';
 
-import { useState } from 'react';
-import { LuBuilding2, LuUsers, LuShieldCheck } from 'react-icons/lu';
+import { useEffect, useState } from 'react';
+import { LuBuilding2, LuUsers, LuShieldCheck, LuLoader } from 'react-icons/lu';
 import { ActionButton } from '@/components/ui';
 import type { UserRole } from '@/lib/domain/types';
 import { USER_ROLE_META } from '@/lib/domain/types';
 import panel from '../panel-layout.module.css';
 
-// ── Mock Data ────────────────────────────────────────────
+// ── Types ────────────────────────────────────────────────
 
-const MOCK_ORG = { id: 'org1', name: 'KKA 마케팅', slug: 'kka-marketing', createdAt: '2026-01-05' };
+interface OrgInfo {
+  id: string;
+  name: string;
+  slug: string;
+  created_at: string;
+}
 
 interface MemberItem {
   id: string;
   name: string;
   email: string;
   role: UserRole;
-  isActive: boolean;
-  joinedAt: string;
+  is_active: boolean;
+  created_at: string;
 }
-
-const MOCK_MEMBERS: MemberItem[] = [
-  { id: 'u3', name: '박대표', email: 'park@kka.co.kr', role: 'admin', isActive: true, joinedAt: '2026-01-05' },
-  { id: 'u1', name: '김민수', email: 'kim@kka.co.kr', role: 'manager', isActive: true, joinedAt: '2026-01-10' },
-  { id: 'u2', name: '이지현', email: 'lee@kka.co.kr', role: 'member', isActive: true, joinedAt: '2026-02-01' },
-  { id: 'u4', name: '최영지', email: 'choi@kka.co.kr', role: 'member', isActive: true, joinedAt: '2026-03-01' },
-  { id: 'u5', name: '한세영', email: 'han@kka.co.kr', role: 'member', isActive: false, joinedAt: '2026-02-15' },
-];
 
 const ROLE_BADGE: Record<UserRole, string> = { admin: 'badge-red', manager: 'badge-blue', member: 'badge-green' };
 
@@ -50,8 +47,31 @@ function formatDate(d: string) {
 // ── Page ─────────────────────────────────────────────────
 
 export default function SettingsPage() {
+  const [org, setOrg] = useState<OrgInfo | null>(null);
+  const [members, setMembers] = useState<MemberItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeSection, setActiveSection] = useState<SettingsSection>('org');
-  const [orgName, setOrgName] = useState(MOCK_ORG.name);
+  const [orgName, setOrgName] = useState('');
+
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/settings/org').then((r) => r.json()),
+      fetch('/api/settings/members').then((r) => r.json()),
+    ]).then(([orgData, membersData]) => {
+      setOrg(orgData);
+      setOrgName(orgData.name ?? '');
+      setMembers(membersData ?? []);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className={panel.wrapper} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <LuLoader size={24} className="spin" />
+      </div>
+    );
+  }
 
   return (
     <div className={panel.wrapper}>
@@ -76,7 +96,7 @@ export default function SettingsPage() {
       {/* ── Right Panel ── */}
       <div className={panel.rightPanel}>
         {/* 조직 정보 */}
-        {activeSection === 'org' && (
+        {activeSection === 'org' && org && (
           <>
             <div className={panel.detailHeader}>
               <div className={panel.detailTitle}>조직 정보</div>
@@ -89,11 +109,11 @@ export default function SettingsPage() {
                 </div>
                 <div className={panel.detailField}>
                   <span className={panel.fieldLabel}>슬러그</span>
-                  <span className={panel.fieldValue}>{MOCK_ORG.slug}</span>
+                  <span className={panel.fieldValue}>{org.slug}</span>
                 </div>
                 <div className={panel.detailField}>
                   <span className={panel.fieldLabel}>생성일</span>
-                  <span className={panel.fieldValue}>{formatDate(MOCK_ORG.createdAt)}</span>
+                  <span className={panel.fieldValue}>{formatDate(org.created_at)}</span>
                 </div>
               </div>
               <div style={{ marginTop: 16 }}>
@@ -109,7 +129,7 @@ export default function SettingsPage() {
             <div className={panel.detailHeader}>
               <div>
                 <div className={panel.detailTitle}>멤버 관리</div>
-                <div className={panel.detailSubtitle}>총 {MOCK_MEMBERS.length}명</div>
+                <div className={panel.detailSubtitle}>총 {members.length}명</div>
               </div>
               <div className={panel.detailActions}>
                 <ActionButton label="+ 멤버 초대" variant="primary" size="sm" onClick={() => alert('멤버 초대 (TODO)')} />
@@ -121,13 +141,13 @@ export default function SettingsPage() {
                   <tr><th>이름</th><th>이메일</th><th>역할</th><th>상태</th><th>가입일</th><th></th></tr>
                 </thead>
                 <tbody>
-                  {MOCK_MEMBERS.map((m) => (
+                  {members.map((m) => (
                     <tr key={m.id}>
                       <td style={{ fontWeight: 500, color: 'var(--color-text-primary)' }}>{m.name}</td>
                       <td style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>{m.email}</td>
-                      <td><span className={`badge badge-sm ${ROLE_BADGE[m.role]}`}>{USER_ROLE_META[m.role].label}</span></td>
-                      <td><span className={`badge badge-sm ${m.isActive ? 'badge-green' : 'badge-slate'}`}>{m.isActive ? '활성' : '비활성'}</span></td>
-                      <td style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{formatDate(m.joinedAt)}</td>
+                      <td><span className={`badge badge-sm ${ROLE_BADGE[m.role]}`}>{USER_ROLE_META[m.role]?.label ?? m.role}</span></td>
+                      <td><span className={`badge badge-sm ${m.is_active ? 'badge-green' : 'badge-slate'}`}>{m.is_active ? '활성' : '비활성'}</span></td>
+                      <td style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{formatDate(m.created_at)}</td>
                       <td><ActionButton label="편집" variant="ghost" onClick={() => alert(`멤버 편집: ${m.name} (TODO)`)} /></td>
                     </tr>
                   ))}

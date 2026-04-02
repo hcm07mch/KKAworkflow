@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
-import { LuBuilding2 } from 'react-icons/lu';
+import { useEffect, useState } from 'react';
+import { LuBuilding2, LuLoader, LuPlus } from 'react-icons/lu';
 import { ActionButton } from '@/components/ui';
 import { SERVICE_TYPE_META, PAYMENT_TYPE_META, CLIENT_TIER_META } from '@/lib/domain/types';
 import type { ServiceType, PaymentType, ClientTier } from '@/lib/domain/types';
 import panel from '../panel-layout.module.css';
 
-// ── Mock Data ────────────────────────────────────────────
+// ── Types ────────────────────────────────────────────────
 
 interface ClientItem {
   id: string;
@@ -24,17 +24,6 @@ interface ClientItem {
   createdAt: string;
 }
 
-const MOCK_CLIENTS: ClientItem[] = [
-  { id: 'c1', name: '(주)블루오션 마케팅', contactName: '정하린', contactEmail: 'harin@blueocean.co.kr', contactPhone: '010-1234-5678', address: '서울특별시 강남구 테헤란로 152', serviceType: 'viral_performance', paymentType: 'deposit', tier: 'loyal', projectCount: 3, isActive: true, createdAt: '2026-01-15' },
-  { id: 'c2', name: '그린텍', contactName: '최영호', contactEmail: 'yh@greentech.kr', contactPhone: '010-2345-6789', address: '서울특별시 서초구 서초대로 301', serviceType: 'performance', paymentType: 'per_invoice', tier: 'regular', projectCount: 1, isActive: true, createdAt: '2026-02-01' },
-  { id: 'c3', name: '스카이미디어', contactName: '한지수', contactEmail: 'jisu@skymedia.co.kr', contactPhone: '010-3456-7890', address: '서울특별시 마포구 월드컵북로 396', serviceType: 'viral', paymentType: 'per_invoice', tier: 'regular', projectCount: 1, isActive: true, createdAt: '2026-02-15' },
-  { id: 'c4', name: '하이브랜드', contactName: '오재민', contactEmail: 'jm@hibrand.co.kr', contactPhone: '010-4567-8901', address: '서울특별시 송파구 올림픽로 98', serviceType: 'viral_performance', paymentType: 'per_invoice', tier: 'regular', projectCount: 1, isActive: true, createdAt: '2026-03-01' },
-  { id: 'c5', name: '오렌지원', contactName: '김미래', contactEmail: 'mirae@orange.kr', contactPhone: '010-5678-9012', address: '부산광역시 해운대구 해운대로 79', serviceType: 'viral', paymentType: 'per_invoice', tier: 'regular', projectCount: 1, isActive: true, createdAt: '2026-01-20' },
-  { id: 'c6', name: '모어마케팅', contactName: '윤대건', contactEmail: 'dk@moremarketing.kr', contactPhone: '010-6789-0123', address: '서울특별시 영등포구 여의대로 115', serviceType: 'performance', paymentType: 'deposit', tier: 'loyal', projectCount: 1, isActive: true, createdAt: '2026-03-05' },
-  { id: 'c7', name: '레드스타', contactName: '강하늘', contactEmail: 'sky@redstar.kr', contactPhone: '010-7890-1234', address: '서울특별시 용산구 한남대로 300', serviceType: 'viral', paymentType: 'per_invoice', tier: 'regular', projectCount: 1, isActive: false, createdAt: '2026-02-10' },
-  { id: 'c8', name: '실버라인', contactName: '서인우', contactEmail: 'sw@silverline.kr', contactPhone: '010-8901-2345', address: '인천광역시 남동구 컨벤시아대로 165', serviceType: 'viral_performance', paymentType: 'per_invoice', tier: 'regular', projectCount: 1, isActive: false, createdAt: '2026-01-25' },
-];
-
 function formatDate(d: string) {
   return new Date(d).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
 }
@@ -42,11 +31,41 @@ function formatDate(d: string) {
 // ── Page ─────────────────────────────────────────────────
 
 export default function ClientsPage() {
+  const [clients, setClients] = useState<ClientItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<ClientItem | null>(null);
   const [showInactive, setShowInactive] = useState(false);
 
-  const filtered = MOCK_CLIENTS.filter((c) => {
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/clients').then((r) => r.json()),
+      fetch('/api/projects?limit=500').then((r) => r.json()),
+    ]).then(([clientsData, projectsRes]) => {
+      const projectCounts = new Map<string, number>();
+      for (const p of projectsRes.data ?? []) {
+        projectCounts.set(p.client_id, (projectCounts.get(p.client_id) ?? 0) + 1);
+      }
+      const items: ClientItem[] = (clientsData ?? []).map((c: any) => ({
+        id: c.id,
+        name: c.name,
+        contactName: c.contact_name,
+        contactEmail: c.contact_email,
+        contactPhone: c.contact_phone,
+        address: c.address,
+        serviceType: c.service_type,
+        paymentType: c.payment_type,
+        tier: c.tier,
+        projectCount: projectCounts.get(c.id) ?? 0,
+        isActive: c.is_active,
+        createdAt: c.created_at,
+      }));
+      setClients(items);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+
+  const filtered = clients.filter((c) => {
     if (!showInactive && !c.isActive) return false;
     if (search) {
       const q = search.toLowerCase();
@@ -55,15 +74,20 @@ export default function ClientsPage() {
     return true;
   });
 
+  if (loading) {
+    return (
+      <div className={panel.wrapper} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <LuLoader size={24} className="spin" />
+      </div>
+    );
+  }
+
   return (
     <div className={panel.wrapper}>
       {/* ── Left Panel ── */}
       <div className={panel.leftPanel}>
         <div className={panel.leftHeader}>
-          <div className={panel.leftActions}>
-            <span className={panel.leftTitle}>고객 관리</span>
-            <ActionButton label="+ 추가" variant="primary" size="sm" onClick={() => alert('새 고객사 등록 (TODO)')} />
-          </div>
+          <span className={panel.leftTitle}>고객 관리</span>
           <input
             className={panel.searchInput}
             placeholder="고객사명, 담당자 검색..."
@@ -85,6 +109,9 @@ export default function ClientsPage() {
         </div>
 
         <div className={panel.itemList}>
+          <div className={panel.addItem} onClick={() => alert('새 고객사 등록 (TODO)')}>
+            <LuPlus size={14} /> 새 고객사
+          </div>
           {filtered.map((c) => (
             <div
               key={c.id}
@@ -93,7 +120,7 @@ export default function ClientsPage() {
             >
               <span className={panel.itemName}>{c.name}</span>
               <span className={panel.itemMeta}>
-                <span>{SERVICE_TYPE_META[c.serviceType].label}</span>
+                <span>{SERVICE_TYPE_META[c.serviceType]?.label ?? '-'}</span>
                 <span>·</span>
                 <span>{c.projectCount}건</span>
                 {!c.isActive && <span className={`badge badge-sm badge-slate ${panel.itemBadge}`}>비활성</span>}
@@ -118,7 +145,7 @@ export default function ClientsPage() {
               <div>
                 <div className={panel.detailTitle}>{selected.name}</div>
                 <div className={panel.detailSubtitle}>
-                  {CLIENT_TIER_META[selected.tier].label} · {selected.isActive ? '활성' : '비활성'}
+                  {CLIENT_TIER_META[selected.tier]?.label ?? '-'} · {selected.isActive ? '활성' : '비활성'}
                 </div>
               </div>
               <div className={panel.detailActions}>
@@ -152,11 +179,11 @@ export default function ClientsPage() {
                 </div>
                 <div className={panel.detailField}>
                   <span className={panel.fieldLabel}>서비스 유형</span>
-                  <span className={panel.fieldValue}>{SERVICE_TYPE_META[selected.serviceType].label}</span>
+                  <span className={panel.fieldValue}>{SERVICE_TYPE_META[selected.serviceType]?.label ?? '-'}</span>
                 </div>
                 <div className={panel.detailField}>
                   <span className={panel.fieldLabel}>결제 방식</span>
-                  <span className={panel.fieldValue}>{PAYMENT_TYPE_META[selected.paymentType].label}</span>
+                  <span className={panel.fieldValue}>{PAYMENT_TYPE_META[selected.paymentType]?.label ?? '-'}</span>
                 </div>
                 <div className={`${panel.detailField} ${panel.detailFieldFull}`}>
                   <span className={panel.fieldLabel}>주소</span>

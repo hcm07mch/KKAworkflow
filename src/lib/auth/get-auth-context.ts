@@ -11,6 +11,7 @@
 
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/infrastructure/supabase/server';
+import { createSupabaseServiceClient } from '@/lib/infrastructure/supabase/client';
 import { createServices } from '@/lib/service-factory';
 import type { User } from '@/lib/domain/types';
 import type { UserRole } from '@/lib/domain/types';
@@ -31,6 +32,9 @@ export interface AuthContext {
   organizationId: string;
   /** 서비스 인스턴스 모음 */
   services: ReturnType<typeof createServices>;
+  /** Raw Supabase client (커스텀 쿼리용) */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any;
 }
 
 export interface AuthError {
@@ -69,9 +73,9 @@ export async function getAuthContext(): Promise<AuthResult> {
     };
   }
 
-  // 2) 앱 DB user 정보 조회 (auth_id로 연결)
-  // NOTE: @supabase/ssr v0.5.x 에서는 타입 추론이 never로 되는 경우가 있어 단언 필요
-  const { data: dbUser, error: userError } = await supabase
+  // 2) 앱 DB user 정보 조회 (service role로 RLS 우회 - 순환 참조 방지)
+  const serviceClient = createSupabaseServiceClient();
+  const { data: dbUser, error: userError } = await serviceClient
     .from('workflow_users')
     .select('*')
     .eq('auth_id', authUser.id)
@@ -105,6 +109,7 @@ export async function getAuthContext(): Promise<AuthResult> {
     role: dbUser.role as UserRole,
     organizationId: dbUser.organization_id,
     services,
+    supabase,
   };
 }
 

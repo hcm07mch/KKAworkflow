@@ -1,19 +1,18 @@
 'use client';
 
-import { useState } from 'react';
-import { LuCreditCard } from 'react-icons/lu';
+import { useEffect, useState } from 'react';
+import { LuCreditCard, LuLoader } from 'react-icons/lu';
 import { ActionButton } from '@/components/ui';
 import { SERVICE_TYPE_META } from '@/lib/domain/types';
 import type { ServiceType } from '@/lib/domain/types';
 import panel from '../panel-layout.module.css';
 
-// ── Mock Data ────────────────────────────────────────────
+// ── Types ────────────────────────────────────────────────
 
-type PaymentStatus = 'pending' | 'confirmed' | 'overdue';
+type PaymentStatus = 'pending' | 'confirmed';
 const PAYMENT_STATUS_META: Record<PaymentStatus, { label: string; badge: string }> = {
   pending:   { label: '입금 대기', badge: 'badge-yellow' },
   confirmed: { label: '입금 완료', badge: 'badge-green' },
-  overdue:   { label: '연체',     badge: 'badge-red' },
 };
 
 interface PaymentItem {
@@ -23,18 +22,8 @@ interface PaymentItem {
   serviceType: ServiceType;
   status: PaymentStatus;
   amount: number;
-  dueDate: string;
-  paidAt: string | null;
+  startDate: string | null;
 }
-
-const MOCK_PAYMENTS: PaymentItem[] = [
-  { id: 'pm1', projectTitle: '블루오션 3월 마케팅 대행', clientName: '(주)블루오션 마케팅', serviceType: 'viral_performance', status: 'confirmed', amount: 3960000, dueDate: '2026-03-14', paidAt: '2026-03-13' },
-  { id: 'pm2', projectTitle: '그린텍 브랜드 프로젝트', clientName: '그린텍', serviceType: 'performance', status: 'pending', amount: 5500000, dueDate: '2026-04-05', paidAt: null },
-  { id: 'pm3', projectTitle: '스카이미디어 SNS 대행', clientName: '스카이미디어', serviceType: 'viral', status: 'pending', amount: 2200000, dueDate: '2026-04-10', paidAt: null },
-  { id: 'pm4', projectTitle: '오렌지원 봄시즌 바이럴', clientName: '오렌지원', serviceType: 'viral', status: 'confirmed', amount: 1800000, dueDate: '2026-02-05', paidAt: '2026-02-03' },
-  { id: 'pm5', projectTitle: '모어마케팅 블로그 대행', clientName: '모어마케팅', serviceType: 'performance', status: 'confirmed', amount: 3000000, dueDate: '2026-03-30', paidAt: '2026-03-28' },
-  { id: 'pm6', projectTitle: '하이브랜드 캠페인', clientName: '하이브랜드', serviceType: 'viral_performance', status: 'overdue', amount: 4800000, dueDate: '2026-03-20', paidAt: null },
-];
 
 function formatCurrency(n: number) {
   return new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW', maximumFractionDigits: 0 }).format(n);
@@ -47,11 +36,32 @@ function formatDate(d: string | null) {
 // ── Page ─────────────────────────────────────────────────
 
 export default function PaymentsPage() {
+  const [payments, setPayments] = useState<PaymentItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<PaymentStatus | 'all'>('all');
   const [selected, setSelected] = useState<PaymentItem | null>(null);
 
-  const filtered = MOCK_PAYMENTS.filter((p) => {
+  useEffect(() => {
+    fetch('/api/projects?status=D1_payment_pending,D2_payment_confirmed&limit=200')
+      .then((r) => r.json())
+      .then((res) => {
+        const items: PaymentItem[] = (res.data ?? []).map((p: any) => ({
+          id: p.id,
+          projectTitle: p.title,
+          clientName: p.client?.name ?? '',
+          serviceType: p.service_type,
+          status: p.status === 'D2_payment_confirmed' ? 'confirmed' : 'pending',
+          amount: p.total_amount ?? 0,
+          startDate: p.start_date,
+        }));
+        setPayments(items);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const filtered = payments.filter((p) => {
     if (filter !== 'all' && p.status !== filter) return false;
     if (search) {
       const q = search.toLowerCase();
@@ -59,6 +69,14 @@ export default function PaymentsPage() {
     }
     return true;
   });
+
+  if (loading) {
+    return (
+      <div className={panel.wrapper} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <LuLoader size={24} className="spin" />
+      </div>
+    );
+  }
 
   return (
     <div className={panel.wrapper}>
@@ -72,7 +90,6 @@ export default function PaymentsPage() {
             <button type="button" className={`${panel.filterTab} ${filter === 'all' ? panel.filterTabActive : ''}`} onClick={() => setFilter('all')}>전체</button>
             <button type="button" className={`${panel.filterTab} ${filter === 'pending' ? panel.filterTabActive : ''}`} onClick={() => setFilter('pending')}>대기</button>
             <button type="button" className={`${panel.filterTab} ${filter === 'confirmed' ? panel.filterTabActive : ''}`} onClick={() => setFilter('confirmed')}>완료</button>
-            <button type="button" className={`${panel.filterTab} ${filter === 'overdue' ? panel.filterTabActive : ''}`} onClick={() => setFilter('overdue')}>연체</button>
           </div>
         </div>
         <div className={panel.itemList}>
@@ -86,6 +103,9 @@ export default function PaymentsPage() {
               </span>
             </div>
           ))}
+          {filtered.length === 0 && (
+            <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>입금 건이 없습니다.</div>
+          )}
         </div>
         <div className={panel.leftFooter}>{filtered.length}건</div>
       </div>
@@ -109,10 +129,9 @@ export default function PaymentsPage() {
             <div className="card">
               <div className={panel.detailGrid}>
                 <div className={panel.detailField}><span className={panel.fieldLabel}>상태</span><span className={panel.fieldValue}><span className={`badge badge-sm ${PAYMENT_STATUS_META[selected.status].badge}`}>{PAYMENT_STATUS_META[selected.status].label}</span></span></div>
-                <div className={panel.detailField}><span className={panel.fieldLabel}>서비스 유형</span><span className={panel.fieldValue}>{SERVICE_TYPE_META[selected.serviceType].label}</span></div>
+                <div className={panel.detailField}><span className={panel.fieldLabel}>서비스 유형</span><span className={panel.fieldValue}>{SERVICE_TYPE_META[selected.serviceType]?.label ?? '-'}</span></div>
                 <div className={panel.detailField}><span className={panel.fieldLabel}>금액</span><span className={panel.fieldValue}>{formatCurrency(selected.amount)}</span></div>
-                <div className={panel.detailField}><span className={panel.fieldLabel}>입금 기한</span><span className={panel.fieldValue}>{formatDate(selected.dueDate)}</span></div>
-                <div className={panel.detailField}><span className={panel.fieldLabel}>입금일</span><span className={panel.fieldValue}>{formatDate(selected.paidAt)}</span></div>
+                <div className={panel.detailField}><span className={panel.fieldLabel}>시작일</span><span className={panel.fieldValue}>{formatDate(selected.startDate)}</span></div>
               </div>
             </div>
           </>

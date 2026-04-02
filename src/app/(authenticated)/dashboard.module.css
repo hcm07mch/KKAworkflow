@@ -1,330 +1,414 @@
 /* ============================================================================
-   Dashboard (Overview) - scoped via CSS Module
+   Dashboard - Overview (operational metrics)
    ============================================================================ */
+
+.pageHeader {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
 
 .pageTitle {
   font-size: 20px;
   font-weight: 700;
   color: var(--color-text-primary);
-  margin-bottom: 4px;
 }
 
-/* ── KPI Cards Row ── */
-
-.kpiRow {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
+.pageDate {
+  font-size: 12px;
+  color: var(--color-text-muted);
 }
 
-.kpiCard {
+/* -- Stat Strip (inline, not cards) -- */
+
+.statStrip {
+  display: flex;
+  align-items: center;
+  gap: 0;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  padding: 20px 22px;
-  box-shadow: var(--shadow-card);
+  padding: 18px 0;
 }
 
-.kpiHighlight {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: #fff;
-}
-
-.kpiHighlight .kpiHeader {
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.kpiHighlight .kpiValue {
-  color: #fff;
-}
-
-.kpiHighlight .kpiSub {
-  color: rgba(255, 255, 255, 0.6);
-}
-
-.kpiHeader {
+.statItem {
+  flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
+  gap: 2px;
+}
+
+.statLabel {
+  font-size: 11px;
   font-weight: 500;
   color: var(--color-text-muted);
-  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
-.kpiValue {
-  font-size: 26px;
+.statValue {
+  font-size: 28px;
   font-weight: 800;
   color: var(--color-text-primary);
   line-height: 1.2;
-  margin-bottom: 6px;
   letter-spacing: -0.02em;
 }
 
-.kpiSub {
+.statWarn {
+  color: var(--color-secondary);
+}
+
+.statSub {
   font-size: 11px;
   color: var(--color-text-muted);
 }
 
-.detailLink {
-  font-size: 11px;
-  color: var(--color-text-muted);
-  margin-left: auto;
-  white-space: nowrap;
-}
-.detailLink:hover {
-  color: var(--color-primary);
-  text-decoration: underline;
+.statDivider {
+  width: 1px;
+  height: 40px;
+  background: var(--color-border);
+  flex-shrink: 0;
 }
 
-/* ── Charts Row ── */
-
-.chartsRow {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 16px;
+.trendSvg {
+  width: 100px;
+  height: 32px;
+  margin-top: 2px;
 }
 
-.chartCard {
+/* -- Section headers -- */
+
+.section {
   display: flex;
   flex-direction: column;
-  min-height: 260px;
+  gap: 10px;
 }
 
-.chartHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 20px;
-}
-
-.chartTitleArea {
+.sectionHeader {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
-.chartSelect {
-  font-size: 12px;
-  padding: 4px 10px;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  background: var(--color-surface);
-  color: var(--color-text-secondary);
-  cursor: pointer;
-}
-
-/* Bar Chart */
-.barChart {
+.sectionTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text-primary);
   display: flex;
-  align-items: flex-end;
-  justify-content: space-around;
-  flex: 1;
-  padding: 0 8px;
-  gap: 12px;
-}
-
-.barCol {
-  display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 8px;
-  flex: 1;
 }
 
-.barTrack {
-  width: 100%;
-  max-width: 48px;
-  height: 140px;
-  background: #f3f4f6;
-  border-radius: 6px 6px 0 0;
-  display: flex;
-  align-items: flex-end;
-  overflow: hidden;
-}
-
-.bar {
-  width: 100%;
-  background: var(--color-primary);
-  border-radius: 6px 6px 0 0;
-  transition: height 0.4s ease;
-  min-height: 8px;
-}
-
-.barLabel {
-  font-size: 11px;
+.sectionSub {
+  font-size: 12px;
   color: var(--color-text-muted);
 }
 
-/* Line chart placeholder */
-.chartPlaceholder {
-  flex: 1;
-  display: flex;
-  align-items: flex-end;
-  padding: 0 4px;
-}
-
-.lineChartSvg {
-  width: 100%;
-  height: auto;
-}
-
-/* Donut Chart */
-.donutWrapper {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex: 1;
-}
-
-.donutLegend {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.sectionLink {
+  margin-left: auto;
   font-size: 12px;
-  color: var(--color-text-secondary);
-}
-
-.legendItem {
+  color: var(--color-text-muted);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 3px;
   white-space: nowrap;
 }
 
-.legendDot {
+.sectionLink:hover {
+  color: var(--color-primary);
+}
+
+/* -- Pipeline Dot Grid -- */
+
+.pipelineCard {
+  padding: 0;
+  overflow: hidden;
+}
+
+.dotGrid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+}
+
+.dotCell {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--color-border);
+}
+
+.dotCell:last-child {
+  border-right: none;
+}
+
+.dotCellHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg);
+}
+
+.dotCellKey {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dotCellLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.dotCellCount {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--color-text-primary);
+}
+
+.dotCellBody {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  align-content: flex-start;
+  gap: 5px;
+  padding: 12px;
+  min-height: 72px;
+}
+
+.dotCellEmpty {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.dot {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  flex-shrink: 0;
+  display: inline-block;
+  cursor: default;
+  transition: transform 0.15s;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.6);
 }
 
-.donutSvgWrap {
-  position: relative;
-  width: 110px;
-  height: 110px;
-  flex-shrink: 0;
+.dot:hover {
+  transform: scale(1.7);
+  z-index: 2;
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.9), 0 2px 6px rgba(0,0,0,0.2);
 }
 
-.donutSvg {
+/* -- Two Column Layout -- */
+
+.twoCol {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.rightStack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* -- Table -- */
+
+.table {
   width: 100%;
-  height: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
 }
 
-.donutCenter {
-  position: absolute;
-  inset: 0;
+.table thead th {
+  padding: 10px 16px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.table tbody td {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--color-table-border);
+  color: var(--color-text-secondary);
+}
+
+.table tbody tr:hover {
+  background: var(--color-table-row-hover);
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.alignRight {
+  text-align: right;
+}
+
+.cellBold {
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.cellWarn {
+  color: #f59e0b;
+  font-weight: 600;
+}
+
+.cellDanger {
+  color: var(--color-secondary);
+  font-weight: 600;
+}
+
+/* -- Ratio Bar (estimate approve/reject) -- */
+
+.ratioBar {
+  display: flex;
+  height: 28px;
+  border-radius: 6px;
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.ratioApproved {
+  background: var(--color-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: width 0.4s ease;
+}
+
+.ratioRejected {
+  background: var(--color-secondary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: width 0.4s ease;
+  min-width: 32px;
+}
+
+.ratioMeta {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+/* -- Queue Row (execution waiting) -- */
+
+.queueRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--color-table-border);
+}
+
+.queueRow:last-child {
+  border-bottom: none;
+}
+
+.queueInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.queueClient {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.queueProject {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.queueRight {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #f59e0b;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* -- Renewal Grid -- */
+
+.renewalGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+
+.renewalStat {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  gap: 2px;
 }
 
-.donutTotal {
+.renewalNum {
   font-size: 22px;
   font-weight: 800;
   color: var(--color-text-primary);
   line-height: 1;
 }
 
-.donutLabel {
+.renewalLabel {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.renewalTrend {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.renewalTrendLabel {
   font-size: 10px;
   color: var(--color-text-muted);
-  margin-top: 2px;
 }
 
-/* ── Bottom Lists Row ── */
-
-.listsRow {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 16px;
-}
-
-.listCard {
-  display: flex;
-  flex-direction: column;
-}
-
-.listHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-
-.listItem {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 0;
-  border-top: 1px solid #f3f4f6;
-}
-
-.listItem:first-of-type {
-  border-top: none;
-}
-
-.listItemInfo {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.listItemTitle {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--color-text-primary);
-}
-
-.listItemDesc {
-  font-size: 12px;
-  color: var(--color-text-secondary);
-}
-
-.listItemTime {
-  font-size: 11px;
-  color: var(--color-text-muted);
-}
-
-.listItemAmount {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--color-text-primary);
-  white-space: nowrap;
-  margin-left: 12px;
-}
-
-/* Priority Badge */
-.priorityBadge {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 3px 10px;
-  border-radius: 4px;
-  white-space: nowrap;
-  margin-left: 12px;
-}
-
-.priorityUrgent {
-  background: #fee2e2;
-  color: var(--color-secondary);
-}
-
-.priorityNormal {
-  background: #f3f4f6;
-  color: var(--color-text-secondary);
-}
-
-/* ── Responsive ── */
+/* -- Responsive -- */
 
 @media (max-width: 1024px) {
-  .kpiRow {
-    grid-template-columns: repeat(2, 1fr);
+  .statStrip {
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 14px;
   }
-  .chartsRow,
-  .listsRow {
+  .statDivider {
+    display: none;
+  }
+  .statItem {
+    min-width: 120px;
+  }
+  .twoCol {
     grid-template-columns: 1fr;
   }
 }

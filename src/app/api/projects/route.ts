@@ -11,19 +11,48 @@ export async function GET(request: NextRequest) {
   const auth = await getAuthContext();
   if (!auth.success) return auth.response;
 
-  const { services, organizationId } = auth;
+  const { supabase, organizationId } = auth;
   const { searchParams } = request.nextUrl;
 
-  const result = await services.projectRepo.findByOrganizationId(
-    organizationId,
-    {},
-    {
-      page: Number(searchParams.get('page') ?? 1),
-      limit: Number(searchParams.get('limit') ?? 20),
-    },
-  );
+  const page = Number(searchParams.get('page') ?? 1);
+  const limit = Number(searchParams.get('limit') ?? 100);
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+  const status = searchParams.get('status');
+  const search = searchParams.get('search');
 
-  return NextResponse.json(result);
+  let query = supabase
+    .from('workflow_projects')
+    .select(
+      '*, client:workflow_clients(id, name), owner:workflow_users!workflow_projects_owner_id_fkey(id, name)',
+      { count: 'exact' },
+    )
+    .eq('organization_id', organizationId);
+
+  if (status) {
+    query = query.in('status', status.split(','));
+  }
+  if (search) {
+    query = query.or(`title.ilike.%${search}%,code.ilike.%${search}%`);
+  }
+
+  const { data, count, error } = await query
+    .order('created_at', { ascending: false })
+    .range(from, to);
+
+  if (error) {
+    return NextResponse.json(
+      { error: { code: 'DB_ERROR', message: error.message } },
+      { status: 500 },
+    );
+  }
+
+  return NextResponse.json({
+    data: data ?? [],
+    total: count ?? 0,
+    page,
+    limit,
+  });
 }
 
 export async function POST(request: NextRequest) {

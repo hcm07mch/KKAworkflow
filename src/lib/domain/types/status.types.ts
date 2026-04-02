@@ -10,65 +10,98 @@
 // ============================================================================
 
 export const PROJECT_STATUSES = [
-  'draft',
-  'quoted',
-  'rejected',
-  'contracted',
-  'paid',
-  'running',
-  'paused',
-  'completed',
-  'refunded',
-  'cancelled',
+  'A_sales',
+  'B1_estimate_draft',
+  'B2_estimate_review',
+  'B3_estimate_sent',
+  'B4_estimate_response',
+  'C1_contract_draft',
+  'C2_contract_review',
+  'C3_contract_sent',
+  'C4_contract_signed',
+  'D1_payment_pending',
+  'D2_payment_confirmed',
+  'E1_prereport_draft',
+  'E2_prereport_review',
+  'E3_prereport_sent',
+  'E4_execution',
+  'F1_refund',
+  'F2_closed',
 ] as const;
 
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 
+/** 상태 그룹 (단계 헤더용) */
+export const PROJECT_STATUS_GROUPS: { key: string; label: string; statuses: ProjectStatus[] }[] = [
+  { key: 'A', label: '영업', statuses: ['A_sales'] },
+  { key: 'B', label: '견적', statuses: ['B1_estimate_draft', 'B2_estimate_review', 'B3_estimate_sent', 'B4_estimate_response'] },
+  { key: 'C', label: '계약', statuses: ['C1_contract_draft', 'C2_contract_review', 'C3_contract_sent', 'C4_contract_signed'] },
+  { key: 'D', label: '입금', statuses: ['D1_payment_pending', 'D2_payment_confirmed'] },
+  { key: 'E', label: '집행', statuses: ['E1_prereport_draft', 'E2_prereport_review', 'E3_prereport_sent', 'E4_execution'] },
+  { key: 'F', label: '종료', statuses: ['F1_refund', 'F2_closed'] },
+];
+
 export const PROJECT_STATUS_META: Record<
   ProjectStatus,
-  { label: string; color: string; description: string }
+  { label: string; shortLabel: string; color: string; description: string }
 > = {
-  draft: { label: '초안', color: 'gray', description: '작성 중인 프로젝트' },
-  quoted: { label: '견적완료', color: 'blue', description: '견적서가 발송된 상태' },
-  rejected: { label: '반려', color: 'red', description: '고객이 거절한 상태' },
-  contracted: { label: '계약완료', color: 'indigo', description: '계약서가 체결된 상태' },
-  paid: { label: '입금완료', color: 'emerald', description: '입금이 확인된 상태' },
-  running: { label: '진행중', color: 'orange', description: '작업이 진행 중인 상태' },
-  paused: { label: '일시중지', color: 'yellow', description: '일시 중지된 상태' },
-  completed: { label: '완료', color: 'green', description: '프로젝트가 완료된 상태' },
-  refunded: { label: '환불처리', color: 'pink', description: '환불 처리된 상태' },
-  cancelled: { label: '취소', color: 'slate', description: '프로젝트가 취소된 상태' },
+  A_sales:              { label: 'A. 영업',                    shortLabel: '영업',         color: 'gray',    description: '고객 미팅 및 요구사항 파악' },
+  B1_estimate_draft:    { label: 'B-1. 견적서 작성',           shortLabel: '견적 작성',     color: 'blue',    description: '견적서 초안 작성 중' },
+  B2_estimate_review:   { label: 'B-2. 견적서 내부 승인',      shortLabel: '견적 승인',     color: 'yellow',  description: '견적서 내부 검토/승인 대기' },
+  B3_estimate_sent:     { label: 'B-3. 견적서 전달',           shortLabel: '견적 전달',     color: 'indigo',  description: '고객에게 견적서 전달 완료' },
+  B4_estimate_response: { label: 'B-4. 견적서 응답 수신',      shortLabel: '견적 응답',     color: 'cyan',    description: '고객의 견적 승인/반려 응답 수신' },
+  C1_contract_draft:    { label: 'C-1. 계약서 작성',           shortLabel: '계약 작성',     color: 'blue',    description: '계약서 초안 작성 중' },
+  C2_contract_review:   { label: 'C-2. 계약서 내부 승인',      shortLabel: '계약 승인',     color: 'yellow',  description: '계약서 내부 검토/승인 대기' },
+  C3_contract_sent:     { label: 'C-3. 계약서 전달',           shortLabel: '계약 전달',     color: 'indigo',  description: '고객에게 계약서 전달 완료' },
+  C4_contract_signed:   { label: 'C-4. 계약 체결',             shortLabel: '계약 체결',     color: 'emerald', description: '양측 서명 완료, 계약 확정' },
+  D1_payment_pending:   { label: 'D-1. 입금 대기',             shortLabel: '입금 대기',     color: 'orange',  description: '고객 입금 대기 중' },
+  D2_payment_confirmed: { label: 'D-2. 입금 확인',             shortLabel: '입금 확인',     color: 'emerald', description: '입금 확인 완료' },
+  E1_prereport_draft:   { label: 'E-1. 집행 사전 보고서 작성',  shortLabel: '보고서 작성',   color: 'blue',    description: '집행 사전 보고서 작성 중' },
+  E2_prereport_review:  { label: 'E-2. 집행 사전 보고서 승인',  shortLabel: '보고서 승인',   color: 'yellow',  description: '사전 보고서 내부 검토/승인 대기' },
+  E3_prereport_sent:    { label: 'E-3. 집행 사전 보고서 전달',  shortLabel: '보고서 전달',   color: 'indigo',  description: '고객에게 사전 보고서 전달 완료' },
+  E4_execution:         { label: 'E-4. 바이럴 및 광고 집행',    shortLabel: '집행',          color: 'green',   description: '바이럴 및 광고 마케팅 집행 중' },
+  F1_refund:            { label: 'F-1. 환불 처리',              shortLabel: '환불',          color: 'red',     description: '고객 환불 처리 진행 중' },
+  F2_closed:            { label: 'F-2. 프로젝트 종료',           shortLabel: '종료',          color: 'gray',    description: '프로젝트 완료 또는 종결' },
 };
 
 /**
- * 프로젝트 상태 전환 맵
+ * 기본 상태 전환 맵
  *
  * key: 현재 상태, value: 전환 가능한 상태 목록
- * 계약 기반(contracted) 경로와 바이럴(quoted→paid) 경로가 나뉨.
+ * 프로젝트 서비스 유형에 따라 일부 단계는 건너뛸 수 있음.
+ * (예: 바이럴은 C단계 생략, B4 → D1)
  */
 export const PROJECT_STATUS_TRANSITIONS: Record<ProjectStatus, ProjectStatus[]> = {
-  draft: ['quoted', 'cancelled'],
-  quoted: ['contracted', 'paid', 'rejected', 'cancelled'],
-  rejected: ['quoted', 'cancelled'],
-  contracted: ['paid', 'cancelled'],
-  paid: ['running', 'refunded', 'cancelled'],
-  running: ['paused', 'completed', 'cancelled'],
-  paused: ['running', 'cancelled'],
-  completed: [],
-  refunded: [],
-  cancelled: [],
+  A_sales:              ['B1_estimate_draft'],
+  B1_estimate_draft:    ['B2_estimate_review'],
+  B2_estimate_review:   ['B3_estimate_sent', 'B1_estimate_draft'],       // 반려 시 B1로 복귀
+  B3_estimate_sent:     ['B4_estimate_response'],
+  B4_estimate_response: ['C1_contract_draft', 'D1_payment_pending', 'A_sales'],  // 거절 시 A로, 바이럴은 D1로 직행
+  C1_contract_draft:    ['C2_contract_review'],
+  C2_contract_review:   ['C3_contract_sent', 'C1_contract_draft'],       // 반려 시 C1로 복귀
+  C3_contract_sent:     ['C4_contract_signed'],
+  C4_contract_signed:   ['D1_payment_pending'],
+  D1_payment_pending:   ['D2_payment_confirmed'],
+  D2_payment_confirmed: ['E1_prereport_draft', 'E4_execution'],          // 바이럴은 E4 직행 가능
+  E1_prereport_draft:   ['E2_prereport_review'],
+  E2_prereport_review:  ['E3_prereport_sent', 'E1_prereport_draft'],     // 반려 시 E1로 복귀
+  E3_prereport_sent:    ['E4_execution'],
+  E4_execution:         ['E1_prereport_draft', 'F1_refund', 'F2_closed'],  // E1 루프, 환불, 또는 종료
+  F1_refund:            ['F2_closed'],                                     // 환불 → 종료
+  F2_closed:            [],                                                // 최종 상태 (전환 불가)
 };
 
 /**
  * 상태 전환 시 필요한 최소 역할
  */
 export const PROJECT_TRANSITION_REQUIRED_ROLE: Partial<Record<ProjectStatus, UserRole>> = {
-  contracted: 'manager',
-  paid: 'manager',
-  running: 'manager',
-  completed: 'manager',
-  refunded: 'admin',
-  cancelled: 'admin',
+  B2_estimate_review:   'manager',
+  C2_contract_review:   'manager',
+  C4_contract_signed:   'manager',
+  D2_payment_confirmed: 'manager',
+  E2_prereport_review:  'manager',
+  F1_refund:            'manager',
+  F2_closed:            'manager',
 };
 
 // ============================================================================
@@ -132,25 +165,25 @@ export const DOCUMENT_TYPE_META: Record<
   estimate: {
     label: '견적서',
     description: '고객에게 보내는 견적서',
-    allowedProjectStatuses: ['draft', 'quoted', 'rejected'],
+    allowedProjectStatuses: ['B1_estimate_draft', 'B2_estimate_review', 'B3_estimate_sent'],
     allowedServiceTypes: null,
   },
   contract: {
     label: '계약서',
     description: '계약 체결을 위한 계약서',
-    allowedProjectStatuses: ['quoted', 'contracted'],
+    allowedProjectStatuses: ['C1_contract_draft', 'C2_contract_review', 'C3_contract_sent'],
     allowedServiceTypes: ['performance', 'viral_performance'],
   },
   pre_report: {
     label: '사전 보고서',
     description: '작업 시작 전 사전 보고서',
-    allowedProjectStatuses: ['paid', 'running'],
-    allowedServiceTypes: ['viral', 'viral_performance'],
+    allowedProjectStatuses: ['E1_prereport_draft', 'E2_prereport_review', 'E3_prereport_sent'],
+    allowedServiceTypes: null,
   },
   report: {
     label: '보고서',
     description: '작업 완료 후 보고서',
-    allowedProjectStatuses: ['running', 'completed'],
+    allowedProjectStatuses: ['E4_execution'],
     allowedServiceTypes: null,
   },
 };
@@ -307,8 +340,8 @@ export function getAllowedDocumentTypes(
 /**
  * 서비스 타입에 따라 프로젝트 상태 전환 경로를 필터링
  *
- * - requiresContract === true → quoted→contracted 경로 포함
- * - requiresContract === false → quoted→paid 경로 포함 (contracted 스킵)
+ * - requiresContract === true → B4→C1 경로 포함 (계약 단계 거침)
+ * - requiresContract === false → B4→D1 직행 가능 (계약 생략)
  */
 export function getProjectTransitionsForServiceType(
   currentStatus: ProjectStatus,
@@ -317,13 +350,23 @@ export function getProjectTransitionsForServiceType(
   const transitions = PROJECT_STATUS_TRANSITIONS[currentStatus] ?? [];
   const meta = SERVICE_TYPE_META[serviceType];
 
-  if (currentStatus === 'quoted') {
+  if (currentStatus === 'B4_estimate_response') {
     if (meta.requiresContract) {
-      // 계약 필요: contracted 허용, paid 직행 제외
-      return transitions.filter((s) => s !== 'paid');
+      // 계약 필요: C1 허용, D1 직행 제외
+      return transitions.filter((s) => s !== 'D1_payment_pending');
     } else {
-      // 계약 불필요: paid 직행 허용, contracted 제외
-      return transitions.filter((s) => s !== 'contracted');
+      // 계약 불필요: D1 직행 허용, C1 제외
+      return transitions.filter((s) => s !== 'C1_contract_draft');
+    }
+  }
+
+  if (currentStatus === 'D2_payment_confirmed') {
+    if (meta.requiresContract) {
+      // 계약 유형: E1 사전보고서 필수
+      return transitions.filter((s) => s !== 'E4_execution');
+    } else {
+      // 바이럴 전용: E4 직행 가능
+      return transitions;
     }
   }
 

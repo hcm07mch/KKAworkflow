@@ -17,6 +17,7 @@ const COLOR_MAP: Record<string, string> = {
   green:   'badge-green',
   pink:    'badge-pink',
   slate:   'badge-slate',
+  cyan:    'badge-blue',
 };
 
 interface StatusBadgeProps {
@@ -32,10 +33,13 @@ export function StatusBadge({ status, type, size = 'sm' }: StatusBadgeProps) {
 
   const colorClass = COLOR_MAP[meta.color] ?? 'badge-gray';
   const sizeClass = size === 'md' ? 'badge-md' : 'badge-sm';
+  const displayLabel = type === 'project'
+    ? (meta as typeof PROJECT_STATUS_META[ProjectStatus]).shortLabel
+    : meta.label;
 
   return (
     <span className={`badge ${colorClass} ${sizeClass}`} title={meta.description}>
-      {meta.label}
+      {displayLabel}
     </span>
   );
 }

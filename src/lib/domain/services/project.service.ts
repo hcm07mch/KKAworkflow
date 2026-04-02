@@ -60,14 +60,14 @@ export class ProjectService {
       };
     }
 
-    // [단계 2] 초기 상태는 반드시 draft
+    // [단계 2] 초기 상태는 반드시 A_sales
     const project = await this.projectRepo.create({
       organization_id: ctx.organizationId,
       client_id: input.client_id,
       title: input.title,
       description: input.description ?? null,
       code: input.code ?? null,
-      status: 'draft',
+      status: 'A_sales',
       owner_id: input.owner_id ?? ctx.userId,
       start_date: input.start_date ?? null,
       end_date: input.end_date ?? null,
@@ -115,8 +115,8 @@ export class ProjectService {
       };
     }
 
-    // [단계 2] 완료/취소 상태에서는 수정 불가
-    if (['completed', 'cancelled', 'refunded'].includes(existing.status)) {
+    // [단계 2] 집행/환불/종료 상태에서는 수정 불가
+    if (['E4_execution', 'F1_refund', 'F2_closed'].includes(existing.status)) {
       return {
         success: false,
         error: {
