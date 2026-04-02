@@ -296,3 +296,33 @@ a:hover { color: var(--color-primary); }
     box-shadow: none !important;
   }
 }
+
+/* ============================================================================
+   Skeleton / Loading
+   ============================================================================ */
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spin {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--color-border) 25%, var(--color-bg) 50%, var(--color-border) 75%);
+  background-size: 800px 100%;
+  animation: shimmer 1.4s ease infinite;
+  border-radius: 4px;
+}
+
+.skeleton-line { height: 12px; }
+.skeleton-line-lg { height: 18px; }
+.skeleton-line-sm { height: 8px; }
+.skeleton-block { height: 40px; border-radius: 6px; }
+.skeleton-block-lg { height: 72px; border-radius: 8px; }

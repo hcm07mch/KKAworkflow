@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { ProjectStatus } from '@/lib/domain/types';
 import { PROJECT_STATUS_META, PROJECT_STATUS_GROUPS } from '@/lib/domain/types';
@@ -106,8 +106,35 @@ export default function DashboardPage() {
 
   if (loading || !data || !data.pipeline) {
     return (
-      <div className="page-container" style={{ display: 'flex', justifyContent: 'center', paddingTop: 80 }}>
-        <LuLoader size={24} className="spin" />
+      <div className="page-container">
+        {/* Header skeleton */}
+        <div className={styles.pageHeader}>
+          <div className="skeleton skeleton-line-lg" style={{ width: 120 }} />
+          <div className="skeleton skeleton-line-sm" style={{ width: 160 }} />
+        </div>
+        {/* Stat strip skeleton */}
+        <div className={styles.statStrip}>
+          {[1,2,3,4].map((i) => (
+            <React.Fragment key={i}>
+              {i > 1 && <div className={styles.statDivider} />}
+              <div className={styles.statItem}>
+                <div className="skeleton skeleton-line-sm" style={{ width: 60 }} />
+                <div className="skeleton skeleton-line-lg" style={{ width: 48, height: 28 }} />
+                <div className="skeleton skeleton-line-sm" style={{ width: 80 }} />
+              </div>
+            </React.Fragment>
+          ))}
+        </div>
+        {/* Pipeline skeleton */}
+        <div className="skeleton skeleton-block-lg" style={{ width: '100%' }} />
+        {/* Two-col skeleton */}
+        <div className={styles.twoCol}>
+          <div className="skeleton" style={{ height: 200, borderRadius: 8 }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div className="skeleton" style={{ height: 80, borderRadius: 8 }} />
+            <div className="skeleton" style={{ height: 120, borderRadius: 8 }} />
+          </div>
+        </div>
       </div>
     );
   }

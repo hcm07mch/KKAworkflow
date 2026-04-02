@@ -67,8 +67,20 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className={panel.wrapper} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-        <LuLoader size={24} className="spin" />
+      <div className={panel.wrapper}>
+        <div className={panel.leftPanel}>
+          <div className={panel.leftHeader}>
+            <span className={panel.leftTitle}>설정</span>
+          </div>
+          <div className={panel.itemList}>
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className={panel.skeletonItem}>
+                <div className={panel.skeletonBar} style={{ width: '50%' }} />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className={panel.rightPanel} />
       </div>
     );
   }

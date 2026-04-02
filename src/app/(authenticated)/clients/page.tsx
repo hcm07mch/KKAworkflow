@@ -76,8 +76,27 @@ export default function ClientsPage() {
 
   if (loading) {
     return (
-      <div className={panel.wrapper} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-        <LuLoader size={24} className="spin" />
+      <div className={panel.wrapper}>
+        <div className={panel.leftPanel}>
+          <div className={panel.leftHeader}>
+            <span className={panel.leftTitle}>고객 관리</span>
+            <div className={panel.searchInput} style={{ opacity: 0.5 }} />
+          </div>
+          <div className={panel.itemList}>
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className={panel.skeletonItem}>
+                <div className={panel.skeletonBar} style={{ width: '60%' }} />
+                <div className={panel.skeletonBar} style={{ width: '40%', height: 8 }} />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className={panel.rightPanel}>
+          <div className={panel.emptyState}>
+            <span className={panel.emptyIcon}><LuBuilding2 size={32} /></span>
+            <span>고객사를 선택하세요</span>
+          </div>
+        </div>
       </div>
     );
   }
