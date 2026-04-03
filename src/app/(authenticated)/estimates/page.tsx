@@ -1,15 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { LuFileText, LuLoader, LuPlus } from 'react-icons/lu';
-import { StatusBadge, ActionButton } from '@/components/ui';
-import type { DocumentStatus, ServiceType } from '@/lib/domain/types';
-import { DOCUMENT_STATUS_META, SERVICE_TYPE_META } from '@/lib/domain/types';
+import { useEffect, useState, useCallback } from 'react';
+import { LuFileText, LuPlus } from 'react-icons/lu';
+import { StatusBadge } from '@/components/ui';
+import type { DocumentStatus, ServiceType, EstimateContent } from '@/lib/domain/types';
+import { SERVICE_TYPE_META } from '@/lib/domain/types';
+import { EstimateEditor } from './estimate-editor';
 import panel from '../panel-layout.module.css';
 
 // ── Types ────────────────────────────────────────────────
 
-interface EstimateItem {
+interface EstimateListItem {
   id: string;
   projectTitle: string;
   clientName: string;
@@ -18,30 +19,30 @@ interface EstimateItem {
   amount: number;
   createdAt: string;
   sentAt: string | null;
+  content: EstimateContent;
 }
+
+type RightPanelMode = 'empty' | 'new' | 'edit';
 
 function formatCurrency(n: number) {
   return new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW', maximumFractionDigits: 0 }).format(n);
-}
-function formatDate(d: string | null) {
-  if (!d) return '-';
-  return new Date(d).toLocaleDateString('ko-KR', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 // ── Page ─────────────────────────────────────────────────
 
 export default function EstimatesPage() {
-  const [estimates, setEstimates] = useState<EstimateItem[]>([]);
+  const [estimates, setEstimates] = useState<EstimateListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [selected, setSelected] = useState<EstimateItem | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [panelMode, setPanelMode] = useState<RightPanelMode>('empty');
 
   useEffect(() => {
     fetch('/api/documents?type=estimate')
       .then((r) => r.json())
       .then((docs: any[]) => {
-        const items: EstimateItem[] = docs.map((d) => {
-          const content = d.content ?? {};
+        const items: EstimateListItem[] = docs.map((d) => {
+          const content: EstimateContent = d.content ?? {};
           const amount = content.total ?? content.subtotal ?? d.project?.total_amount ?? 0;
           return {
             id: d.id,
@@ -52,6 +53,7 @@ export default function EstimatesPage() {
             amount,
             createdAt: d.created_at,
             sentAt: d.sent_at,
+            content,
           };
         });
         setEstimates(items);
@@ -61,98 +63,159 @@ export default function EstimatesPage() {
   }, []);
 
   const filtered = estimates.filter((e) => {
-    if (search) {
-      const q = search.toLowerCase();
-      return e.projectTitle.toLowerCase().includes(q) || e.clientName.toLowerCase().includes(q);
-    }
-    return true;
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return e.projectTitle.toLowerCase().includes(q) || e.clientName.toLowerCase().includes(q);
   });
 
-  if (loading) {
-    return (
-      <div className={panel.wrapper}>
-        <div className={panel.leftPanel}>
-          <div className={panel.leftHeader}>
-            <span className={panel.leftTitle}>견적서</span>
-            <div className={panel.searchInput} style={{ opacity: 0.5 }} />
-          </div>
-          <div className={panel.itemList}>
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className={panel.skeletonItem}>
-                <div className={panel.skeletonBar} style={{ width: '55%' }} />
-                <div className={panel.skeletonBar} style={{ width: '35%', height: 8 }} />
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className={panel.rightPanel}>
-          <div className={panel.emptyState}>
-            <span className={panel.emptyIcon}><LuFileText size={32} /></span>
-            <span>견적서를 선택하세요</span>
-          </div>
-        </div>
-      </div>
-    );
+  const selected = selectedId ? estimates.find((e) => e.id === selectedId) ?? null : null;
+
+  // ── Handlers ──
+
+  const handleNew = useCallback(() => {
+    setSelectedId(null);
+    setPanelMode('new');
+  }, []);
+
+  const handleSelect = useCallback((item: EstimateListItem) => {
+    setSelectedId(item.id);
+    setPanelMode('edit');
+  }, []);
+
+  const handleCancel = useCallback(() => {
+    setSelectedId(null);
+    setPanelMode('empty');
+  }, []);
+
+  const handleSaveNew = useCallback((data: EstimateContent) => {
+    // TODO: POST /api/documents → 실제 API 연결
+    const fakeId = `est_${Date.now()}`;
+    const newItem: EstimateListItem = {
+      id: fakeId,
+      projectTitle: data.project_name ?? '',
+      clientName: data.recipient?.replace(' 귀하', '') ?? '',
+      serviceType: 'viral',
+      status: 'draft',
+      amount: data.total ?? 0,
+      createdAt: new Date().toISOString(),
+      sentAt: null,
+      content: data,
+    };
+    setEstimates((prev) => [newItem, ...prev]);
+    setSelectedId(fakeId);
+    setPanelMode('edit');
+    alert('견적서가 저장되었습니다.');
+  }, []);
+
+  const handleSaveEdit = useCallback(
+    (data: EstimateContent) => {
+      if (!selectedId) return;
+      // TODO: PUT /api/documents/:id → 실제 API 연결
+      setEstimates((prev) =>
+        prev.map((e) =>
+          e.id === selectedId
+            ? {
+                ...e,
+                projectTitle: data.project_name ?? e.projectTitle,
+                clientName: data.recipient?.replace(' 귀하', '') ?? e.clientName,
+                amount: data.total ?? e.amount,
+                content: data,
+              }
+            : e,
+        ),
+      );
+      alert('견적서가 수정되었습니다.');
+    },
+    [selectedId],
+  );
+
+  // ── Left panel item active check ──
+
+  function isActive(id: string) {
+    return panelMode === 'edit' && selectedId === id;
   }
+
+  // ── Render ──
 
   return (
     <div className={panel.wrapper}>
+      {/* ══════════ Left Panel ══════════ */}
       <div className={panel.leftPanel}>
         <div className={panel.leftHeader}>
           <span className={panel.leftTitle}>견적서</span>
-          <input className={panel.searchInput} placeholder="프로젝트, 고객사 검색..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input
+            className={panel.searchInput}
+            placeholder="프로젝트, 고객사 검색..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
         <div className={panel.itemList}>
-          <div className={panel.addItem} onClick={() => alert('견적서 작성 (TODO)')}>
+          <div
+            className={`${panel.addItem} ${panelMode === 'new' ? panel.itemActive : ''}`}
+            onClick={handleNew}
+          >
             <LuPlus size={14} /> 새 견적서
           </div>
-          {filtered.map((e) => (
-            <div key={e.id} className={`${panel.item} ${selected?.id === e.id ? panel.itemActive : ''}`} onClick={() => setSelected(e)}>
-              <span className={panel.itemName}>{e.clientName}</span>
-              <span className={panel.itemMeta}>
-                <span>{formatCurrency(e.amount)}</span>
-                <span>·</span>
-                <StatusBadge status={e.status} type="document" />
-              </span>
+
+          {loading
+            ? Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className={panel.skeletonItem}>
+                  <div className={panel.skeletonBar} style={{ width: '55%' }} />
+                  <div className={panel.skeletonBar} style={{ width: '35%', height: 8 }} />
+                </div>
+              ))
+            : filtered.map((e) => (
+                <div
+                  key={e.id}
+                  className={`${panel.item} ${isActive(e.id) ? panel.itemActive : ''}`}
+                  onClick={() => handleSelect(e)}
+                >
+                  <span className={panel.itemName}>{e.clientName || e.content?.recipient || '(미지정)'}</span>
+                  <span className={panel.itemMeta}>
+                    <span>{formatCurrency(e.amount)}</span>
+                    <span>·</span>
+                    <StatusBadge status={e.status} type="document" />
+                  </span>
+                </div>
+              ))}
+
+          {!loading && filtered.length === 0 && (
+            <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>
+              견적서가 없습니다.
             </div>
-          ))}
-          {filtered.length === 0 && (
-            <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>견적서가 없습니다.</div>
           )}
         </div>
-        <div className={panel.leftFooter}>{filtered.length}건</div>
+        <div className={panel.leftFooter}>{loading ? '-' : `${filtered.length}건`}</div>
       </div>
 
-      <div className={panel.rightPanel}>
-        {!selected ? (
-          <div className={panel.emptyState}><span className={panel.emptyIcon}><LuFileText size={32} /></span><span>견적서를 선택하세요</span></div>
-        ) : (
-          <>
-            <div className={panel.detailHeader}>
-              <div>
-                <div className={panel.detailTitle}>{selected.clientName}</div>
-                <div className={panel.detailSubtitle}>{selected.projectTitle}</div>
-              </div>
-              <div className={panel.detailActions}>
-                <ActionButton label="발송" variant="primary" size="sm" onClick={() => alert('발송 (TODO)')} />
-                <ActionButton label="수정" variant="secondary" size="sm" onClick={() => alert('수정 (TODO)')} />
-              </div>
-            </div>
-            <div className="card">
-              <div className={panel.detailGrid}>
-                <div className={panel.detailField}><span className={panel.fieldLabel}>고객사</span><span className={panel.fieldValue}>{selected.clientName}</span></div>
-                <div className={panel.detailField}><span className={panel.fieldLabel}>상태</span><span className={panel.fieldValue}><StatusBadge status={selected.status} type="document" /></span></div>
-                <div className={panel.detailField}><span className={panel.fieldLabel}>서비스 유형</span><span className={panel.fieldValue}>{SERVICE_TYPE_META[selected.serviceType]?.label ?? '-'}</span></div>
-                <div className={panel.detailField}><span className={panel.fieldLabel}>금액</span><span className={panel.fieldValue}>{formatCurrency(selected.amount)}</span></div>
-                <div className={panel.detailField}><span className={panel.fieldLabel}>작성일</span><span className={panel.fieldValue}>{formatDate(selected.createdAt)}</span></div>
-                <div className={panel.detailField}><span className={panel.fieldLabel}>발송일</span><span className={panel.fieldValue}>{formatDate(selected.sentAt)}</span></div>
-              </div>
-            </div>
-            <div className={panel.detailSection}>
-              <div className={panel.detailSectionTitle}>승인 이력</div>
-              <div className="card" style={{ padding: '16px', fontSize: 13, color: 'var(--color-text-muted)' }}>승인/반려 이력이 여기에 표시됩니다.</div>
-            </div>
-          </>
+      {/* ══════════ Right Panel ══════════ */}
+      <div className={panel.rightPanel} style={{ padding: panelMode !== 'empty' ? 0 : undefined }}>
+        {panelMode === 'empty' && (
+          <div className={panel.emptyState}>
+            <span className={panel.emptyIcon}><LuFileText size={32} /></span>
+            <span>견적서를 선택하거나 새로 작성하세요</span>
+          </div>
+        )}
+
+        {panelMode === 'new' && (
+          <EstimateEditor
+            key="new"
+            mode="new"
+            onSave={handleSaveNew}
+            onCancel={handleCancel}
+          />
+        )}
+
+        {panelMode === 'edit' && selected && (
+          <EstimateEditor
+            key={selected.id}
+            mode="edit"
+            initialData={selected.content}
+            documentId={selected.id}
+            onSave={handleSaveEdit}
+            onCancel={handleCancel}
+          />
         )}
       </div>
     </div>

@@ -304,3 +304,83 @@
   background: var(--color-primary-hover);
   color: #fff;
 }
+
+/* ── Form Table (registration / edit forms) ── */
+
+.formTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.formTable th,
+.formTable td {
+  border-bottom: 1px solid var(--color-border);
+  padding: 0;
+  vertical-align: middle;
+}
+
+.formTable tr:last-child th,
+.formTable tr:last-child td {
+  border-bottom: none;
+}
+
+.formTable th {
+  width: 120px;
+  min-width: 120px;
+  max-width: 120px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-align: left;
+  padding: 10px 16px;
+  background: var(--color-bg);
+  white-space: nowrap;
+  border-right: 1px solid var(--color-border);
+}
+
+.formTable td {
+  padding: 4px 6px;
+}
+
+.formTable td input,
+.formTable td select,
+.formTable td textarea {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  font-size: 13px;
+  padding: 8px 10px;
+  width: 100%;
+  outline: none;
+  color: var(--color-text-primary);
+  font-family: inherit;
+}
+
+.formTable td input:focus,
+.formTable td select:focus,
+.formTable td textarea:focus {
+  background: var(--color-primary-light);
+}
+
+.formTable td input::placeholder,
+.formTable td textarea::placeholder {
+  color: var(--color-text-muted);
+}
+
+/* Required row accent */
+
+.formTable tr.requiredRow th {
+  position: relative;
+}
+
+.formTable tr.requiredRow th::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 25%;
+  bottom: 25%;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--color-secondary);
+}

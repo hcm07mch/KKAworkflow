@@ -52,6 +52,9 @@ export class SupabaseClientRepository implements IClientRepository {
     contact_phone?: string | null;
     address?: string | null;
     notes?: string | null;
+    service_type?: string;
+    payment_type?: string;
+    tier?: string;
     metadata?: JsonObject;
   }): Promise<Client> {
     const { data: row, error } = await this.db

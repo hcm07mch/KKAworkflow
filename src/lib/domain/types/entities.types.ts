@@ -251,20 +251,47 @@ export interface NotificationWithProject extends Notification {
  * 肄?댁?? 鍮 ?명고?댁ㅻ? ?怨, 而ㅼㅽ ??댁댁? extend.
  */
 
-/** 寃ъ? content */
+/** 견적서 content */
 export interface EstimateContent {
+  /** 기본 정보 */
+  document_number?: string;       // 문서번호 (KKA-2026-0401-001)
+  recipient?: string;             // 수신 (고객사명 귀하)
+  sender?: string;                // 발신 (자사명)
+  project_name?: string;          // 프로젝트명
+  contract_period?: string;       // 계약기간
+  issued_date?: string;           // 작성일자 (YYYY-MM-DD)
+
+  /** 상세 견적 내역 — 카테고리 기반 */
   items?: Array<{
-    name: string;
-    quantity: number;
-    unit_price: number;
-    amount: number;
-    description?: string;
+    no: number;
+    category: string;             // 카테고리 (예: 네이버 SA 대행)
+    details: Array<{
+      title: string;              // 세부 항목 제목
+      descriptions: string[];     // 세부 설명 (bullet)
+    }>;
+    unit_price: number;           // 단가 (월)
+    note?: string;                // 비고
+    options?: Array<{
+      name: string;               // 옵션명 (예: 리포트 추가 제공)
+      price: number;              // 옵션 가격
+    }>;
   }>;
-  subtotal?: number;
-  tax?: number;
-  total?: number;
-  notes?: string;
-  valid_until?: string;  // YYYY-MM-DD
+
+  /** 금액 */
+  subtotal?: number;              // 공급가액 (부가세 제외)
+  tax_rate?: number;              // 세율 (기본 10)
+  tax?: number;                   // 부가세
+  total?: number;                 // 총 결제금액 (VAT 포함)
+
+  /** 참고 사항 */
+  notes?: string[];               // 하단 참고 사항 리스트
+  valid_until?: string;           // YYYY-MM-DD
+
+  /** 회사 정보 (footer) */
+  company_name?: string;
+  company_address?: string;
+  company_representative?: string;
+
   [key: string]: unknown;
 }
 
