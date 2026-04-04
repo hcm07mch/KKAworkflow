@@ -10,8 +10,20 @@ import {
   PROJECT_STATUS_META, PROJECT_STATUS_GROUPS, PROJECT_STATUS_TRANSITIONS,
   SERVICE_TYPE_META, DOCUMENT_TYPE_META,
 } from '@/lib/domain/types';
-import { WorkflowProgress } from './[id]/components';
+import { WorkflowProgress, WorkflowBuilder } from './[id]/components';
 import panel from '../panel-layout.module.css';
+
+/** metadata.workflow_stack이 없을 때 현재 status에서 스택 추론 */
+function inferStackFromStatus(currentStatus: ProjectStatus): string[] {
+  const allStatuses = Object.keys(PROJECT_STATUS_META) as ProjectStatus[];
+  const currentIdx = allStatuses.indexOf(currentStatus);
+  const keys: string[] = [];
+  for (const group of PROJECT_STATUS_GROUPS) {
+    const hasRelevant = group.statuses.some((s) => allStatuses.indexOf(s) <= currentIdx);
+    if (hasRelevant) keys.push(group.key);
+  }
+  return keys;
+}
 
 // ── Types ────────────────────────────────────────────────
 
@@ -41,6 +53,7 @@ interface ProjectDetail {
   end_date: string | null;
   created_at: string;
   updated_at: string;
+  metadata: Record<string, any>;
   client: { id: string; name: string; contact_name: string | null };
   owner: { id: string; name: string } | null;
   documents: {
@@ -89,6 +102,17 @@ export default function ProjectsPage() {
   const [detail, setDetail] = useState<ProjectDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [manualStatuses, setManualStatuses] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    fetch('/api/settings/status-check-types')
+      .then((r) => r.json())
+      .then((rows: { status: string; check_type: string }[]) => {
+        const manual = new Set(rows.filter((r) => r.check_type === 'manual').map((r) => r.status));
+        setManualStatuses(manual);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetch('/api/projects?limit=200')
@@ -136,34 +160,7 @@ export default function ProjectsPage() {
   }, []);
 
   function handleTransition(toStatus: ProjectStatus) {
-    if (!detail) return;
-
-    // 영업 → 견적 작성: 견적서 자동 생성 + 견적서 작성 페이지 이동 안내
-    if (selected?.status === 'A_sales' && toStatus === 'B1_estimate_draft') {
-      if (!confirm('견적 단계로 전환하면 견적서가 자동 생성됩니다.\n견적서 작성 페이지로 이동하시겠습니까?')) return;
-      fetch(`/api/projects/${detail.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: toStatus }),
-      })
-        .then((r) => r.json())
-        .then(() => {
-          // 견적서 생성 후 프로젝트 상세의 문서 목록에서 견적서 ID를 가져와 이동
-          return fetch(`/api/projects/${detail.id}`).then((r) => r.json());
-        })
-        .then((proj) => {
-          const estimate = proj?.documents?.find((d: any) => d.type === 'estimate');
-          if (estimate) {
-            router.push(`/projects/${detail.id}/documents/${estimate.id}`);
-          } else {
-            // 문서 페이지가 없으면 프로젝트 상세 갱신
-            if (selected) selectProject({ ...selected, status: toStatus });
-          }
-        })
-        .catch(() => alert('상태 변경에 실패했습니다.'));
-      return;
-    }
-
+    if (!detail || !selected) return;
     const label = PROJECT_STATUS_META[toStatus]?.label ?? toStatus;
     if (!confirm(`상태를 "${label}"(으)로 변경하시겠습니까?`)) return;
     fetch(`/api/projects/${detail.id}`, {
@@ -173,9 +170,89 @@ export default function ProjectsPage() {
     })
       .then((r) => r.json())
       .then(() => {
-        if (selected) selectProject({ ...selected, status: toStatus });
+        selectProject({ ...selected, status: toStatus });
       })
       .catch(() => alert('상태 변경에 실패했습니다.'));
+  }
+
+  function handleWorkflowAdd(groupKey: string, paymentAmount?: number) {
+    if (!detail || !selected) return;
+    const saved: string[] | undefined = detail.metadata?.workflow_stack as string[] | undefined;
+    const currentStack = saved && saved.length > 0 ? saved : inferStackFromStatus(selected.status);
+    const newStack = [...currentStack, groupKey];
+    const group = PROJECT_STATUS_GROUPS.find((g) => g.key === groupKey);
+    // D 그룹: D1(입금 대기) 자동 완료 → D2 로 시작
+    const newStatus = groupKey === 'D'
+      ? 'D2_payment_confirmed' as ProjectStatus
+      : (group?.statuses[0] ?? selected.status) as ProjectStatus;
+    // 낙관적 업데이트
+    const newMeta = { ...detail.metadata, workflow_stack: newStack };
+    const newAmount = groupKey === 'D' && paymentAmount != null ? paymentAmount : selected.totalAmount;
+    setDetail((prev) => prev ? { ...prev, status: newStatus, metadata: newMeta, total_amount: newAmount } : prev);
+    setSelected((prev) => prev ? { ...prev, status: newStatus, totalAmount: newAmount } : prev);
+    setProjects((prev) => prev.map((p) => p.id === detail.id ? { ...p, status: newStatus, totalAmount: newAmount } : p));
+    const patchBody: Record<string, any> = { status: newStatus, metadata: newMeta };
+    if (groupKey === 'D' && paymentAmount != null) {
+      patchBody.total_amount = paymentAmount;
+    }
+    fetch(`/api/projects/${detail.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patchBody),
+    }).catch(() => {
+      // 실패 시 롤백
+      setDetail((prev) => prev ? { ...prev, status: selected.status, metadata: detail.metadata, total_amount: selected.totalAmount } : prev);
+      setSelected((prev) => prev ? { ...prev, status: selected.status, totalAmount: selected.totalAmount } : prev);
+      setProjects((prev) => prev.map((p) => p.id === detail.id ? { ...p, status: selected.status, totalAmount: selected.totalAmount } : p));
+      alert('상태 변경에 실패했습니다.');
+    });
+  }
+
+  function handleWorkflowDelete(index: number) {
+    if (!detail || !selected) return;
+    const saved: string[] | undefined = detail.metadata?.workflow_stack as string[] | undefined;
+    const currentStack = saved && saved.length > 0 ? saved : inferStackFromStatus(selected.status);
+    const newStack = currentStack.filter((_, i) => i !== index);
+    let newStatus: ProjectStatus = 'A_sales';
+    if (newStack.length > 0) {
+      const lastKey = newStack[newStack.length - 1];
+      const group = PROJECT_STATUS_GROUPS.find((g) => g.key === lastKey);
+      if (group) newStatus = group.statuses[0];
+    }
+    // 낙관적 업데이트
+    const newMeta = { ...detail.metadata, workflow_stack: newStack };
+    setDetail((prev) => prev ? { ...prev, status: newStatus, metadata: newMeta } : prev);
+    setSelected((prev) => prev ? { ...prev, status: newStatus } : prev);
+    setProjects((prev) => prev.map((p) => p.id === detail.id ? { ...p, status: newStatus } : p));
+    fetch(`/api/projects/${detail.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus, metadata: newMeta }),
+    }).catch(() => {
+      setDetail((prev) => prev ? { ...prev, status: selected.status, metadata: detail.metadata } : prev);
+      setSelected((prev) => prev ? { ...prev, status: selected.status } : prev);
+      setProjects((prev) => prev.map((p) => p.id === detail.id ? { ...p, status: selected.status } : p));
+      alert('상태 변경에 실패했습니다.');
+    });
+  }
+
+  function handleWorkflowStatusChange(toStatus: ProjectStatus) {
+    if (!detail || !selected) return;
+    const prevStatus = selected.status;
+    // 낙관적 업데이트
+    setDetail((prev) => prev ? { ...prev, status: toStatus } : prev);
+    setSelected((prev) => prev ? { ...prev, status: toStatus } : prev);
+    setProjects((prev) => prev.map((p) => p.id === detail.id ? { ...p, status: toStatus } : p));
+    fetch(`/api/projects/${detail.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: toStatus }),
+    }).catch(() => {
+      setDetail((prev) => prev ? { ...prev, status: prevStatus } : prev);
+      setSelected((prev) => prev ? { ...prev, status: prevStatus } : prev);
+      setProjects((prev) => prev.map((p) => p.id === detail.id ? { ...p, status: prevStatus } : p));
+      alert('상태 변경에 실패했습니다.');
+    });
   }
 
   const ownerNames = Array.from(new Set(projects.map((p) => p.ownerName).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'ko'));
@@ -225,16 +302,32 @@ export default function ProjectsPage() {
       {/* ── Left Panel ── */}
       <div className={`${panel.leftPanel} ${expanded ? panel.leftPanelExpanded : ''}`}>
         <div className={panel.leftHeader}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div className={panel.leftTitleRow}>
             <span className={panel.leftTitle}>프로젝트</span>
-            <button
-              type="button"
-              className={panel.expandBtn}
-              onClick={() => setExpanded((v) => !v)}
-              title={expanded ? '접기' : '펼치기'}
-            >
-              {expanded ? <LuPanelLeftClose size={16} /> : <LuPanelLeftOpen size={16} />}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <select
+                className={panel.sortSelect}
+                value={ownerFilter}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setOwnerFilter(v);
+                  localStorage.setItem('projects_ownerFilter', v);
+                }}
+              >
+                <option value="all">담당자: 전체</option>
+                {ownerNames.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className={panel.expandBtn}
+                onClick={() => setExpanded((v) => !v)}
+                title={expanded ? '접기' : '펼치기'}
+              >
+                {expanded ? <LuPanelLeftClose size={16} /> : <LuPanelLeftOpen size={16} />}
+              </button>
+            </div>
           </div>
           <input
             className={panel.searchInput}
@@ -242,22 +335,6 @@ export default function ProjectsPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <div className={panel.sortRow}>
-            <select
-              className={panel.sortSelect}
-              value={ownerFilter}
-              onChange={(e) => {
-                const v = e.target.value;
-                setOwnerFilter(v);
-                localStorage.setItem('projects_ownerFilter', v);
-              }}
-            >
-              <option value="all">담당자: 전체</option>
-              {ownerNames.map((name) => (
-                <option key={name} value={name}>{name}</option>
-              ))}
-            </select>
-          </div>
           {!expanded && (
             <div className={panel.filterTabs}>
               <button
@@ -429,9 +506,14 @@ export default function ProjectsPage() {
 
             {/* 워크플로우 진행 현황 */}
             <div className={panel.detailSection}>
-              <WorkflowProgress
+              <WorkflowBuilder
                 serviceType={selected.serviceType}
                 projectStatus={selected.status}
+                workflowStack={(detail?.metadata?.workflow_stack as string[]) ?? []}
+                manualStatuses={manualStatuses}
+                onAdd={handleWorkflowAdd}
+                onDelete={handleWorkflowDelete}
+                onStatusChange={handleWorkflowStatusChange}
               />
             </div>
 

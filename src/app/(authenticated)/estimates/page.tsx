@@ -14,6 +14,7 @@ interface EstimateListItem {
   id: string;
   projectTitle: string;
   clientName: string;
+  ownerName: string;
   serviceType: ServiceType;
   status: DocumentStatus;
   amount: number;
@@ -34,6 +35,12 @@ export default function EstimatesPage() {
   const [estimates, setEstimates] = useState<EstimateListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [ownerFilter, setOwnerFilter] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('estimates_ownerFilter') ?? 'all';
+    }
+    return 'all';
+  });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panelMode, setPanelMode] = useState<RightPanelMode>('empty');
 
@@ -48,6 +55,7 @@ export default function EstimatesPage() {
             id: d.id,
             projectTitle: d.project?.title ?? '',
             clientName: d.project?.client?.name ?? '',
+            ownerName: d.project?.owner?.name ?? '-',
             serviceType: d.project?.service_type ?? 'viral',
             status: d.status,
             amount,
@@ -67,7 +75,10 @@ export default function EstimatesPage() {
       .catch(() => setLoading(false));
   }, []);
 
+  const ownerNames = Array.from(new Set(estimates.map((e) => e.ownerName).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'ko'));
+
   const filtered = estimates.filter((e) => {
+    if (ownerFilter !== 'all' && e.ownerName !== ownerFilter) return false;
     if (!search) return true;
     const q = search.toLowerCase();
     return e.projectTitle.toLowerCase().includes(q) || e.clientName.toLowerCase().includes(q);
@@ -100,6 +111,7 @@ export default function EstimatesPage() {
       id: fakeId,
       projectTitle: data.project_name ?? '',
       clientName: data.recipient?.replace(' 귀하', '') ?? '',
+      ownerName: '-',
       serviceType: 'viral',
       status: 'draft',
       amount: data.total ?? 0,
@@ -148,7 +160,23 @@ export default function EstimatesPage() {
       {/* ══════════ Left Panel ══════════ */}
       <div className={panel.leftPanel}>
         <div className={panel.leftHeader}>
-          <span className={panel.leftTitle}>견적서</span>
+          <div className={panel.leftTitleRow}>
+            <span className={panel.leftTitle}>견적서</span>
+            <select
+              className={panel.sortSelect}
+              value={ownerFilter}
+              onChange={(e) => {
+                const v = e.target.value;
+                setOwnerFilter(v);
+                localStorage.setItem('estimates_ownerFilter', v);
+              }}
+            >
+              <option value="all">담당자: 전체</option>
+              {ownerNames.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+          </div>
           <input
             className={panel.searchInput}
             placeholder="프로젝트, 고객사 검색..."

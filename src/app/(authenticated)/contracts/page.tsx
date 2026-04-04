@@ -13,6 +13,7 @@ interface ContractItem {
   id: string;
   projectTitle: string;
   clientName: string;
+  ownerName: string;
   serviceType: ServiceType;
   status: DocumentStatus;
   monthlyAmount: number;
@@ -35,6 +36,12 @@ export default function ContractsPage() {
   const [contracts, setContracts] = useState<ContractItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [ownerFilter, setOwnerFilter] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('contracts_ownerFilter') ?? 'all';
+    }
+    return 'all';
+  });
   const [selected, setSelected] = useState<ContractItem | null>(null);
 
   const selectContract = useCallback((c: ContractItem) => {
@@ -54,6 +61,7 @@ export default function ContractsPage() {
             id: d.id,
             projectTitle: d.project?.title ?? '',
             clientName: d.project?.client?.name ?? '',
+            ownerName: d.project?.owner?.name ?? '-',
             serviceType: d.project?.service_type ?? 'viral',
             status: d.status,
             monthlyAmount,
@@ -73,7 +81,10 @@ export default function ContractsPage() {
       .catch(() => setLoading(false));
   }, []);
 
+  const ownerNames = Array.from(new Set(contracts.map((c) => c.ownerName).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'ko'));
+
   const filtered = contracts.filter((c) => {
+    if (ownerFilter !== 'all' && c.ownerName !== ownerFilter) return false;
     if (search) {
       const q = search.toLowerCase();
       return c.projectTitle.toLowerCase().includes(q) || c.clientName.toLowerCase().includes(q);
@@ -112,7 +123,23 @@ export default function ContractsPage() {
     <div className={panel.wrapper}>
       <div className={panel.leftPanel}>
         <div className={panel.leftHeader}>
-          <span className={panel.leftTitle}>계약서</span>
+          <div className={panel.leftTitleRow}>
+            <span className={panel.leftTitle}>계약서</span>
+            <select
+              className={panel.sortSelect}
+              value={ownerFilter}
+              onChange={(e) => {
+                const v = e.target.value;
+                setOwnerFilter(v);
+                localStorage.setItem('contracts_ownerFilter', v);
+              }}
+            >
+              <option value="all">담당자: 전체</option>
+              {ownerNames.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+          </div>
           <input className={panel.searchInput} placeholder="프로젝트, 고객사 검색..." value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <div className={panel.itemList}>

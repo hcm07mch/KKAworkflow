@@ -117,8 +117,9 @@ export class ProjectService {
       };
     }
 
-    // [단계 2] 집행/환불/종료 상태에서는 수정 불가
-    if (['E4_execution', 'F1_refund', 'F2_closed'].includes(existing.status)) {
+    // [단계 2] 집행/환불/종료 상태에서는 상태 변경 외 수정 불가
+    const isStatusOnlyUpdate = Object.keys(input).length === 1 && 'status' in input;
+    if (['E4_execution', 'F1_refund', 'F2_closed'].includes(existing.status) && !isStatusOnlyUpdate) {
       return {
         success: false,
         error: {

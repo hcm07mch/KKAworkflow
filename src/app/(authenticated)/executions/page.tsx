@@ -13,6 +13,7 @@ interface ExecItem {
   id: string;
   projectTitle: string;
   clientName: string;
+  ownerName: string;
   serviceType: ServiceType;
   projectStatus: ProjectStatus;
   startDate: string | null;
@@ -35,6 +36,12 @@ export default function ExecutionsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<string>('all');
+  const [ownerFilter, setOwnerFilter] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('executions_ownerFilter') ?? 'all';
+    }
+    return 'all';
+  });
   const [selected, setSelected] = useState<ExecItem | null>(null);
 
   const selectExecution = useCallback((ex: ExecItem) => {
@@ -50,6 +57,7 @@ export default function ExecutionsPage() {
           id: p.id,
           projectTitle: p.title,
           clientName: p.client?.name ?? '',
+          ownerName: p.owner?.name ?? '-',
           serviceType: p.service_type,
           projectStatus: p.status,
           startDate: p.start_date,
@@ -67,8 +75,11 @@ export default function ExecutionsPage() {
       .catch(() => setLoading(false));
   }, []);
 
+  const ownerNames = Array.from(new Set(executions.map((ex) => ex.ownerName).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'ko'));
+
   const filtered = executions.filter((ex) => {
     if (filter !== 'all' && ex.projectStatus !== filter) return false;
+    if (ownerFilter !== 'all' && ex.ownerName !== ownerFilter) return false;
     if (search) {
       const q = search.toLowerCase();
       return ex.projectTitle.toLowerCase().includes(q) || ex.clientName.toLowerCase().includes(q);
@@ -107,8 +118,22 @@ export default function ExecutionsPage() {
     <div className={panel.wrapper}>
       <div className={panel.leftPanel}>
         <div className={panel.leftHeader}>
-          <div className={panel.leftActions}>
+          <div className={panel.leftTitleRow}>
             <span className={panel.leftTitle}>집행 관리</span>
+            <select
+              className={panel.sortSelect}
+              value={ownerFilter}
+              onChange={(e) => {
+                const v = e.target.value;
+                setOwnerFilter(v);
+                localStorage.setItem('executions_ownerFilter', v);
+              }}
+            >
+              <option value="all">담당자: 전체</option>
+              {ownerNames.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
           </div>
           <input className={panel.searchInput} placeholder="프로젝트, 고객사 검색..." value={search} onChange={(e) => setSearch(e.target.value)} />
           <div className={panel.filterTabs}>

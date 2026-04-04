@@ -56,6 +56,12 @@
   font-size: 15px;
   font-weight: 700;
   color: var(--color-text-primary);
+}
+
+.leftTitleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 10px;
 }
 

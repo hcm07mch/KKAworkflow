@@ -19,7 +19,7 @@
   flex-direction: column;
   border-right: 1px solid var(--color-border);
   background: var(--color-surface);
-  border-radius: var(--radius) 0 0 var(--radius);
+  border-radius: 0;
   overflow: hidden;
   min-width: 280px;
   max-width: 560px;
