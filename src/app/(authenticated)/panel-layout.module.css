@@ -12,13 +12,38 @@
 /* ── Left Panel (fixed-width list) ── */
 
 .leftPanel {
-  width: 320px;
+  width: 380px;
   min-width: 0;
   border-right: 1px solid var(--color-border);
   background: var(--color-surface);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  transition: width 0.25s ease;
+}
+
+.leftPanelExpanded {
+  width: 100%;
+}
+
+.expandBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+  flex-shrink: 0;
+}
+
+.expandBtn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
 }
 
 .leftHeader {
@@ -84,6 +109,8 @@
   font-size: 13px;
   font-weight: 600;
   transition: background 0.1s;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
 }
 
 .addItem:hover {
@@ -256,6 +283,14 @@
   font-weight: 500;
 }
 
+.clickableRow {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.clickableRow:hover {
+  background: var(--color-bg-hover);
+}
+
 .detailSection {
   margin-top: 24px;
   padding-top: 20px;
@@ -303,6 +338,27 @@
 .filterTabActive:hover {
   background: var(--color-primary-hover);
   color: #fff;
+}
+
+.sortRow {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.sortSelect {
+  font-size: 11px;
+  padding: 3px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  outline: none;
+}
+
+.sortSelect:focus {
+  border-color: var(--color-primary);
 }
 
 /* ── Form Table (registration / edit forms) ── */
@@ -368,6 +424,14 @@
   color: var(--color-text-muted);
 }
 
+.formTable td .fieldValue {
+  display: block;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--color-text-primary);
+  font-weight: 500;
+}
+
 /* Required row accent */
 
 .formTable tr.requiredRow th {
@@ -383,4 +447,115 @@
   width: 3px;
   border-radius: 0 2px 2px 0;
   background: var(--color-secondary);
+}
+
+/* ============================================================================
+   Board Columns — Kanban-style inside expanded left panel
+   ============================================================================ */
+
+.boardColumns {
+  display: flex;
+  flex: 1;
+  overflow-x: auto;
+  padding: 0;
+  gap: 0;
+  align-items: stretch;
+}
+
+.boardColumn {
+  flex: 1;
+  min-width: 160px;
+  border-right: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.boardColumn:last-child {
+  border-right: none;
+}
+
+.boardColumnHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg);
+  flex-shrink: 0;
+}
+
+.boardColumnTitle {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.boardColumnCount {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.boardColumnBody {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.boardColumnBody::-webkit-scrollbar {
+  width: 4px;
+}
+.boardColumnBody::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 2px;
+}
+
+.boardCard {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--color-border);
+  transition: background 0.1s;
+}
+
+.boardCard:hover {
+  background: var(--color-surface-hover);
+}
+
+.boardCardActive {
+  background: var(--color-primary-light);
+  border-left: 3px solid var(--color-primary);
+  padding-left: 9px;
+}
+
+.boardCardTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.boardCardMeta {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.boardCardStatus {
+  display: none;
+}
+
+.boardEmpty {
+  padding: 16px 12px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--color-text-muted);
 }

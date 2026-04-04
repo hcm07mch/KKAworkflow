@@ -59,6 +59,7 @@ export interface CreateProjectInput {
   description?: string;
   code?: string;
   service_type: ServiceType;
+  payment_type?: PaymentType;
   owner_id?: string;
   start_date?: string;
   end_date?: string;
@@ -73,6 +74,7 @@ export interface UpdateProjectInput {
   description?: string | null;
   code?: string | null;
   service_type?: ServiceType;
+  payment_type?: PaymentType;
   owner_id?: string | null;
   start_date?: string | null;
   end_date?: string | null;

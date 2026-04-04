@@ -67,7 +67,8 @@ export interface Project extends OrgScopedEntity {
   description: string | null;
   code: string | null;
   status: ProjectStatus;
-  service_type: ServiceType;       // ?鍮???? (怨媛?? ?? 媛?? ?濡??몃? 吏?? 媛??
+  service_type: ServiceType;
+  payment_type: PaymentType;
   owner_id: string | null;
   start_date: string | null;  // YYYY-MM-DD
   end_date: string | null;    // YYYY-MM-DD

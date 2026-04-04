@@ -143,6 +143,8 @@ export class SupabaseProjectRepository implements IProjectRepository {
     description?: string | null;
     code?: string | null;
     status?: ProjectStatus;
+    service_type?: string;
+    payment_type?: string;
     owner_id?: string | null;
     start_date?: string | null;
     end_date?: string | null;
@@ -165,6 +167,8 @@ export class SupabaseProjectRepository implements IProjectRepository {
     description: string | null;
     code: string | null;
     status: ProjectStatus;
+    service_type: string;
+    payment_type: string;
     owner_id: string | null;
     start_date: string | null;
     end_date: string | null;

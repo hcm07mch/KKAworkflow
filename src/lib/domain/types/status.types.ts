@@ -72,7 +72,7 @@ export const PROJECT_STATUS_META: Record<
  * (예: 바이럴은 C단계 생략, B4 → D1)
  */
 export const PROJECT_STATUS_TRANSITIONS: Record<ProjectStatus, ProjectStatus[]> = {
-  A_sales:              ['B1_estimate_draft'],
+  A_sales:              ['B1_estimate_draft', 'F2_closed'],
   B1_estimate_draft:    ['B2_estimate_review'],
   B2_estimate_review:   ['B3_estimate_sent', 'B1_estimate_draft'],       // 반려 시 B1로 복귀
   B3_estimate_sent:     ['B4_estimate_response'],

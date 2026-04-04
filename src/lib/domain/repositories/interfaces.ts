@@ -72,6 +72,9 @@ export interface IClientRepository {
     contact_phone: string | null;
     address: string | null;
     notes: string | null;
+    service_type: string;
+    payment_type: string;
+    tier: string;
     metadata: JsonObject;
     is_active: boolean;
   }>): Promise<Client>;
@@ -103,6 +106,8 @@ export interface IProjectRepository {
     description?: string | null;
     code?: string | null;
     status?: ProjectStatus;
+    service_type?: string;
+    payment_type?: string;
     owner_id?: string | null;
     start_date?: string | null;
     end_date?: string | null;
@@ -116,6 +121,8 @@ export interface IProjectRepository {
     description: string | null;
     code: string | null;
     status: ProjectStatus;
+    service_type: string;
+    payment_type: string;
     owner_id: string | null;
     start_date: string | null;
     end_date: string | null;

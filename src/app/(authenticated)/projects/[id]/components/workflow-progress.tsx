@@ -13,24 +13,26 @@ import { PROJECT_STATUS_META, PROJECT_STATUS_GROUPS, SERVICE_TYPE_META } from '@
 import styles from './workflow-progress.module.css';
 
 /** 서비스 유형에 따라 표시할 상태 목록 결정 */
-function getVisibleStatuses(serviceType: ServiceType): ProjectStatus[] {
-  if (serviceType === 'viral') {
-    // 바이럴: C단계 생략, E1~E3 생략
-    return [
-      'A_sales',
-      'B1_estimate_draft', 'B2_estimate_review', 'B3_estimate_sent', 'B4_estimate_response',
-      'D1_payment_pending', 'D2_payment_confirmed',
-      'E4_execution',
-    ];
-  }
-  // 퍼포먼스/복합: 전체 15단계
-  return [
-    'A_sales',
-    'B1_estimate_draft', 'B2_estimate_review', 'B3_estimate_sent', 'B4_estimate_response',
-    'C1_contract_draft', 'C2_contract_review', 'C3_contract_sent', 'C4_contract_signed',
-    'D1_payment_pending', 'D2_payment_confirmed',
-    'E1_prereport_draft', 'E2_prereport_review', 'E3_prereport_sent', 'E4_execution',
-  ];
+function getVisibleStatuses(serviceType: ServiceType, currentStatus: ProjectStatus): ProjectStatus[] {
+  const base: ProjectStatus[] = serviceType === 'viral'
+    ? [
+        'A_sales',
+        'B1_estimate_draft', 'B2_estimate_review', 'B3_estimate_sent', 'B4_estimate_response',
+        'D1_payment_pending', 'D2_payment_confirmed',
+        'E4_execution',
+      ]
+    : [
+        'A_sales',
+        'B1_estimate_draft', 'B2_estimate_review', 'B3_estimate_sent', 'B4_estimate_response',
+        'C1_contract_draft', 'C2_contract_review', 'C3_contract_sent', 'C4_contract_signed',
+        'D1_payment_pending', 'D2_payment_confirmed',
+        'E1_prereport_draft', 'E2_prereport_review', 'E3_prereport_sent', 'E4_execution',
+      ];
+
+  if (currentStatus === 'F1_refund') base.push('F1_refund', 'F2_closed');
+  else if (currentStatus === 'F2_closed') base.push('F2_closed');
+
+  return base;
 }
 
 /** 현재 상태의 인덱스 */
@@ -69,14 +71,22 @@ interface WorkflowProgressProps {
 }
 
 export function WorkflowProgress({ serviceType, projectStatus }: WorkflowProgressProps) {
-  const visibleStatuses = getVisibleStatuses(serviceType);
+  const visibleStatuses = getVisibleStatuses(serviceType, projectStatus);
   const activeIndex = getActiveIndex(visibleStatuses, projectStatus);
-  const groups = groupSteps(visibleStatuses);
+  const allGroups = groupSteps(visibleStatuses);
+
+  // 지나온 그룹 + 현재 속한 그룹까지만 표시 (미래 그룹 숨김)
+  const groups = allGroups.filter((group) =>
+    group.steps.some((s) => {
+      const idx = visibleStatuses.indexOf(s);
+      return idx <= activeIndex;
+    })
+  );
 
   return (
     <section className="card">
       <div className={styles.header}>
-        <h2 className="section-title">워크플로우 진행</h2>
+        <h2 className="section-title">워크플로우 진행 현황</h2>
         <span className={styles.serviceLabel}>
           {SERVICE_TYPE_META[serviceType].label} 플로우
         </span>

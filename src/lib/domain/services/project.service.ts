@@ -68,6 +68,8 @@ export class ProjectService {
       description: input.description ?? null,
       code: input.code ?? null,
       status: 'A_sales',
+      service_type: input.service_type,
+      payment_type: input.payment_type ?? 'deposit',
       owner_id: input.owner_id ?? ctx.userId,
       start_date: input.start_date ?? null,
       end_date: input.end_date ?? null,

@@ -15,7 +15,7 @@ export async function GET(
   if (!auth.success) return auth.response;
 
   const { id } = await params;
-  const project = await auth.services.projectRepo.findById(id);
+  const project = await auth.services.projectRepo.findByIdWithRelations(id);
 
   if (!project) {
     return NextResponse.json(
@@ -45,5 +45,21 @@ export async function PATCH(
   if (!result.success) {
     return NextResponse.json({ error: result.error }, { status: 400 });
   }
+
+  // 견적서 작성 단계로 전환 시 견적서 자동 생성
+  if (body.status === 'B1_estimate_draft') {
+    const existing = await auth.services.documentRepo.countByProjectIdAndType(id, 'estimate');
+    if (existing === 0) {
+      await auth.services.documentService.createProjectDocument(
+        {
+          project_id: id,
+          type: 'estimate',
+          title: `${result.data.title} 견적서`,
+        },
+        { userId: auth.dbUser.id, userRole: auth.role, organizationId: auth.organizationId },
+      );
+    }
+  }
+
   return NextResponse.json(result.data);
 }
