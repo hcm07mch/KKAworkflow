@@ -59,6 +59,12 @@ export default function ClientsPage() {
   const [selected, setSelected] = useState<ClientItem | null>(null);
   const [showInactive, setShowInactive] = useState(false);
   const [mode, setMode] = useState<'view' | 'new' | 'edit' | 'newProject'>('view');
+
+  const selectClient = useCallback((c: ClientItem) => {
+    setSelected(c);
+    setMode('view');
+    localStorage.setItem('clients_selectedId', c.id);
+  }, []);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -98,6 +104,11 @@ export default function ClientsPage() {
       }));
       setClients(items);
       setLoading(false);
+      const savedId = localStorage.getItem('clients_selectedId');
+      if (savedId) {
+        const target = items.find((c) => c.id === savedId);
+        if (target) { setSelected(target); setMode('view'); }
+      }
     }).catch(() => setLoading(false));
   }, []);
 
@@ -421,7 +432,7 @@ export default function ClientsPage() {
             <div
               key={c.id}
               className={`${panel.item} ${selected?.id === c.id && mode !== 'new' ? panel.itemActive : ''}`}
-              onClick={() => { setSelected(c); setMode('view'); }}
+              onClick={() => selectClient(c)}
             >
               <span className={panel.itemName}>{c.name}</span>
               <span className={panel.itemMeta}>

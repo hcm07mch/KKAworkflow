@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { LuFilePen, LuLoader, LuPlus } from 'react-icons/lu';
 import { StatusBadge, ActionButton } from '@/components/ui';
 import type { DocumentStatus, ServiceType } from '@/lib/domain/types';
@@ -37,6 +37,11 @@ export default function ContractsPage() {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<ContractItem | null>(null);
 
+  const selectContract = useCallback((c: ContractItem) => {
+    setSelected(c);
+    localStorage.setItem('contracts_selectedId', c.id);
+  }, []);
+
   useEffect(() => {
     fetch('/api/documents?type=contract')
       .then((r) => r.json())
@@ -59,6 +64,11 @@ export default function ContractsPage() {
         });
         setContracts(items);
         setLoading(false);
+        const savedId = localStorage.getItem('contracts_selectedId');
+        if (savedId) {
+          const target = items.find((c) => c.id === savedId);
+          if (target) setSelected(target);
+        }
       })
       .catch(() => setLoading(false));
   }, []);
@@ -110,7 +120,7 @@ export default function ContractsPage() {
             <LuPlus size={14} /> 새 계약서
           </div>
           {filtered.map((c) => (
-            <div key={c.id} className={`${panel.item} ${selected?.id === c.id ? panel.itemActive : ''}`} onClick={() => setSelected(c)}>
+            <div key={c.id} className={`${panel.item} ${selected?.id === c.id ? panel.itemActive : ''}`} onClick={() => selectContract(c)}>
               <span className={panel.itemName}>{c.clientName}</span>
               <span className={panel.itemMeta}>
                 <span>{formatCurrency(c.monthlyAmount)}/월</span>

@@ -58,6 +58,11 @@ export default function EstimatesPage() {
         });
         setEstimates(items);
         setLoading(false);
+        const savedId = localStorage.getItem('estimates_selectedId');
+        if (savedId) {
+          const target = items.find((e) => e.id === savedId);
+          if (target) { setSelectedId(target.id); setPanelMode('edit'); }
+        }
       })
       .catch(() => setLoading(false));
   }, []);
@@ -80,6 +85,7 @@ export default function EstimatesPage() {
   const handleSelect = useCallback((item: EstimateListItem) => {
     setSelectedId(item.id);
     setPanelMode('edit');
+    localStorage.setItem('estimates_selectedId', item.id);
   }, []);
 
   const handleCancel = useCallback(() => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { LuRocket, LuLoader } from 'react-icons/lu';
 import { ActionButton } from '@/components/ui';
 import { SERVICE_TYPE_META, PROJECT_STATUS_META } from '@/lib/domain/types';
@@ -37,6 +37,11 @@ export default function ExecutionsPage() {
   const [filter, setFilter] = useState<string>('all');
   const [selected, setSelected] = useState<ExecItem | null>(null);
 
+  const selectExecution = useCallback((ex: ExecItem) => {
+    setSelected(ex);
+    localStorage.setItem('executions_selectedId', ex.id);
+  }, []);
+
   useEffect(() => {
     fetch('/api/projects?status=E1_prereport_draft,E2_prereport_review,E3_in_progress,E4_execution&limit=200')
       .then((r) => r.json())
@@ -53,6 +58,11 @@ export default function ExecutionsPage() {
         }));
         setExecutions(items);
         setLoading(false);
+        const savedId = localStorage.getItem('executions_selectedId');
+        if (savedId) {
+          const target = items.find((ex) => ex.id === savedId);
+          if (target) setSelected(target);
+        }
       })
       .catch(() => setLoading(false));
   }, []);
@@ -110,7 +120,7 @@ export default function ExecutionsPage() {
         </div>
         <div className={panel.itemList}>
           {filtered.map((ex) => (
-            <div key={ex.id} className={`${panel.item} ${selected?.id === ex.id ? panel.itemActive : ''}`} onClick={() => setSelected(ex)}>
+            <div key={ex.id} className={`${panel.item} ${selected?.id === ex.id ? panel.itemActive : ''}`} onClick={() => selectExecution(ex)}>
               <span className={panel.itemName}>{ex.projectTitle}</span>
               <span className={panel.itemMeta}>
                 <span>{ex.clientName}</span>

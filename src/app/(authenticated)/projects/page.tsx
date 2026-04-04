@@ -79,7 +79,12 @@ export default function ProjectsPage() {
   const [loading, setLoading] = useState(true);
   const [groupFilter, setGroupFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
-  const [ownerFilter, setOwnerFilter] = useState<string>('all');
+  const [ownerFilter, setOwnerFilter] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('projects_ownerFilter') ?? 'all';
+    }
+    return 'all';
+  });
   const [selected, setSelected] = useState<ProjectItem | null>(null);
   const [detail, setDetail] = useState<ProjectDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -105,7 +110,8 @@ export default function ProjectsPage() {
         setProjects(items);
         setLoading(false);
 
-        const selectedId = searchParams.get('selected');
+        const selectedId = searchParams.get('selected')
+          ?? localStorage.getItem('projects_selectedId');
         if (selectedId) {
           const target = items.find((p) => p.id === selectedId);
           if (target) selectProject(target);
@@ -116,6 +122,7 @@ export default function ProjectsPage() {
 
   const selectProject = useCallback((p: ProjectItem) => {
     setSelected(p);
+    localStorage.setItem('projects_selectedId', p.id);
     setDetail(null);
     setDetailLoading(true);
     fetch(`/api/projects/${p.id}`)
@@ -239,7 +246,11 @@ export default function ProjectsPage() {
             <select
               className={panel.sortSelect}
               value={ownerFilter}
-              onChange={(e) => setOwnerFilter(e.target.value)}
+              onChange={(e) => {
+                const v = e.target.value;
+                setOwnerFilter(v);
+                localStorage.setItem('projects_ownerFilter', v);
+              }}
             >
               <option value="all">담당자: 전체</option>
               {ownerNames.map((name) => (

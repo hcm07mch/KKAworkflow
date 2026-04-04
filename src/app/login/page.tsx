@@ -60,15 +60,15 @@ export default function LoginPage() {
     <div className={styles.container}>
       <div className={styles.card}>
         {/* 헤더 */}
-        <div className="text-center mb-6">
-          <h1 className="text-xl font-semibold text-gray-900">KKA Workflow</h1>
-          <p className="text-sm text-gray-500 mt-1">업무 관리 시스템에 로그인</p>
+        <div className={styles.header}>
+          <h1 className={styles.title}>KKA Workflow</h1>
+          <p className={styles.subtitle}>업무 관리 시스템에 로그인</p>
         </div>
 
         {/* 이메일 + 비밀번호 폼 */}
-        <form onSubmit={handleLogin} className="flex flex-col gap-3">
+        <form onSubmit={handleLogin} className={styles.form}>
           <div>
-            <label htmlFor="email" className="block text-xs font-medium text-gray-600 mb-1">
+            <label htmlFor="email" className={styles.label}>
               이메일
             </label>
             <input
@@ -84,7 +84,7 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-xs font-medium text-gray-600 mb-1">
+            <label htmlFor="password" className={styles.label}>
               비밀번호
             </label>
             <input
@@ -99,7 +99,7 @@ export default function LoginPage() {
           </div>
 
           {error && (
-            <p className="text-xs text-red-500">{error}</p>
+            <p className={styles.error}>{error}</p>
           )}
 
           <button

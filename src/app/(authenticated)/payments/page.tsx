@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { LuCreditCard, LuLoader } from 'react-icons/lu';
 import { ActionButton } from '@/components/ui';
 import { SERVICE_TYPE_META } from '@/lib/domain/types';
@@ -42,6 +42,11 @@ export default function PaymentsPage() {
   const [filter, setFilter] = useState<PaymentStatus | 'all'>('all');
   const [selected, setSelected] = useState<PaymentItem | null>(null);
 
+  const selectPayment = useCallback((p: PaymentItem) => {
+    setSelected(p);
+    localStorage.setItem('payments_selectedId', p.id);
+  }, []);
+
   useEffect(() => {
     fetch('/api/projects?status=D1_payment_pending,D2_payment_confirmed&limit=200')
       .then((r) => r.json())
@@ -57,6 +62,11 @@ export default function PaymentsPage() {
         }));
         setPayments(items);
         setLoading(false);
+        const savedId = localStorage.getItem('payments_selectedId');
+        if (savedId) {
+          const target = items.find((p) => p.id === savedId);
+          if (target) setSelected(target);
+        }
       })
       .catch(() => setLoading(false));
   }, []);
@@ -113,7 +123,7 @@ export default function PaymentsPage() {
         </div>
         <div className={panel.itemList}>
           {filtered.map((p) => (
-            <div key={p.id} className={`${panel.item} ${selected?.id === p.id ? panel.itemActive : ''}`} onClick={() => setSelected(p)}>
+            <div key={p.id} className={`${panel.item} ${selected?.id === p.id ? panel.itemActive : ''}`} onClick={() => selectPayment(p)}>
               <span className={panel.itemName}>{p.clientName}</span>
               <span className={panel.itemMeta}>
                 <span>{formatCurrency(p.amount)}</span>
