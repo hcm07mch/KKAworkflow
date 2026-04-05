@@ -1,0 +1,95 @@
+/* ============================================================================
+   Confirm Dialog — Formal workflow modal
+   ============================================================================ */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(2px);
+  animation: confirmFadeIn 0.15s ease-out;
+}
+
+@keyframes confirmFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.dialog {
+  width: 400px;
+  max-width: calc(100vw - 32px);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
+  animation: confirmSlideUp 0.2s ease-out;
+  overflow: hidden;
+}
+
+@keyframes confirmSlideUp {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── Icon ── */
+
+.iconArea {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 24px 0;
+}
+
+.iconCircle {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.iconInfo    { background: var(--color-primary-light); color: var(--color-primary); }
+.iconWarning { background: #fef3c7;                    color: #d97706; }
+.iconDanger  { background: #fee2e2;                    color: #dc2626; }
+.iconSuccess { background: #d1fae5;                    color: #059669; }
+
+/* ── Body ── */
+
+.body {
+  padding: 16px 24px 8px;
+  text-align: center;
+}
+
+.title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0 0 6px;
+  line-height: 1.4;
+}
+
+.description {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin: 0;
+  line-height: 1.55;
+}
+
+/* ── Actions ── */
+
+.actions {
+  display: flex;
+  gap: 8px;
+  padding: 16px 24px 20px;
+  justify-content: center;
+}
+
+.actions > button {
+  flex: 1;
+  max-width: 160px;
+}

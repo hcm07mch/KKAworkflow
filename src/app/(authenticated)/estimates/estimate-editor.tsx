@@ -7,8 +7,8 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { LuPlus, LuTrash2, LuChevronUp, LuSettings2, LuFileText, LuListOrdered, LuBookOpen, LuGripVertical, LuX } from 'react-icons/lu';
-import { ActionButton } from '@/components/ui';
+import { LuPlus, LuTrash2, LuChevronUp, LuSettings2, LuFileText, LuListOrdered, LuBookOpen, LuGripVertical, LuX, LuSend } from 'react-icons/lu';
+import { ActionButton, useFeedback } from '@/components/ui';
 import type { EstimateContent } from '@/lib/domain/types';
 import { EstimatePreview } from './estimate-preview';
 import s from './estimate-editor.module.css';
@@ -34,6 +34,7 @@ export interface EstimateEditorProps {
   initialData?: EstimateContent;
   documentId?: string;
   onSave?: (data: EstimateContent) => void;
+  onSubmit?: (data: EstimateContent, pdfBlob: Blob) => void;
   onCancel?: () => void;
 }
 
@@ -264,7 +265,10 @@ function CatalogCard({ item, onAdd, onDragStart }: {
   );
 }
 
-export function EstimateEditor({ mode, initialData, onSave, onCancel }: EstimateEditorProps) {
+export function EstimateEditor({ mode, initialData, onSave, onSubmit, onCancel }: EstimateEditorProps) {
+  const { toast } = useFeedback();
+  const previewRef = useRef<HTMLDivElement>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [openDrawer, setOpenDrawer] = useState<DrawerSection>(mode === 'new' ? 'info' : null);
 
   // ── Resizable panel ──
@@ -585,9 +589,59 @@ export function EstimateEditor({ mode, initialData, onSave, onCancel }: Estimate
   // ── Submit ──
 
   function handleSave() {
-    if (!clientId) { alert('고객사를 선택하세요'); return; }
-    if (!projectName) { alert('프로젝트명을 입력하세요'); return; }
+    if (!clientId) { toast({ title: '고객사를 선택하세요', variant: 'warning' }); return; }
+    if (!projectName) { toast({ title: '프로젝트명을 입력하세요', variant: 'warning' }); return; }
     onSave?.(previewData);
+  }
+
+  async function handleSubmit() {
+    if (!clientId) { toast({ title: '고객사를 선택하세요', variant: 'warning' }); return; }
+    if (!projectName) { toast({ title: '프로젝트명을 입력하세요', variant: 'warning' }); return; }
+    if (submitting) return;
+
+    const el = previewRef.current;
+    if (!el) { toast({ title: '미리보기를 불러올 수 없습니다', variant: 'error' }); return; }
+
+    setSubmitting(true);
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const { jsPDF } = await import('jspdf');
+
+      // A4 mm dimensions
+      const pdfW = 210;
+      const pdfH = 297;
+
+      // Capture all A4 page elements inside the preview
+      const pageEls = el.querySelectorAll<HTMLElement>('[class*="a4PageOuter"]');
+      const targets = pageEls.length > 0 ? Array.from(pageEls) : [el];
+
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+      for (let i = 0; i < targets.length; i++) {
+        if (i > 0) pdf.addPage();
+
+        const canvas = await html2canvas(targets[i], {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+        });
+
+        const imgData = canvas.toDataURL('image/png');
+        const imgW = canvas.width;
+        const imgH = canvas.height;
+        const ratio = Math.min(pdfW / imgW, pdfH / imgH);
+
+        pdf.addImage(imgData, 'PNG', 0, 0, imgW * ratio, imgH * ratio);
+      }
+
+      const pdfBlob = pdf.output('blob');
+      onSubmit?.(previewData, pdfBlob);
+    } catch (err) {
+      console.error('PDF 생성 실패:', err);
+      toast({ title: 'PDF 생성에 실패했습니다', variant: 'error' });
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   // ── Drawer toggle ──
@@ -611,6 +665,16 @@ export function EstimateEditor({ mode, initialData, onSave, onCancel }: Estimate
           <div className={s.panelActions}>
             <ActionButton label="취소" variant="ghost" size="sm" onClick={onCancel} />
             <ActionButton label={mode === 'new' ? '저장' : '수정 저장'} variant="primary" size="sm" onClick={handleSave} />
+            {mode === 'edit' && (
+              <ActionButton
+                label={submitting ? '제출 중...' : '견적서 제출'}
+                variant="primary"
+                size="sm"
+                onClick={handleSubmit}
+                disabled={submitting}
+                icon={<LuSend size={13} />}
+              />
+            )}
           </div>
         </div>
 
@@ -861,7 +925,7 @@ export function EstimateEditor({ mode, initialData, onSave, onCancel }: Estimate
       <div className={s.resizeHandle} onMouseDown={onResizeStart} />
 
       {/* ═══ Preview (A4 상 표시) ═══ */}
-      <div className={s.previewScroll}>
+      <div className={s.previewScroll} ref={previewRef}>
         <EstimatePreview data={previewData} />
       </div>
 

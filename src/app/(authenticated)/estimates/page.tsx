@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { LuFileText, LuPlus } from 'react-icons/lu';
-import { StatusBadge } from '@/components/ui';
+import { StatusBadge, useFeedback } from '@/components/ui';
 import type { DocumentStatus, ServiceType, EstimateContent } from '@/lib/domain/types';
 import { SERVICE_TYPE_META } from '@/lib/domain/types';
 import { EstimateEditor } from './estimate-editor';
@@ -32,6 +32,7 @@ function formatCurrency(n: number) {
 // ── Page ─────────────────────────────────────────────────
 
 export default function EstimatesPage() {
+  const { toast, confirm } = useFeedback();
   const [estimates, setEstimates] = useState<EstimateListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -122,8 +123,8 @@ export default function EstimatesPage() {
     setEstimates((prev) => [newItem, ...prev]);
     setSelectedId(fakeId);
     setPanelMode('edit');
-    alert('견적서가 저장되었습니다.');
-  }, []);
+    toast({ title: '견적서가 저장되었습니다', variant: 'success' });
+  }, [toast]);
 
   const handleSaveEdit = useCallback(
     (data: EstimateContent) => {
@@ -142,9 +143,55 @@ export default function EstimatesPage() {
             : e,
         ),
       );
-      alert('견적서가 수정되었습니다.');
+      toast({ title: '견적서가 수정되었습니다', variant: 'success' });
     },
-    [selectedId],
+    [selectedId, toast],
+  );
+
+  const handleSubmit = useCallback(
+    async (data: EstimateContent, pdfBlob: Blob) => {
+      if (!selectedId) return;
+
+      const ok = await confirm({
+        title: '견적서를 제출하시겠습니까?',
+        description: 'PDF가 저장되고 프로젝트가 견적 승인 단계로 이동합니다.',
+        variant: 'info',
+        confirmLabel: '제출',
+        cancelLabel: '취소',
+      });
+      if (!ok) return;
+
+      const fileName = `견적서_${data.document_number || selectedId}.pdf`;
+
+      // API: PDF 업로드 + 견적서 제출 → 문서 상태 in_review + 프로젝트 상태 B2_estimate_review
+      try {
+        const formData = new FormData();
+        formData.append('pdf', new File([pdfBlob], fileName, { type: 'application/pdf' }));
+
+        const res = await fetch(`/api/documents/${selectedId}/submit`, {
+          method: 'POST',
+          body: formData,
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          toast({ title: err?.error?.message || '견적서 제출에 실패했습니다', variant: 'error' });
+          return;
+        }
+
+        // 3) UI 업데이트
+        setEstimates((prev) =>
+          prev.map((e) =>
+            e.id === selectedId
+              ? { ...e, status: 'in_review' as DocumentStatus, content: data }
+              : e,
+          ),
+        );
+        toast({ title: '견적서가 제출되었습니다', message: '프로젝트가 견적 승인 단계로 이동합니다.', variant: 'success' });
+      } catch {
+        toast({ title: '견적서 제출 중 오류가 발생했습니다', variant: 'error' });
+      }
+    },
+    [selectedId, confirm, toast],
   );
 
   // ── Left panel item active check ──
@@ -248,6 +295,7 @@ export default function EstimatesPage() {
             initialData={selected.content}
             documentId={selected.id}
             onSave={handleSaveEdit}
+            onSubmit={handleSubmit}
             onCancel={handleCancel}
           />
         )}

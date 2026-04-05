@@ -3,3 +3,8 @@ export { ActionButton } from './action-button';
 export { UserNav } from './user-nav';
 export { Sidebar } from './sidebar';
 export { NotificationBell } from './notification-bell';
+export { ConfirmDialog } from './confirm-dialog';
+export type { ConfirmOptions, ConfirmVariant } from './confirm-dialog';
+export { ToastContainer, useToastState } from './toast';
+export type { ToastOptions, ToastVariant } from './toast';
+export { FeedbackProvider, useFeedback } from './feedback-provider';

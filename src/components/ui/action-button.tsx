@@ -8,6 +8,7 @@ interface ActionButtonProps {
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
   size?: 'sm' | 'md';
   disabled?: boolean;
+  icon?: React.ReactNode;
 }
 
 const VARIANT_CLASS: Record<string, string> = {
@@ -23,6 +24,7 @@ export function ActionButton({
   variant = 'secondary',
   size = 'sm',
   disabled = false,
+  icon,
 }: ActionButtonProps) {
   return (
     <button
@@ -31,6 +33,7 @@ export function ActionButton({
       disabled={disabled}
       className={`btn ${VARIANT_CLASS[variant]} ${size === 'sm' ? 'btn-sm' : 'btn-md'}`}
     >
+      {icon && <span style={{ display: 'inline-flex', marginRight: 4 }}>{icon}</span>}
       {label}
     </button>
   );

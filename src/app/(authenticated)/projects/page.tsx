@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { LuFolderOpen, LuPlus, LuPanelLeftOpen, LuPanelLeftClose } from 'react-icons/lu';
+import { LuFolderOpen, LuPlus, LuPanelLeftOpen, LuPanelLeftClose, LuDownload } from 'react-icons/lu';
 import { StatusBadge, ActionButton } from '@/components/ui';
 import type { ProjectStatus, ServiceType, DocumentStatus, DocumentType } from '@/lib/domain/types';
 import {
@@ -63,6 +63,7 @@ interface ProjectDetail {
     version: number;
     title: string;
     updated_at: string;
+    metadata: Record<string, any>;
   }[];
 }
 
@@ -538,6 +539,7 @@ export default function ProjectsPage() {
                         <th>상태</th>
                         <th>버전</th>
                         <th>최종 수정</th>
+                        <th></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -548,6 +550,23 @@ export default function ProjectsPage() {
                           <td><StatusBadge status={doc.status} type="document" /></td>
                           <td>v{doc.version}</td>
                           <td style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{formatDateTime(doc.updated_at)}</td>
+                          <td>
+                            {doc.metadata?.pdf_path && (
+                              <button
+                                type="button"
+                                className="btn btn-ghost btn-sm"
+                                title="PDF 다운로드"
+                                onClick={async () => {
+                                  const res = await fetch(`/api/documents/${doc.id}/pdf`);
+                                  if (!res.ok) { alert('PDF를 불러올 수 없습니다.'); return; }
+                                  const { url } = await res.json();
+                                  window.open(url, '_blank');
+                                }}
+                              >
+                                <LuDownload size={14} />
+                              </button>
+                            )}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
