@@ -148,6 +148,8 @@ export default function ExecutionsPage() {
             <div key={ex.id} className={`${panel.item} ${selected?.id === ex.id ? panel.itemActive : ''}`} onClick={() => selectExecution(ex)}>
               <span className={panel.itemName}>{ex.projectTitle}</span>
               <span className={panel.itemMeta}>
+                <span>{ex.ownerName}</span>
+                <span>·</span>
                 <span>{ex.clientName}</span>
                 <span>·</span>
                 <span className={`badge badge-sm badge-blue`}>{PROJECT_STATUS_META[ex.projectStatus]?.shortLabel ?? ex.projectStatus}</span>

@@ -73,6 +73,7 @@ export interface UpdateProjectInput {
   title?: string;
   description?: string | null;
   code?: string | null;
+  client_id?: string;
   service_type?: ServiceType;
   payment_type?: PaymentType;
   owner_id?: string | null;

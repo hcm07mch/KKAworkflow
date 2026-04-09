@@ -5,7 +5,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // 공개 경로는 통과
-  if (pathname.startsWith('/login') || pathname.startsWith('/api/auth')) {
+  if (pathname.startsWith('/login') || pathname.startsWith('/api/auth') || pathname.startsWith('/print')) {
     return NextResponse.next();
   }
 

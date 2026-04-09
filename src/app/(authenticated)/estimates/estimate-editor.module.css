@@ -20,7 +20,8 @@
   border-right: 1px solid var(--color-border);
   background: var(--color-surface);
   border-radius: 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   min-width: 280px;
   max-width: 560px;
 }

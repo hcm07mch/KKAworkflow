@@ -7,10 +7,11 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { LuPlus, LuTrash2, LuChevronUp, LuSettings2, LuFileText, LuListOrdered, LuBookOpen, LuGripVertical, LuX, LuSend } from 'react-icons/lu';
+import { LuPlus, LuTrash2, LuChevronUp, LuSettings2, LuFileText, LuListOrdered, LuBookOpen, LuGripVertical, LuX, LuSend, LuRotateCcw, LuDownload } from 'react-icons/lu';
 import { ActionButton, useFeedback } from '@/components/ui';
 import type { EstimateContent } from '@/lib/domain/types';
 import { EstimatePreview } from './estimate-preview';
+import { ApprovalPanel, ApprovalHistoryPanel } from './approval-panel';
 import s from './estimate-editor.module.css';
 
 // ── Types ────────────────────────────────────────────────
@@ -33,8 +34,13 @@ export interface EstimateEditorProps {
   mode: 'new' | 'edit';
   initialData?: EstimateContent;
   documentId?: string;
+  defaultClientId?: string;
+  readOnly?: boolean;
+  documentStatus?: string;
   onSave?: (data: EstimateContent) => void;
-  onSubmit?: (data: EstimateContent, pdfBlob: Blob) => void;
+  onSubmit?: (data: EstimateContent) => void;
+  onRedraft?: () => void;
+  onStatusChange?: (newStatus: string) => void;
   onCancel?: () => void;
 }
 
@@ -57,16 +63,12 @@ function fmtKRW(n: number) {
   return new Intl.NumberFormat('ko-KR').format(n) + ' 원';
 }
 
-// ── Mock clients ─────────────────────────────────────────
+// ── Client type ──────────────────────────────────────────
 
-const MOCK_CLIENTS = [
-  { id: 'c1', name: '(주)블루오션 마케팅' },
-  { id: 'c2', name: '그린텍' },
-  { id: 'c3', name: '스카이미디어' },
-  { id: 'c4', name: '하이크랩' },
-  { id: 'c5', name: '오렌지원' },
-  { id: 'c6', name: '모어마케팅' },
-];
+interface ClientOption {
+  id: string;
+  name: string;
+}
 
 const DEFAULT_NOTES = [
   '본 견적서의 유효기간은 발행일로부터 14일입니다.',
@@ -265,11 +267,23 @@ function CatalogCard({ item, onAdd, onDragStart }: {
   );
 }
 
-export function EstimateEditor({ mode, initialData, onSave, onSubmit, onCancel }: EstimateEditorProps) {
+export function EstimateEditor({ mode, initialData, documentId, defaultClientId, readOnly, documentStatus, onSave, onSubmit, onRedraft, onStatusChange, onCancel }: EstimateEditorProps) {
   const { toast } = useFeedback();
   const previewRef = useRef<HTMLDivElement>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [pdfDownloading, setPdfDownloading] = useState(false);
   const [openDrawer, setOpenDrawer] = useState<DrawerSection>(mode === 'new' ? 'info' : null);
+  const [clients, setClients] = useState<ClientOption[]>([]);
+
+  // Fetch real clients from API
+  useEffect(() => {
+    fetch('/api/clients')
+      .then((r) => r.ok ? r.json() : [])
+      .then((data: any[]) => {
+        setClients(data.map((c) => ({ id: c.id, name: c.name })));
+      })
+      .catch(() => {});
+  }, []);
 
   // ── Resizable panel ──
   const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT);
@@ -322,9 +336,9 @@ export function EstimateEditor({ mode, initialData, onSave, onSubmit, onCancel }
   const [docNumber, setDocNumber] = useState(initialData?.document_number || generateDocNumber());
   const [issuedDate, setIssuedDate] = useState(initialData?.issued_date || todayISO());
   const [clientId, setClientId] = useState(() => {
+    if (defaultClientId) return defaultClientId;
     if (!initialData?.recipient) return '';
-    const match = MOCK_CLIENTS.find((c) => initialData.recipient?.includes(c.name));
-    return match?.id ?? '';
+    return '';
   });
   const [recipient, setRecipient] = useState(initialData?.recipient || '');
   const [projectName, setProjectName] = useState(initialData?.project_name || '');
@@ -359,11 +373,11 @@ export function EstimateEditor({ mode, initialData, onSave, onSubmit, onCancel }
   const [companyAddress] = useState(initialData?.company_address || DEFAULT_COMPANY.address);
   const [companyRep] = useState(initialData?.company_representative || DEFAULT_COMPANY.representative);
 
-  // Auto-fill recipient
+  // Auto-fill recipient when client changes
   useEffect(() => {
-    const client = MOCK_CLIENTS.find((c) => c.id === clientId);
+    const client = clients.find((c) => c.id === clientId);
     if (client) setRecipient(`${client.name} 귀하`);
-  }, [clientId]);
+  }, [clientId, clients]);
 
   // ── Item CRUD ──
 
@@ -599,48 +613,73 @@ export function EstimateEditor({ mode, initialData, onSave, onSubmit, onCancel }
     if (!projectName) { toast({ title: '프로젝트명을 입력하세요', variant: 'warning' }); return; }
     if (submitting) return;
 
+    setSubmitting(true);
+    try {
+      onSubmit?.(previewData);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function handlePrint() {
     const el = previewRef.current;
     if (!el) { toast({ title: '미리보기를 불러올 수 없습니다', variant: 'error' }); return; }
 
-    setSubmitting(true);
+    const printWindow = window.open('', '_blank', 'width=900,height=700');
+    if (!printWindow) {
+      toast({ title: '팝업이 차단되었습니다. 팝업을 허용해주세요.', variant: 'warning' });
+      return;
+    }
+
+    const styleSheets = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+      .map((el) => el.outerHTML)
+      .join('\n');
+
+    printWindow.document.write(`<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<title>견적서</title>
+${styleSheets}
+<style>
+  @page { size: A4; margin: 0; }
+  html, body { margin: 0; padding: 0; background: #fff; }
+  body > div { display: flex; flex-direction: column; }
+  [class*="a4PageOuter"] {
+    width: 794px !important; height: 1123px !important;
+    overflow: hidden; border-radius: 0;
+    break-after: page; page-break-after: always;
+  }
+  [class*="a4Page"] {
+    transform: none !important; box-shadow: none !important;
+    width: 794px !important; height: 1123px !important;
+  }
+</style>
+</head><body>
+<div>${el.innerHTML}</div>
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`);
+    printWindow.document.close();
+  }
+
+  async function handleDownloadPdf() {
+    if (!documentId) return;
+    setPdfDownloading(true);
     try {
-      const html2canvas = (await import('html2canvas')).default;
-      const { jsPDF } = await import('jspdf');
-
-      // A4 mm dimensions
-      const pdfW = 210;
-      const pdfH = 297;
-
-      // Capture all A4 page elements inside the preview
-      const pageEls = el.querySelectorAll<HTMLElement>('[class*="a4PageOuter"]');
-      const targets = pageEls.length > 0 ? Array.from(pageEls) : [el];
-
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-
-      for (let i = 0; i < targets.length; i++) {
-        if (i > 0) pdf.addPage();
-
-        const canvas = await html2canvas(targets[i], {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: '#ffffff',
-        });
-
-        const imgData = canvas.toDataURL('image/png');
-        const imgW = canvas.width;
-        const imgH = canvas.height;
-        const ratio = Math.min(pdfW / imgW, pdfH / imgH);
-
-        pdf.addImage(imgData, 'PNG', 0, 0, imgW * ratio, imgH * ratio);
+      let res = await fetch(`/api/documents/${documentId}/pdf`);
+      if (!res.ok) {
+        res = await fetch(`/api/documents/${documentId}/pdf/generate`, { method: 'POST' });
       }
-
-      const pdfBlob = pdf.output('blob');
-      onSubmit?.(previewData, pdfBlob);
-    } catch (err) {
-      console.error('PDF 생성 실패:', err);
-      toast({ title: 'PDF 생성에 실패했습니다', variant: 'error' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast({ title: err?.error?.message || 'PDF 다운로드에 실패했습니다', variant: 'error' });
+        return;
+      }
+      const { url } = await res.json();
+      window.open(url, '_blank');
+    } catch {
+      toast({ title: 'PDF 다운로드 중 오류가 발생했습니다', variant: 'error' });
     } finally {
-      setSubmitting(false);
+      setPdfDownloading(false);
     }
   }
 
@@ -662,20 +701,45 @@ export function EstimateEditor({ mode, initialData, onSave, onSubmit, onCancel }
             <span className={s.panelAmountLabel}>총 결제금액</span>
             <span className={s.panelAmountValue}>{fmtKRW(total)}</span>
           </div>
-          <div className={s.panelActions}>
-            <ActionButton label="취소" variant="ghost" size="sm" onClick={onCancel} />
-            <ActionButton label={mode === 'new' ? '저장' : '수정 저장'} variant="primary" size="sm" onClick={handleSave} />
-            {mode === 'edit' && (
-              <ActionButton
-                label={submitting ? '제출 중...' : '견적서 제출'}
-                variant="primary"
-                size="sm"
-                onClick={handleSubmit}
-                disabled={submitting}
-                icon={<LuSend size={13} />}
-              />
-            )}
-          </div>
+          {readOnly ? (
+            <>
+              <div className={s.panelActions}>
+                {documentStatus === 'in_review' && onRedraft && (
+                  <ActionButton
+                    label="견적서 재작성"
+                    variant="ghost"
+                    size="sm"
+                    onClick={onRedraft}
+                    icon={<LuRotateCcw size={13} />}
+                  />
+                )}
+                <ActionButton
+                  label={pdfDownloading ? 'PDF 생성 중...' : '견적서 다운로드'}
+                  variant="ghost-filled"
+                  size="sm"
+                  onClick={handleDownloadPdf}
+                  disabled={pdfDownloading}
+                  icon={<LuDownload size={13} />}
+                />
+              </div>
+            </>
+          ) : (
+            <div className={s.panelActions}>
+              {(mode === 'new' || onSave) && (
+                <ActionButton label={mode === 'new' ? '저장' : '수정 저장'} variant="primary" size="sm" onClick={handleSave} />
+              )}
+              {mode === 'edit' && onSubmit && (
+                <ActionButton
+                  label={submitting ? '제출 중...' : '견적서 제출'}
+                  variant="primary"
+                  size="sm"
+                  onClick={handleSubmit}
+                  disabled={submitting}
+                  icon={<LuSend size={13} />}
+                />
+              )}
+            </div>
+          )}
         </div>
 
         {/* 섹션 목록 */}
@@ -694,9 +758,9 @@ export function EstimateEditor({ mode, initialData, onSave, onSubmit, onCancel }
                     <tr>
                       <th>고객사 *</th>
                       <td>
-                        <select value={clientId} onChange={(e) => setClientId(e.target.value)} className="form-input">
+                        <select value={clientId} onChange={(e) => setClientId(e.target.value)} className="form-input" disabled={readOnly}>
                           <option value="">고객사를 선택하세요</option>
-                          {MOCK_CLIENTS.map((c) => (
+                          {clients.map((c) => (
                             <option key={c.id} value={c.id}>{c.name}</option>
                           ))}
                         </select>
@@ -705,38 +769,38 @@ export function EstimateEditor({ mode, initialData, onSave, onSubmit, onCancel }
                     <tr>
                       <th>수신</th>
                       <td>
-                        <input type="text" value={recipient} onChange={(e) => setRecipient(e.target.value)} className="form-input" />
+                        <input type="text" value={recipient} onChange={(e) => setRecipient(e.target.value)} className="form-input" readOnly={readOnly} />
                       </td>
                     </tr>
                     <tr>
                       <th>문서번호</th>
                       <td>
-                        <input type="text" value={docNumber} onChange={(e) => setDocNumber(e.target.value)} className="form-input" />
+                        <input type="text" value={docNumber} onChange={(e) => setDocNumber(e.target.value)} className="form-input" readOnly={readOnly} />
                       </td>
                     </tr>
                     <tr>
                       <th>작성일자</th>
                       <td>
-                        <input type="date" value={issuedDate} onChange={(e) => setIssuedDate(e.target.value)} className="form-input" />
+                        <input type="date" value={issuedDate} onChange={(e) => setIssuedDate(e.target.value)} className="form-input" readOnly={readOnly} />
                       </td>
                     </tr>
                     <tr>
                       <th>프로젝트명 *</th>
                       <td>
-                        <input type="text" value={projectName} onChange={(e) => setProjectName(e.target.value)} className="form-input" />
+                        <input type="text" value={projectName} onChange={(e) => setProjectName(e.target.value)} className="form-input" readOnly={readOnly} />
                       </td>
                     </tr>
                     <tr>
                       <th>계약기간</th>
                       <td>
-                        <input type="text" value={contractPeriod} onChange={(e) => setContractPeriod(e.target.value)} className="form-input" />
+                        <input type="text" value={contractPeriod} onChange={(e) => setContractPeriod(e.target.value)} className="form-input" readOnly={readOnly} />
                       </td>
                     </tr>
                     <tr>
                       <th>부가세율</th>
                       <td>
                         <div className={s.inputWithUnit}>
-                          <input type="number" min={0} max={100} value={taxRate} onChange={(e) => setTaxRate(Number(e.target.value))} className="form-input" />
+                          <input type="number" min={0} max={100} value={taxRate} onChange={(e) => setTaxRate(Number(e.target.value))} className="form-input" readOnly={readOnly} />
                           <span className={s.inputUnit}>%</span>
                         </div>
                       </td>
@@ -760,14 +824,16 @@ export function EstimateEditor({ mode, initialData, onSave, onSubmit, onCancel }
                 <span className={s.sectionLabel}>견적 항목</span>
                 <LuChevronUp size={14} className={`${s.sectionChevron} ${openDrawer === 'items' ? s.chevronOpen : ''}`} />
               </button>
-              <button
-                type="button"
-                className={`${s.catalogToggleBtn} ${catalogOpen ? s.catalogToggleBtnActive : ''}`}
-                onClick={() => setCatalogOpen((v) => !v)}
-                title="서비스 카탈로그"
-              >
-                <LuBookOpen size={13} />
-              </button>
+              {!readOnly && (
+                <button
+                  type="button"
+                  className={`${s.catalogToggleBtn} ${catalogOpen ? s.catalogToggleBtnActive : ''}`}
+                  onClick={() => setCatalogOpen((v) => !v)}
+                  title="서비스 카탈로그"
+                >
+                  <LuBookOpen size={13} />
+                </button>
+              )}
             </div>
             {openDrawer === 'items' && (
               <div className={s.sectionBody}>
@@ -775,7 +841,7 @@ export function EstimateEditor({ mode, initialData, onSave, onSubmit, onCancel }
                   <div key={itemIdx} className={s.itemCard}>
                     <div className={s.itemHeader}>
                       <span className={s.itemNo}>{item.no}</span>
-                      {items.length > 1 && (
+                      {!readOnly && items.length > 1 && (
                         <button type="button" className={s.removeBtn} onClick={() => removeItem(itemIdx)} title="항목 삭제">
                           <LuTrash2 size={14} />
                         </button>
@@ -787,14 +853,14 @@ export function EstimateEditor({ mode, initialData, onSave, onSubmit, onCancel }
                         <tr>
                           <th>카테고리</th>
                           <td>
-                            <input type="text" value={item.category} onChange={(e) => updateItem(itemIdx, 'category', e.target.value)} className="form-input" />
+                            <input type="text" value={item.category} onChange={(e) => updateItem(itemIdx, 'category', e.target.value)} className="form-input" readOnly={readOnly} />
                           </td>
                         </tr>
                         <tr>
                           <th>단가</th>
                           <td>
                             <div className={s.inputWithUnit}>
-                              <input type="number" value={item.unit_price || ''} onChange={(e) => updateItem(itemIdx, 'unit_price', Number(e.target.value))} className="form-input" />
+                              <input type="number" value={item.unit_price || ''} onChange={(e) => updateItem(itemIdx, 'unit_price', Number(e.target.value))} className="form-input" readOnly={readOnly} />
                               <span className={s.inputUnit}>원/월</span>
                             </div>
                           </td>
@@ -802,7 +868,7 @@ export function EstimateEditor({ mode, initialData, onSave, onSubmit, onCancel }
                         <tr>
                           <th>비고</th>
                           <td>
-                            <input type="text" value={item.note} onChange={(e) => updateItem(itemIdx, 'note', e.target.value)} className="form-input" />
+                            <input type="text" value={item.note} onChange={(e) => updateItem(itemIdx, 'note', e.target.value)} className="form-input" readOnly={readOnly} />
                           </td>
                         </tr>
                       </tbody>
@@ -813,7 +879,7 @@ export function EstimateEditor({ mode, initialData, onSave, onSubmit, onCancel }
                       <div key={detailIdx} className={s.detailSection}>
                         <div className={s.detailHeaderRow}>
                           <span className={s.detailLabel}>세부 항목 {detailIdx + 1}</span>
-                          {item.details.length > 1 && (
+                          {!readOnly && item.details.length > 1 && (
                             <button type="button" className={s.smallBtn} onClick={() => removeDetail(itemIdx, detailIdx)} title="세부 삭제">
                               <LuTrash2 size={12} />
                             </button>
@@ -824,7 +890,7 @@ export function EstimateEditor({ mode, initialData, onSave, onSubmit, onCancel }
                             <tr>
                               <th>항목명</th>
                               <td>
-                                <input type="text" value={detail.title} onChange={(e) => updateDetailTitle(itemIdx, detailIdx, e.target.value)} className="form-input" />
+                                <input type="text" value={detail.title} onChange={(e) => updateDetailTitle(itemIdx, detailIdx, e.target.value)} className="form-input" readOnly={readOnly} />
                               </td>
                             </tr>
                             {detail.descriptions.map((desc, descIdx) => (
@@ -833,8 +899,8 @@ export function EstimateEditor({ mode, initialData, onSave, onSubmit, onCancel }
                                 <td>
                                   <div className={s.descriptionRow}>
                                     <span className={s.descBullet}>·</span>
-                                    <input type="text" value={desc} onChange={(e) => updateDescription(itemIdx, detailIdx, descIdx, e.target.value)} className="form-input" />
-                                    {detail.descriptions.length > 1 && (
+                                    <input type="text" value={desc} onChange={(e) => updateDescription(itemIdx, detailIdx, descIdx, e.target.value)} className="form-input" readOnly={readOnly} />
+                                    {!readOnly && detail.descriptions.length > 1 && (
                                       <button type="button" className={s.smallBtn} onClick={() => removeDescription(itemIdx, detailIdx, descIdx)}>×</button>
                                     )}
                                   </div>
@@ -843,14 +909,18 @@ export function EstimateEditor({ mode, initialData, onSave, onSubmit, onCancel }
                             ))}
                           </tbody>
                         </table>
-                        <button type="button" className={s.addDescBtn} onClick={() => addDescription(itemIdx, detailIdx)}>
-                          <LuPlus size={10} /> 설명 추가
-                        </button>
+                        {!readOnly && (
+                          <button type="button" className={s.addDescBtn} onClick={() => addDescription(itemIdx, detailIdx)}>
+                            <LuPlus size={10} /> 설명 추가
+                          </button>
+                        )}
                       </div>
                     ))}
-                    <button type="button" className={s.addDetailBtn} onClick={() => addDetail(itemIdx)} style={{ marginTop: 6 }}>
-                      <LuPlus size={11} /> 세부 항목 추가
-                    </button>
+                    {!readOnly && (
+                      <button type="button" className={s.addDetailBtn} onClick={() => addDetail(itemIdx)} style={{ marginTop: 6 }}>
+                        <LuPlus size={11} /> 세부 항목 추가
+                      </button>
+                    )}
 
                     {/* 옵션 */}
                     {item.options.length > 0 && (
@@ -862,11 +932,13 @@ export function EstimateEditor({ mode, initialData, onSave, onSubmit, onCancel }
                                 <th>{optIdx === 0 ? '옵션' : ''}</th>
                                 <td>
                                   <div className={s.optionRow}>
-                                    <input type="text" value={opt.name} onChange={(e) => updateOption(itemIdx, optIdx, 'name', e.target.value)} className="form-input" style={{ flex: 2 }} />
-                                    <input type="number" value={opt.price || ''} onChange={(e) => updateOption(itemIdx, optIdx, 'price', Number(e.target.value))} className="form-input" style={{ flex: 1 }} />
-                                    <button type="button" className={s.smallBtn} onClick={() => removeOption(itemIdx, optIdx)} title="옵션 삭제">
-                                      <LuTrash2 size={12} />
-                                    </button>
+                                    <input type="text" value={opt.name} onChange={(e) => updateOption(itemIdx, optIdx, 'name', e.target.value)} className="form-input" style={{ flex: 2 }} readOnly={readOnly} />
+                                    <input type="number" value={opt.price || ''} onChange={(e) => updateOption(itemIdx, optIdx, 'price', Number(e.target.value))} className="form-input" style={{ flex: 1 }} readOnly={readOnly} />
+                                    {!readOnly && (
+                                      <button type="button" className={s.smallBtn} onClick={() => removeOption(itemIdx, optIdx)} title="옵션 삭제">
+                                        <LuTrash2 size={12} />
+                                      </button>
+                                    )}
                                   </div>
                                 </td>
                               </tr>
@@ -875,14 +947,18 @@ export function EstimateEditor({ mode, initialData, onSave, onSubmit, onCancel }
                         </table>
                       </div>
                     )}
-                    <button type="button" className={s.addDescBtn} onClick={() => addOption(itemIdx)} style={{ marginTop: 4 }}>
-                      <LuPlus size={10} /> 옵션 추가
-                    </button>
+                    {!readOnly && (
+                      <button type="button" className={s.addDescBtn} onClick={() => addOption(itemIdx)} style={{ marginTop: 4 }}>
+                        <LuPlus size={10} /> 옵션 추가
+                      </button>
+                    )}
                   </div>
                 ))}
-                <button type="button" className={s.addItemBtn} onClick={addItem}>
-                  <LuPlus size={14} /> 카테고리 추가
-                </button>
+                {!readOnly && (
+                  <button type="button" className={s.addItemBtn} onClick={addItem}>
+                    <LuPlus size={14} /> 카테고리 추가
+                  </button>
+                )}
               </div>
             )}
             {dragOverItems && (
@@ -905,18 +981,43 @@ export function EstimateEditor({ mode, initialData, onSave, onSubmit, onCancel }
                 {notes.map((note, idx) => (
                   <div key={idx} className={s.noteRow}>
                     <span className={s.noteNo}>{idx + 1}.</span>
-                    <input type="text" value={note} onChange={(e) => updateNote(idx, e.target.value)} className="form-input" style={{ fontSize: 12 }} />
-                    <button type="button" className={s.smallBtn} onClick={() => removeNote(idx)}>
-                      <LuTrash2 size={12} />
-                    </button>
+                    <input type="text" value={note} onChange={(e) => updateNote(idx, e.target.value)} className="form-input" style={{ fontSize: 12 }} readOnly={readOnly} />
+                    {!readOnly && (
+                      <button type="button" className={s.smallBtn} onClick={() => removeNote(idx)}>
+                        <LuTrash2 size={12} />
+                      </button>
+                    )}
                   </div>
                 ))}
-                <button type="button" className={s.addDescBtn} onClick={addNote}>
-                  <LuPlus size={10} /> 참고 사항 추가
-                </button>
+                {!readOnly && (
+                  <button type="button" className={s.addDescBtn} onClick={addNote}>
+                    <LuPlus size={10} /> 참고 사항 추가
+                  </button>
+                )}
               </div>
             )}
           </div>
+
+          {/* ── 승인 현황 ── */}
+          {documentId && documentStatus && documentStatus !== 'draft' && (
+            <div className={s.section}>
+              <ApprovalPanel
+                documentId={documentId}
+                documentStatus={documentStatus}
+                onStatusChange={onStatusChange}
+              />
+            </div>
+          )}
+
+          {/* ── 승인 이력 ── */}
+          {documentId && documentStatus && documentStatus !== 'draft' && (
+            <div className={s.section}>
+              <ApprovalHistoryPanel
+                documentId={documentId}
+                documentStatus={documentStatus}
+              />
+            </div>
+          )}
 
         </div>
       </aside>
@@ -930,7 +1031,7 @@ export function EstimateEditor({ mode, initialData, onSave, onSubmit, onCancel }
       </div>
 
       {/* ═══ Catalog Flyout ═══ */}
-      {catalogOpen && (
+      {!readOnly && catalogOpen && (
         <div className={s.catalogFlyout} style={{ left: panelWidth + 5 }}>
           <div className={s.catalogFlyoutHeader}>
             <LuBookOpen size={14} />

@@ -5,17 +5,19 @@
 interface ActionButtonProps {
   label: string;
   onClick?: () => void;
-  variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
+  variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'ghost-filled';
   size?: 'sm' | 'md';
   disabled?: boolean;
   icon?: React.ReactNode;
+  style?: React.CSSProperties;
 }
 
 const VARIANT_CLASS: Record<string, string> = {
-  primary:   'btn-primary',
-  secondary: 'btn-secondary',
-  danger:    'btn-danger',
-  ghost:     'btn-ghost',
+  primary:        'btn-primary',
+  secondary:      'btn-secondary',
+  danger:         'btn-danger',
+  ghost:          'btn-ghost',
+  'ghost-filled': 'btn-ghost-filled',
 };
 
 export function ActionButton({
@@ -25,6 +27,7 @@ export function ActionButton({
   size = 'sm',
   disabled = false,
   icon,
+  style,
 }: ActionButtonProps) {
   return (
     <button
@@ -32,6 +35,7 @@ export function ActionButton({
       onClick={onClick}
       disabled={disabled}
       className={`btn ${VARIANT_CLASS[variant]} ${size === 'sm' ? 'btn-sm' : 'btn-md'}`}
+      style={style}
     >
       {icon && <span style={{ display: 'inline-flex', marginRight: 4 }}>{icon}</span>}
       {label}

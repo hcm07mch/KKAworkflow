@@ -240,14 +240,6 @@ export class ApprovalService {
       };
     }
 
-    // [단계 3] 자기 승인 차단
-    if (approval.requested_by === ctx.userId) {
-      return {
-        success: false,
-        error: { code: 'SELF_APPROVAL_NOT_ALLOWED', message: '본인이 요청한 문서를 직접 승인할 수 없습니다' },
-      };
-    }
-
     // [단계 4] 현재 단계 승인 기록
     const updated = await this.approvalRepo.update(input.approval_id, {
       approver_id: ctx.userId,
@@ -472,6 +464,101 @@ export class ApprovalService {
   }
 
   // --------------------------------------------------------------------------
+  // revertApproval
+  // --------------------------------------------------------------------------
+  /**
+   * 승인/반려 번복 (이미 처리된 승인 레코드를 대기 상태로 되돌림)
+   *
+   * 비즈니스 규칙:
+   * 1. 승인 요청 존재 + approve/reject 처리 여부 검증
+   * 2. manager 이상 역할 필요
+   * 3. 해당 단계 이후 자동 생성된 승인 레코드 삭제
+   * 4. 승인 레코드를 대기(action=null)로 리셋
+   * 5. 문서가 approved/rejected이면 in_review로 복원
+   * 6. 활동 로그 기록
+   */
+  async revertApproval(
+    input: ProcessApprovalInput,
+    ctx: ApprovalServiceContext,
+  ): Promise<ServiceResult<DocumentApproval>> {
+    const approval = await this.approvalRepo.findById(input.approval_id);
+    if (!approval) {
+      return {
+        success: false,
+        error: { code: 'APPROVAL_NOT_FOUND', message: '승인 요청을 찾을 수 없습니다' },
+      };
+    }
+
+    if (approval.action !== 'approve' && approval.action !== 'reject') {
+      return {
+        success: false,
+        error: { code: 'NOT_PROCESSED', message: '승인 또는 반려된 요청만 번복할 수 있습니다' },
+      };
+    }
+
+    // 권한 검증: manager 이상
+    if (ROLE_LEVELS[ctx.userRole] < ROLE_LEVELS['manager']) {
+      return {
+        success: false,
+        error: { code: 'INSUFFICIENT_PERMISSION', message: '매니저 이상만 승인을 번복할 수 있습니다' },
+      };
+    }
+
+    const document = await this.documentRepo.findById(approval.document_id);
+    if (!document) {
+      return {
+        success: false,
+        error: { code: 'DOCUMENT_NOT_FOUND', message: '문서를 찾을 수 없습니다' },
+      };
+    }
+
+    const previousAction = approval.action;
+
+    // 해당 단계 이후에 자동 생성된 승인 레코드 삭제 (다단계일 때)
+    const allApprovals = await this.approvalRepo.findByDocumentId(approval.document_id);
+    for (const a of allApprovals) {
+      if (a.step > approval.step && a.id !== approval.id) {
+        // 이후 단계 레코드를 취소 처리
+        if (a.action === null) {
+          await this.approvalRepo.update(a.id, {
+            approver_id: ctx.userId,
+            action: 'cancel',
+            actioned_at: new Date().toISOString(),
+            comment: '이전 단계 번복으로 인한 자동 취소',
+          });
+        }
+      }
+    }
+
+    // 승인 레코드를 대기 상태로 리셋
+    const updated = await this.approvalRepo.update(input.approval_id, {
+      approver_id: null,
+      action: null,
+      actioned_at: null,
+      comment: input.comment ?? null,
+    });
+
+    // 문서 상태 복원: approved/rejected → in_review
+    if (document.status === 'approved' || document.status === 'rejected') {
+      await this.documentRepo.update(approval.document_id, { status: 'in_review' });
+    }
+
+    // 활동 로그 기록
+    await this.activityLog.log({
+      entity_type: 'approval',
+      entity_id: input.approval_id,
+      project_id: document.project_id,
+      action: 'approval_reverted',
+      actor_id: ctx.userId,
+      description: `문서 "${document.title}" ${approval.step}단계 ${previousAction === 'approve' ? '승인' : '반려'} 번복`,
+      new_data: { action: 'revert', step: approval.step, previous_action: previousAction },
+      metadata: input.comment ? { comment: input.comment } : undefined,
+    });
+
+    return { success: true, data: updated };
+  }
+
+  // --------------------------------------------------------------------------
   // getApprovalHistory
   // --------------------------------------------------------------------------
   async getApprovalHistory(documentId: string): Promise<DocumentApproval[]> {
@@ -494,7 +581,7 @@ export class ApprovalService {
     completedSteps: number;
     currentStep: number | null;
     isFullyApproved: boolean;
-    steps: { step: number; label: string | null; status: 'approved' | 'pending' | 'waiting' }[];
+    steps: { step: number; label: string | null; status: 'approved' | 'pending' | 'waiting'; assigned_user_id: string | null }[];
   }> {
     const document = await this.documentRepo.findById(documentId);
     if (!document) {
@@ -533,7 +620,7 @@ export class ApprovalService {
       } else {
         status = 'waiting';
       }
-      steps.push({ step: s, label: stepConfig?.label ?? null, status });
+      steps.push({ step: s, label: stepConfig?.label ?? null, status, assigned_user_id: stepConfig?.assigned_user_id ?? null });
     }
 
     return { requiredSteps: policy.required_steps, completedSteps, currentStep, isFullyApproved, steps };

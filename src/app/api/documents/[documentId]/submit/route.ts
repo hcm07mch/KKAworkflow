@@ -2,17 +2,16 @@
  * API Route: Document Submit (견적서 제출)
  * POST /api/documents/:documentId/submit
  *
- * 1. PDF 파일을 Supabase Storage에 업로드
- * 2. 문서 상태를 in_review로 전환
- * 3. 프로젝트 상태를 B2_estimate_review(견적 승인)로 전환
+ * 1. 문서 상태를 in_review로 전환
+ * 2. 프로젝트 상태를 B2_estimate_review(견적 승인)로 전환
+ * (PDF 생성은 별도 /api/documents/:documentId/pdf/generate 에서 처리)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthContext } from '@/lib/auth';
-import { createSupabaseServiceClient } from '@/lib/infrastructure/supabase';
 
 export async function POST(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ documentId: string }> },
 ) {
   const auth = await getAuthContext();
@@ -25,68 +24,79 @@ export async function POST(
     organizationId: auth.organizationId,
   };
 
-  // 0) PDF 파일 업로드 (multipart/form-data)
-  const formData = await request.formData();
-  const pdfFile = formData.get('pdf') as File | null;
-
-  let pdfUrl: string | null = null;
-
-  if (pdfFile) {
-    const serviceClient = createSupabaseServiceClient();
-    const filePath = `${auth.organizationId}/${documentId}/${pdfFile.name}`;
-
-    const { error: uploadError } = await serviceClient.storage
-      .from('project-documents')
-      .upload(filePath, pdfFile, {
-        contentType: 'application/pdf',
-        upsert: true,
-      });
-
-    if (uploadError) {
-      return NextResponse.json(
-        { error: { code: 'UPLOAD_FAILED', message: uploadError.message } },
-        { status: 500 },
-      );
-    }
-
-    pdfUrl = filePath;
+  try {
+  // 1) 승인 요청 생성 (문서 draft → in_review 자동 전환 포함)
+  //    이미 in_review면 건너뜀
+  const existingDoc = await auth.services.documentRepo.findById(documentId);
+  if (!existingDoc) {
+    return NextResponse.json(
+      { error: { code: 'DOCUMENT_NOT_FOUND', message: '문서를 찾을 수 없습니다' } },
+      { status: 404 },
+    );
   }
 
-  // 1) PDF 경로를 문서 metadata에 먼저 기록 (draft 상태에서만 수정 가능)
-  if (pdfUrl) {
-    const existing = await auth.services.documentRepo.findById(documentId);
-    if (existing) {
-      await auth.services.documentRepo.update(documentId, {
-        metadata: { ...((existing.metadata as Record<string, unknown>) ?? {}), pdf_path: pdfUrl },
+  // 담당자(프로젝트 소유자)만 제출 가능
+  const ownerProject = await auth.services.projectRepo.findById(existingDoc.project_id);
+  if (ownerProject && ownerProject.owner_id && ownerProject.owner_id !== ctx.userId) {
+    return NextResponse.json(
+      { error: { code: 'FORBIDDEN', message: '담당자만 견적서를 제출할 수 있습니다' } },
+      { status: 403 },
+    );
+  }
+
+  let finalDoc = existingDoc;
+
+  if (existingDoc.status === 'draft') {
+    // 이전 재작성 등으로 남아있는 대기 중 승인 요청이 있으면 자동 취소
+    const staleApproval = await auth.services.approvalRepo.findPendingByDocumentId(documentId);
+    if (staleApproval) {
+      await auth.services.approvalRepo.update(staleApproval.id, {
+        approver_id: ctx.userId,
+        action: 'cancel',
+        actioned_at: new Date().toISOString(),
+        comment: '재제출로 인한 자동 취소',
       });
     }
+
+    const approvalResult = await auth.services.approvalService.requestDocumentApproval(
+      { document_id: documentId },
+      ctx,
+    );
+
+    if (!approvalResult.success) {
+      console.error('[submit] Approval request failed:', approvalResult.error);
+      return NextResponse.json({ error: approvalResult.error }, { status: 400 });
+    }
+
+    // 문서를 다시 조회 (in_review 상태 반영)
+    finalDoc = (await auth.services.documentRepo.findById(documentId)) ?? existingDoc;
   }
 
-  // 2) 문서 상태를 draft → in_review 로 전환
-  const docResult = await auth.services.documentService.transitionDocumentStatus(
-    documentId,
-    'in_review',
-    ctx,
-  );
+  // 3) 프로젝트 상태를 B2_estimate_review (견적 승인)로 전환 (이미 해당 상태면 건너뜀)
+  const projectId = finalDoc.project_id;
+  const project = await auth.services.projectRepo.findById(projectId);
 
-  if (!docResult.success) {
-    return NextResponse.json({ error: docResult.error }, { status: 400 });
-  }
+  if (project && project.status !== 'B2_estimate_review') {
+    const projectResult = await auth.services.projectService.transitionStatus(
+      { project_id: projectId, to_status: 'B2_estimate_review', reason: '견적서 제출' },
+      ctx,
+    );
 
-  // 3) 프로젝트 상태를 B2_estimate_review (견적 승인)로 전환
-  const projectId = docResult.data!.project_id;
-  const projectResult = await auth.services.projectService.transitionStatus(
-    { project_id: projectId, to_status: 'B2_estimate_review', reason: '견적서 제출' },
-    ctx,
-  );
-
-  if (!projectResult.success) {
-    return NextResponse.json({ error: projectResult.error }, { status: 400 });
+    if (!projectResult.success) {
+      console.error('[submit] Project transition failed:', projectResult.error);
+      return NextResponse.json({ error: projectResult.error }, { status: 400 });
+    }
   }
 
   return NextResponse.json({
-    document: docResult.data,
-    project: projectResult.data,
-    pdfUrl,
+    document: finalDoc,
+    project: project,
   });
+  } catch (err) {
+    console.error('[submit] Unhandled error:', err);
+    return NextResponse.json(
+      { error: { code: 'INTERNAL_ERROR', message: err instanceof Error ? err.message : 'Unknown error' } },
+      { status: 500 },
+    );
+  }
 }

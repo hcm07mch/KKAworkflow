@@ -196,6 +196,8 @@ export default function PaymentsPage() {
             <div key={p.id} className={`${panel.item} ${selected?.id === p.id ? panel.itemActive : ''}`} onClick={() => selectPayment(p)}>
               <span className={panel.itemName}>{p.clientName}</span>
               <span className={panel.itemMeta}>
+                <span>{p.ownerName}</span>
+                <span>·</span>
                 <span>{formatCurrency(p.amount)}</span>
                 <span>·</span>
                 <span className={`badge badge-sm ${PAYMENT_STATUS_META[p.status].badge}`}>{PAYMENT_STATUS_META[p.status].label}</span>

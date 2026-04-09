@@ -166,6 +166,7 @@ export class SupabaseProjectRepository implements IProjectRepository {
     title: string;
     description: string | null;
     code: string | null;
+    client_id: string;
     status: ProjectStatus;
     service_type: string;
     payment_type: string;

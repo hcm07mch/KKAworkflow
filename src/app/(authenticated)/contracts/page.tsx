@@ -150,6 +150,8 @@ export default function ContractsPage() {
             <div key={c.id} className={`${panel.item} ${selected?.id === c.id ? panel.itemActive : ''}`} onClick={() => selectContract(c)}>
               <span className={panel.itemName}>{c.clientName}</span>
               <span className={panel.itemMeta}>
+                <span>{c.ownerName}</span>
+                <span>·</span>
                 <span>{formatCurrency(c.monthlyAmount)}/월</span>
                 <span>·</span>
                 <StatusBadge status={c.status} type="document" />

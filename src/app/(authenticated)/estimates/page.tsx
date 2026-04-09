@@ -13,13 +13,17 @@ import panel from '../panel-layout.module.css';
 interface EstimateListItem {
   id: string;
   projectTitle: string;
+  clientId: string;
   clientName: string;
+  ownerId: string;
   ownerName: string;
   serviceType: ServiceType;
   status: DocumentStatus;
   amount: number;
   createdAt: string;
   sentAt: string | null;
+  projectStartDate: string | null;
+  projectEndDate: string | null;
   content: EstimateContent;
 }
 
@@ -35,6 +39,7 @@ export default function EstimatesPage() {
   const { toast, confirm } = useFeedback();
   const [estimates, setEstimates] = useState<EstimateListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [ownerFilter, setOwnerFilter] = useState<string>(() => {
     if (typeof window !== 'undefined') {
@@ -46,6 +51,10 @@ export default function EstimatesPage() {
   const [panelMode, setPanelMode] = useState<RightPanelMode>('empty');
 
   useEffect(() => {
+    fetch('/api/auth/me').then((r) => r.json()).then((u) => setCurrentUserId(u.id ?? null)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     fetch('/api/documents?type=estimate')
       .then((r) => r.json())
       .then((docs: any[]) => {
@@ -55,13 +64,17 @@ export default function EstimatesPage() {
           return {
             id: d.id,
             projectTitle: d.project?.title ?? '',
+            clientId: d.project?.client?.id ?? '',
             clientName: d.project?.client?.name ?? '',
+            ownerId: d.project?.owner?.id ?? '',
             ownerName: d.project?.owner?.name ?? '-',
             serviceType: d.project?.service_type ?? 'viral',
             status: d.status,
             amount,
             createdAt: d.created_at,
             sentAt: d.sent_at,
+            projectStartDate: d.project?.start_date ?? null,
+            projectEndDate: d.project?.end_date ?? null,
             content,
           };
         });
@@ -111,6 +124,7 @@ export default function EstimatesPage() {
     const newItem: EstimateListItem = {
       id: fakeId,
       projectTitle: data.project_name ?? '',
+      clientId: '',
       clientName: data.recipient?.replace(' 귀하', '') ?? '',
       ownerName: '-',
       serviceType: 'viral',
@@ -118,6 +132,8 @@ export default function EstimatesPage() {
       amount: data.total ?? 0,
       createdAt: new Date().toISOString(),
       sentAt: null,
+      projectStartDate: null,
+      projectEndDate: null,
       content: data,
     };
     setEstimates((prev) => [newItem, ...prev]);
@@ -127,9 +143,26 @@ export default function EstimatesPage() {
   }, [toast]);
 
   const handleSaveEdit = useCallback(
-    (data: EstimateContent) => {
+    async (data: EstimateContent) => {
       if (!selectedId) return;
-      // TODO: PUT /api/documents/:id → 실제 API 연결
+
+      try {
+        const res = await fetch(`/api/documents/${selectedId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: data }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          toast({ title: err?.error?.message || '저장에 실패했습니다', variant: 'error' });
+          return;
+        }
+      } catch {
+        toast({ title: '저장 중 오류가 발생했습니다', variant: 'error' });
+        return;
+      }
+
       setEstimates((prev) =>
         prev.map((e) =>
           e.id === selectedId
@@ -149,28 +182,31 @@ export default function EstimatesPage() {
   );
 
   const handleSubmit = useCallback(
-    async (data: EstimateContent, pdfBlob: Blob) => {
+    async (data: EstimateContent) => {
       if (!selectedId) return;
 
       const ok = await confirm({
         title: '견적서를 제출하시겠습니까?',
-        description: 'PDF가 저장되고 프로젝트가 견적 승인 단계로 이동합니다.',
+        description: '프로젝트가 견적 승인 단계로 이동합니다.',
         variant: 'info',
         confirmLabel: '제출',
         cancelLabel: '취소',
       });
       if (!ok) return;
 
-      const fileName = `견적서_${data.document_number || selectedId}.pdf`;
-
-      // API: PDF 업로드 + 견적서 제출 → 문서 상태 in_review + 프로젝트 상태 B2_estimate_review
+      // API: 견적서 내용 먼저 저장 (draft 상태에서만 가능)
       try {
-        const formData = new FormData();
-        formData.append('pdf', new File([pdfBlob], fileName, { type: 'application/pdf' }));
+        await fetch(`/api/documents/${selectedId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: data }),
+        });
+      } catch { /* 제출 자체는 계속 진행 */ }
 
+      // API: 견적서 제출 → 문서 상태 in_review + 프로젝트 상태 B2_estimate_review
+      try {
         const res = await fetch(`/api/documents/${selectedId}/submit`, {
           method: 'POST',
-          body: formData,
         });
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
@@ -178,7 +214,7 @@ export default function EstimatesPage() {
           return;
         }
 
-        // 3) UI 업데이트
+        // UI 업데이트
         setEstimates((prev) =>
           prev.map((e) =>
             e.id === selectedId
@@ -187,11 +223,64 @@ export default function EstimatesPage() {
           ),
         );
         toast({ title: '견적서가 제출되었습니다', message: '프로젝트가 견적 승인 단계로 이동합니다.', variant: 'success' });
+
+        // 서버 사이드 PDF 생성 (비동기 — UI 차단 없음)
+        fetch(`/api/documents/${selectedId}/pdf/generate`, { method: 'POST' }).catch(() => {});
       } catch {
         toast({ title: '견적서 제출 중 오류가 발생했습니다', variant: 'error' });
       }
     },
     [selectedId, confirm, toast],
+  );
+
+  const handleRedraft = useCallback(
+    async () => {
+      if (!selectedId) return;
+
+      const ok = await confirm({
+        title: '견적서를 재작성하시겠습니까?',
+        description: '견적서가 작성중 상태로 돌아가며 다시 수정할 수 있습니다.',
+        variant: 'warning',
+        confirmLabel: '재작성',
+        cancelLabel: '취소',
+      });
+      if (!ok) return;
+
+      try {
+        const res = await fetch(`/api/documents/${selectedId}/redraft`, {
+          method: 'POST',
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          toast({ title: err?.error?.message || '재작성 전환에 실패했습니다', variant: 'error' });
+          return;
+        }
+
+        setEstimates((prev) =>
+          prev.map((e) =>
+            e.id === selectedId
+              ? { ...e, status: 'draft' as DocumentStatus }
+              : e,
+          ),
+        );
+        toast({ title: '견적서가 재작성 상태로 전환되었습니다', variant: 'success' });
+      } catch {
+        toast({ title: '재작성 전환 중 오류가 발생했습니다', variant: 'error' });
+      }
+    },
+    [selectedId, confirm, toast],
+  );
+
+  const handleStatusChange = useCallback(
+    (newStatus: string) => {
+      if (!selectedId) return;
+      setEstimates((prev) =>
+        prev.map((e) =>
+          e.id === selectedId ? { ...e, status: newStatus as DocumentStatus } : e,
+        ),
+      );
+    },
+    [selectedId],
   );
 
   // ── Left panel item active check ──
@@ -254,6 +343,8 @@ export default function EstimatesPage() {
                 >
                   <span className={panel.itemName}>{e.clientName || e.content?.recipient || '(미지정)'}</span>
                   <span className={panel.itemMeta}>
+                    <span>{e.ownerName}</span>
+                    <span>·</span>
                     <span>{formatCurrency(e.amount)}</span>
                     <span>·</span>
                     <StatusBadge status={e.status} type="document" />
@@ -292,10 +383,26 @@ export default function EstimatesPage() {
           <EstimateEditor
             key={selected.id}
             mode="edit"
-            initialData={selected.content}
+            initialData={{
+              ...selected.content,
+              project_name: selected.content.project_name || selected.projectTitle,
+              recipient: selected.content.recipient || (selected.clientName ? `${selected.clientName} 귀하` : ''),
+              contract_period: selected.content.contract_period || (
+                selected.projectStartDate && selected.projectEndDate
+                  ? `${selected.projectStartDate} ~ ${selected.projectEndDate}`
+                  : selected.projectStartDate
+                    ? `${selected.projectStartDate} ~`
+                    : undefined
+              ),
+            }}
+            defaultClientId={selected.clientId}
             documentId={selected.id}
-            onSave={handleSaveEdit}
-            onSubmit={handleSubmit}
+            readOnly={selected.status !== 'draft' || !currentUserId || selected.ownerId !== currentUserId}
+            documentStatus={selected.status}
+            onSave={currentUserId && selected.ownerId === currentUserId ? handleSaveEdit : undefined}
+            onSubmit={currentUserId && selected.ownerId === currentUserId ? handleSubmit : undefined}
+            onRedraft={currentUserId && selected.ownerId === currentUserId ? handleRedraft : undefined}
+            onStatusChange={handleStatusChange}
             onCancel={handleCancel}
           />
         )}

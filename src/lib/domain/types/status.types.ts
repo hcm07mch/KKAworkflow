@@ -134,7 +134,7 @@ export const DOCUMENT_STATUS_META: Record<
  */
 export const DOCUMENT_STATUS_TRANSITIONS: Record<DocumentStatus, DocumentStatus[]> = {
   draft: ['in_review'],
-  in_review: ['approved', 'rejected'],
+  in_review: ['approved', 'rejected', 'draft'],
   approved: ['sent'],
   rejected: ['draft'],
   sent: [],

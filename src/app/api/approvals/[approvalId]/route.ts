@@ -37,6 +37,12 @@ export async function POST(
     case 'cancel':
       result = await auth.services.approvalService.cancelApprovalRequest({ approval_id: approvalId, comment }, ctx);
       break;
+    case 'revert': {
+      const roleCheck = requireRole(auth.role, 'manager');
+      if (roleCheck) return roleCheck;
+      result = await auth.services.approvalService.revertApproval({ approval_id: approvalId, comment }, ctx);
+      break;
+    }
     default:
       return NextResponse.json(
         { error: { code: 'INVALID_ACTION', message: 'action? approve, reject, cancel 以 ???ъ??⑸??' } },
