@@ -10,6 +10,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { LuPlus, LuTrash2, LuChevronUp, LuSettings2, LuFileText, LuListOrdered, LuBookOpen, LuGripVertical, LuX, LuSend, LuRotateCcw, LuDownload } from 'react-icons/lu';
 import { ActionButton, useFeedback } from '@/components/ui';
 import type { EstimateContent } from '@/lib/domain/types';
+import { PAYMENT_TYPE_META, PAYMENT_TYPES } from '@/lib/domain/types';
 import { EstimatePreview } from './estimate-preview';
 import { ApprovalPanel, ApprovalHistoryPanel } from './approval-panel';
 import s from './estimate-editor.module.css';
@@ -342,8 +343,10 @@ export function EstimateEditor({ mode, initialData, documentId, defaultClientId,
   });
   const [recipient, setRecipient] = useState(initialData?.recipient || '');
   const [projectName, setProjectName] = useState(initialData?.project_name || '');
-  const [contractPeriod, setContractPeriod] = useState(initialData?.contract_period || '월 정기결제');
+
   const [taxRate, setTaxRate] = useState(initialData?.tax_rate ?? 10);
+  const [paymentType, setPaymentType] = useState(initialData?.payment_type || 'per_invoice');
+  const [paymentMonths, setPaymentMonths] = useState(initialData?.payment_months ?? 1);
 
   // Items
   const [items, setItems] = useState<EstimateItemData[]>(() => {
@@ -580,7 +583,7 @@ export function EstimateEditor({ mode, initialData, documentId, defaultClientId,
     recipient,
     sender: companyName,
     project_name: projectName,
-    contract_period: contractPeriod,
+
     issued_date: issuedDate,
     items: items.map((item) => ({
       no: item.no,
@@ -594,6 +597,8 @@ export function EstimateEditor({ mode, initialData, documentId, defaultClientId,
     tax_rate: taxRate,
     tax,
     total,
+    payment_type: paymentType,
+    payment_months: (paymentType === 'monthly' || paymentType === 'deposit') ? paymentMonths : undefined,
     notes: notes.filter(Boolean),
     company_name: companyName,
     company_address: companyAddress,
@@ -790,12 +795,7 @@ ${styleSheets}
                         <input type="text" value={projectName} onChange={(e) => setProjectName(e.target.value)} className="form-input" readOnly={readOnly} />
                       </td>
                     </tr>
-                    <tr>
-                      <th>계약기간</th>
-                      <td>
-                        <input type="text" value={contractPeriod} onChange={(e) => setContractPeriod(e.target.value)} className="form-input" readOnly={readOnly} />
-                      </td>
-                    </tr>
+
                     <tr>
                       <th>부가세율</th>
                       <td>
@@ -805,6 +805,27 @@ ${styleSheets}
                         </div>
                       </td>
                     </tr>
+                    <tr>
+                      <th>결제 방식</th>
+                      <td>
+                        <select value={paymentType} onChange={(e) => setPaymentType(e.target.value)} className="form-input" disabled={readOnly}>
+                          {PAYMENT_TYPES.map((pt) => (
+                            <option key={pt} value={pt}>{PAYMENT_TYPE_META[pt].label}</option>
+                          ))}
+                        </select>
+                      </td>
+                    </tr>
+                    {(paymentType === 'monthly' || paymentType === 'deposit') && (
+                      <tr>
+                        <th>{paymentType === 'deposit' ? '선수금 기간' : '결제 기간'}</th>
+                        <td>
+                          <div className={s.inputWithUnit}>
+                            <input type="number" min={1} value={paymentMonths} onChange={(e) => setPaymentMonths(Number(e.target.value) || 1)} className="form-input" readOnly={readOnly} />
+                            <span className={s.inputUnit}>개월</span>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1015,6 +1036,7 @@ ${styleSheets}
               <ApprovalHistoryPanel
                 documentId={documentId}
                 documentStatus={documentStatus}
+                onRevert={() => onStatusChange?.('in_review')}
               />
             </div>
           )}

@@ -177,9 +177,9 @@
 }
 
 .formTable th {
-  width: 72px;
-  min-width: 72px;
-  max-width: 72px;
+  width: 80px;
+  min-width: 80px;
+  max-width: 80px;
   font-size: 11px;
   font-weight: 600;
   color: var(--color-text-secondary);
@@ -1042,12 +1042,14 @@
     border-radius: 0;
     break-after: page;
   }
+  .a4PageOuter:last-child {
+    break-after: auto;
+  }
   .a4Page {
     transform: none !important;
     box-shadow: none;
     width: 100%;
     height: auto;
-    min-height: 100vh;
     overflow: visible;
   }
 }

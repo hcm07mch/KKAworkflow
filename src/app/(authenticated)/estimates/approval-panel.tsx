@@ -383,9 +383,10 @@ export function ApprovalPanel({ documentId, documentStatus, onStatusChange }: Ap
 interface ApprovalHistoryPanelProps {
   documentId: string;
   documentStatus: string;
+  onRevert?: () => void;
 }
 
-export function ApprovalHistoryPanel({ documentId, documentStatus }: ApprovalHistoryPanelProps) {
+export function ApprovalHistoryPanel({ documentId, documentStatus, onRevert }: ApprovalHistoryPanelProps) {
   const { toast, confirm } = useFeedback();
   const [history, setHistory] = useState<ApprovalHistoryItem[]>([]);
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
@@ -431,6 +432,7 @@ export function ApprovalHistoryPanel({ documentId, documentStatus }: ApprovalHis
       if (res.ok) {
         toast({ title: '승인이 번복되었습니다', variant: 'success' });
         setHistory((prev) => prev.filter((h) => h.id !== approvalId));
+        onRevert?.();
       } else {
         const err = await res.json().catch(() => ({}));
         toast({ title: err?.error?.message || '번복 처리에 실패했습니다', variant: 'error' });

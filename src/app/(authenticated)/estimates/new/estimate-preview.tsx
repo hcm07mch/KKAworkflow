@@ -66,10 +66,7 @@ export function EstimatePreview({ data }: EstimatePreviewProps) {
             <td className={s.infoLabel}>프로젝트</td>
             <td className={s.infoValue} colSpan={3}>{project_name || '-'}</td>
           </tr>
-          <tr>
-            <td className={s.infoLabel}>계약기간</td>
-            <td className={s.infoValue} colSpan={3}>{contract_period || '-'}</td>
-          </tr>
+
         </tbody>
       </table>
 

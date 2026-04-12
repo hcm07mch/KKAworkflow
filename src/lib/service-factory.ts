@@ -47,7 +47,7 @@ export function createServices(db: any, ctx: ServiceContext) {
   const activityLog = new ActivityLogService(activityLogRepo, ctx.organizationId);
   const projectService = new ProjectService(projectRepo, clientRepo, activityLog);
   const documentService = new DocumentService(documentRepo, projectRepo, activityLog);
-  const approvalService = new ApprovalService(approvalRepo, documentRepo, approvalPolicyRepo, documentService, activityLog);
+  const approvalService = new ApprovalService(approvalRepo, documentRepo, approvalPolicyRepo, documentService, activityLog, projectRepo);
   const notificationService = new NotificationService(notificationRepo, assigneeRepo, ctx.organizationId);
 
   return {

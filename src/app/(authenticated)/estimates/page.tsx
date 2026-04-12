@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { LuFileText, LuPlus } from 'react-icons/lu';
+import { LuFileText, LuPlus, LuExternalLink } from 'react-icons/lu';
 import { StatusBadge, useFeedback } from '@/components/ui';
 import type { DocumentStatus, ServiceType, EstimateContent } from '@/lib/domain/types';
 import { SERVICE_TYPE_META } from '@/lib/domain/types';
@@ -12,6 +12,7 @@ import panel from '../panel-layout.module.css';
 
 interface EstimateListItem {
   id: string;
+  projectId: string;
   projectTitle: string;
   clientId: string;
   clientName: string;
@@ -63,6 +64,7 @@ export default function EstimatesPage() {
           const amount = content.total ?? content.subtotal ?? d.project?.total_amount ?? 0;
           return {
             id: d.id,
+            projectId: d.project?.id ?? '',
             projectTitle: d.project?.title ?? '',
             clientId: d.project?.client?.id ?? '',
             clientName: d.project?.client?.name ?? '',
@@ -88,6 +90,19 @@ export default function EstimatesPage() {
       })
       .catch(() => setLoading(false));
   }, []);
+
+  // flow_number 기반 넘버링 (동일 프로젝트 여러 건 존재 시만 표시)
+  const projectHasSiblings = new Set<string>();
+  (() => {
+    const cnt: Record<string, number> = {};
+    for (const e of estimates) cnt[e.projectId] = (cnt[e.projectId] ?? 0) + 1;
+    for (const pid of Object.keys(cnt)) { if (cnt[pid] > 1) projectHasSiblings.add(pid); }
+  })();
+  const getFlowSuffix = (e: EstimateListItem) => {
+    if (!projectHasSiblings.has(e.projectId)) return '';
+    const fn = (e.content as Record<string, any>)?.flow_number;
+    return fn >= 1 ? ` #${fn}` : '';
+  };
 
   const ownerNames = Array.from(new Set(estimates.map((e) => e.ownerName).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'ko'));
 
@@ -335,13 +350,29 @@ export default function EstimatesPage() {
                   <div className={panel.skeletonBar} style={{ width: '35%', height: 8 }} />
                 </div>
               ))
-            : filtered.map((e) => (
+            : filtered.map((e) => {
+                const suffix = getFlowSuffix(e);
+                return (
                 <div
                   key={e.id}
                   className={`${panel.item} ${isActive(e.id) ? panel.itemActive : ''}`}
                   onClick={() => handleSelect(e)}
                 >
-                  <span className={panel.itemName}>{e.clientName || e.content?.recipient || '(미지정)'}</span>
+                  <span className={panel.itemNameRow}>
+                    <span className={panel.itemName}>{e.clientName || e.content?.recipient || '(미지정)'}{suffix}</span>
+                    {e.projectId && (
+                      <a
+                        href={`/projects?selected=${e.projectId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={panel.itemProjectLink}
+                        onClick={(ev) => ev.stopPropagation()}
+                        title="프로젝트 보기"
+                      >
+                        <LuExternalLink size={12} />
+                      </a>
+                    )}
+                  </span>
                   <span className={panel.itemMeta}>
                     <span>{e.ownerName}</span>
                     <span>·</span>
@@ -350,7 +381,7 @@ export default function EstimatesPage() {
                     <StatusBadge status={e.status} type="document" />
                   </span>
                 </div>
-              ))}
+              ); })}
 
           {!loading && filtered.length === 0 && (
             <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>

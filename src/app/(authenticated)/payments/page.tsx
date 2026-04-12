@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { LuCreditCard, LuLoader } from 'react-icons/lu';
-import { ActionButton, StatusBadge } from '@/components/ui';
-import { SERVICE_TYPE_META, PROJECT_STATUS_META, DOCUMENT_TYPE_META } from '@/lib/domain/types';
-import type { ServiceType, ProjectStatus, DocumentStatus, DocumentType } from '@/lib/domain/types';
+import { LuCreditCard, LuExternalLink, LuCheck } from 'react-icons/lu';
+import { StatusBadge, useFeedback } from '@/components/ui';
+import { SERVICE_TYPE_META, PAYMENT_TYPE_META } from '@/lib/domain/types';
+import type { ServiceType, ProjectStatus } from '@/lib/domain/types';
 import panel from '../panel-layout.module.css';
 
 // ── Types ────────────────────────────────────────────────
@@ -16,43 +16,21 @@ const PAYMENT_STATUS_META: Record<PaymentStatus, { label: string; badge: string 
 };
 
 interface PaymentItem {
-  id: string;
+  id: string;           // document ID
+  projectId: string;
   projectTitle: string;
-  projectCode: string;
   clientName: string;
   ownerName: string;
   serviceType: ServiceType;
   projectStatus: ProjectStatus;
   status: PaymentStatus;
+  paymentType: string;
   amount: number;
-  startDate: string | null;
-  endDate: string | null;
-  paymentConfirmedAt: string | null;
-}
-
-interface PaymentDetail {
-  id: string;
-  code: string | null;
-  title: string;
-  description: string | null;
-  status: ProjectStatus;
-  service_type: ServiceType;
-  total_amount: number | null;
-  start_date: string | null;
-  end_date: string | null;
-  created_at: string;
-  updated_at: string;
-  metadata: Record<string, any>;
-  client: { id: string; name: string; contact_name: string | null };
-  owner: { id: string; name: string } | null;
-  documents: {
-    id: string;
-    type: DocumentType;
-    status: DocumentStatus;
-    version: number;
-    title: string;
-    updated_at: string;
-  }[];
+  months: number | null;
+  confirmedAt: string | null;
+  createdAt: string;
+  title: string;        // document title
+  flowNumber: number | null;
 }
 
 function formatCurrency(n: number) {
@@ -66,8 +44,10 @@ function formatDate(d: string | null) {
 // ── Page ─────────────────────────────────────────────────
 
 export default function PaymentsPage() {
+  const { toast, confirm } = useFeedback();
   const [payments, setPayments] = useState<PaymentItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [confirming, setConfirming] = useState(false);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<PaymentStatus | 'all'>('all');
   const [ownerFilter, setOwnerFilter] = useState<string>(() => {
@@ -77,54 +57,87 @@ export default function PaymentsPage() {
     return 'all';
   });
   const [selected, setSelected] = useState<PaymentItem | null>(null);
-  const [detail, setDetail] = useState<PaymentDetail | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
 
   const selectPayment = useCallback((p: PaymentItem) => {
     setSelected(p);
     localStorage.setItem('payments_selectedId', p.id);
-    setDetail(null);
-    setDetailLoading(true);
-    fetch(`/api/projects/${p.id}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.error) throw new Error();
-        setDetail(data);
-      })
-      .catch(() => {})
-      .finally(() => setDetailLoading(false));
   }, []);
 
   useEffect(() => {
-    fetch('/api/projects?status=D1_payment_pending,D2_payment_confirmed&limit=200')
+    fetch('/api/documents?type=payment')
       .then((r) => r.json())
-      .then((res) => {
-        const items: PaymentItem[] = (res.data ?? []).map((p: any) => ({
-          id: p.id,
-          projectTitle: p.title,
-          projectCode: p.code ?? '',
-          clientName: p.client?.name ?? '',
-          ownerName: p.owner?.name ?? '-',
-          serviceType: p.service_type,
-          projectStatus: p.status,
-          status: p.metadata?.payment_confirmed_at ? 'confirmed' as PaymentStatus : 'pending' as PaymentStatus,
-          amount: p.total_amount ?? 0,
-          startDate: p.start_date,
-          endDate: p.end_date,
-          paymentConfirmedAt: p.metadata?.payment_confirmed_at ?? null,
-        }));
+      .then((docs: any[]) => {
+        const items: PaymentItem[] = docs.map((d) => {
+          const content = d.content ?? {};
+          return {
+            id: d.id,
+            projectId: d.project?.id ?? '',
+            projectTitle: d.project?.title ?? '',
+            clientName: d.project?.client?.name ?? '',
+            ownerName: d.project?.owner?.name ?? '-',
+            serviceType: d.project?.service_type ?? 'viral',
+            projectStatus: d.project?.status,
+            status: content.confirmed_at ? 'confirmed' as PaymentStatus : 'pending' as PaymentStatus,
+            paymentType: content.payment_type ?? 'per_invoice',
+            amount: content.amount ?? 0,
+            months: content.months ?? null,
+            confirmedAt: content.confirmed_at ?? null,
+            createdAt: d.created_at,
+            title: d.title ?? '',
+            flowNumber: content.flow_number ?? null,
+          };
+        });
         setPayments(items);
         setLoading(false);
         const savedId = localStorage.getItem('payments_selectedId');
         if (savedId) {
           const target = items.find((p) => p.id === savedId);
-          if (target) setSelected(target);
+          if (target) selectPayment(target);
         }
       })
       .catch(() => setLoading(false));
-  }, []);
+  }, [selectPayment]);
+
+  // 동일 프로젝트 여러 건 존재 시 flow_number 표시
+  const projectHasSiblings = new Set<string>();
+  (() => {
+    const cnt: Record<string, number> = {};
+    for (const p of payments) cnt[p.projectId] = (cnt[p.projectId] ?? 0) + 1;
+    for (const pid of Object.keys(cnt)) { if (cnt[pid] > 1) projectHasSiblings.add(pid); }
+  })();
 
   const ownerNames = Array.from(new Set(payments.map((p) => p.ownerName).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'ko'));
+
+  async function handleConfirmPayment() {
+    if (!selected || selected.status !== 'pending') return;
+    const ok = await confirm({ title: `"${selected.title || selected.clientName}" 입금을 확인 처리하시겠습니까?` });
+    if (!ok) return;
+    setConfirming(true);
+    try {
+      // 문서 content에 confirmed_at 기록
+      const docRes = await fetch(`/api/documents/${selected.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: { ...({ payment_type: selected.paymentType, amount: selected.amount, months: selected.months, flow_number: selected.flowNumber } as Record<string, unknown>), confirmed_at: new Date().toISOString() } }),
+      });
+      if (!docRes.ok) throw new Error();
+      // 프로젝트 상태를 D2_payment_confirmed로 변경
+      await fetch(`/api/projects/${selected.projectId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'D2_payment_confirmed' }),
+      });
+      // 로컬 상태 업데이트
+      const now = new Date().toISOString();
+      setPayments((prev) => prev.map((p) => p.id === selected.id ? { ...p, status: 'confirmed' as PaymentStatus, confirmedAt: now } : p));
+      setSelected((prev) => prev ? { ...prev, status: 'confirmed' as PaymentStatus, confirmedAt: now } : prev);
+      toast({ title: '입금이 확인되었습니다', variant: 'success' });
+    } catch {
+      toast({ title: '입금 확인에 실패했습니다', variant: 'error' });
+    } finally {
+      setConfirming(false);
+    }
+  }
 
   const filtered = payments.filter((p) => {
     if (filter !== 'all' && p.status !== filter) return false;
@@ -194,7 +207,19 @@ export default function PaymentsPage() {
         <div className={panel.itemList}>
           {filtered.map((p) => (
             <div key={p.id} className={`${panel.item} ${selected?.id === p.id ? panel.itemActive : ''}`} onClick={() => selectPayment(p)}>
-              <span className={panel.itemName}>{p.clientName}</span>
+              <span className={panel.itemNameRow}>
+                <span className={panel.itemName}>{p.clientName}{projectHasSiblings.has(p.projectId) && p.flowNumber ? ` #${p.flowNumber}` : ''}</span>
+                <a
+                  href={`/projects?selected=${p.projectId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={panel.itemProjectLink}
+                  onClick={(ev) => ev.stopPropagation()}
+                  title="프로젝트 보기"
+                >
+                  <LuExternalLink size={12} />
+                </a>
+              </span>
               <span className={panel.itemMeta}>
                 <span>{p.ownerName}</span>
                 <span>·</span>
@@ -218,33 +243,12 @@ export default function PaymentsPage() {
           <>
             <div className={panel.detailHeader}>
               <div>
-                <div className={panel.detailTitle}>{selected.clientName}</div>
-                <div className={panel.detailSubtitle}>{selected.projectCode} · {selected.projectTitle}</div>
-              </div>
-              <div className={panel.detailActions}>
-                {selected.status === 'pending' && (
-                  <ActionButton label="입금 확인" variant="primary" size="sm" onClick={() => {
-                    if (!confirm('입금을 확인하시겠습니까?')) return;
-                    const now = new Date().toISOString();
-                    const prevStatus = selected.status;
-                    // 낙관적 업데이트
-                    setSelected((prev) => prev ? { ...prev, status: 'confirmed', paymentConfirmedAt: now } : prev);
-                    setPayments((prev) => prev.map((p) => p.id === selected.id ? { ...p, status: 'confirmed' as PaymentStatus, paymentConfirmedAt: now } : p));
-                    fetch(`/api/projects/${selected.id}`, {
-                      method: 'PATCH',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ metadata: { ...(detail?.metadata ?? {}), payment_confirmed_at: now } }),
-                    }).catch(() => {
-                      setSelected((prev) => prev ? { ...prev, status: prevStatus, paymentConfirmedAt: null } : prev);
-                      setPayments((prev) => prev.map((p) => p.id === selected.id ? { ...p, status: prevStatus, paymentConfirmedAt: null } : p));
-                      alert('입금 확인에 실패했습니다.');
-                    });
-                  }} />
-                )}
+                <div className={panel.detailTitle}>{selected.title || selected.clientName}</div>
+                <div className={panel.detailSubtitle}>{selected.projectTitle}</div>
               </div>
             </div>
 
-            {/* 프로젝트 기본 정보 */}
+            {/* 입금 정보 */}
             <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
               <table className={panel.formTable}>
                 <tbody>
@@ -254,82 +258,67 @@ export default function PaymentsPage() {
                   </tr>
                   <tr>
                     <th>프로젝트</th>
-                    <td><span className={panel.fieldValue}>{selected.projectTitle}</span></td>
+                    <td>
+                      <a href={`/projects?selected=${selected.projectId}`} style={{ color: 'var(--color-primary)', textDecoration: 'none', fontWeight: 500 }}>
+                        {selected.projectTitle}
+                      </a>
+                    </td>
                   </tr>
                   <tr>
                     <th>고객사</th>
-                    <td><span className={panel.fieldValue}>{detail?.client?.name ?? selected.clientName}</span></td>
+                    <td><span className={panel.fieldValue}>{selected.clientName}</span></td>
                   </tr>
                   <tr>
                     <th>담당자</th>
-                    <td><span className={panel.fieldValue}>{detail?.owner?.name ?? selected.ownerName}</span></td>
+                    <td><span className={panel.fieldValue}>{selected.ownerName}</span></td>
                   </tr>
                   <tr>
                     <th>서비스 유형</th>
                     <td><span className={panel.fieldValue}>{SERVICE_TYPE_META[selected.serviceType]?.label ?? '-'}</span></td>
                   </tr>
                   <tr>
-                    <th>프로젝트 상태</th>
-                    <td><StatusBadge status={selected.projectStatus} type="project" /></td>
+                    <th>결제 방식</th>
+                    <td><span className={panel.fieldValue}>{PAYMENT_TYPE_META[selected.paymentType as keyof typeof PAYMENT_TYPE_META]?.label ?? selected.paymentType}</span></td>
                   </tr>
                   <tr>
                     <th>입금 금액</th>
                     <td><span className={panel.fieldValue} style={{ fontWeight: 600 }}>{formatCurrency(selected.amount)}</span></td>
                   </tr>
-                  <tr>
-                    <th>시작일</th>
-                    <td><span className={panel.fieldValue}>{formatDate(selected.startDate)}</span></td>
-                  </tr>
-                  <tr>
-                    <th>종료일</th>
-                    <td><span className={panel.fieldValue}>{formatDate(selected.endDate)}</span></td>
-                  </tr>
-                  {selected.paymentConfirmedAt && (
+                  {selected.months != null && selected.months > 0 && (
                     <tr>
-                      <th>입금 확인일</th>
-                      <td><span className={panel.fieldValue}>{formatDate(selected.paymentConfirmedAt)}</span></td>
+                      <th>개월 수</th>
+                      <td><span className={panel.fieldValue}>{selected.months}개월</span></td>
                     </tr>
                   )}
+                  {selected.confirmedAt && (
+                    <tr>
+                      <th>입금 확인일</th>
+                      <td><span className={panel.fieldValue}>{formatDate(selected.confirmedAt)}</span></td>
+                    </tr>
+                  )}
+                  <tr>
+                    <th>등록일</th>
+                    <td><span className={panel.fieldValue}>{formatDate(selected.createdAt)}</span></td>
+                  </tr>
                 </tbody>
               </table>
             </div>
 
-            {/* 문서 목록 */}
-            <div className={panel.detailSection}>
-              <div className={panel.detailSectionTitle}>문서 목록</div>
-              {detailLoading ? (
-                <div className="card" style={{ padding: '16px', fontSize: 13, color: 'var(--color-text-muted)' }}>
-                  문서를 불러오는 중...
-                </div>
-              ) : !detail?.documents?.length ? (
-                <div className="card" style={{ padding: '16px', fontSize: 13, color: 'var(--color-text-muted)' }}>
-                  등록된 문서가 없습니다.
-                </div>
-              ) : (
-                <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>구분</th>
-                        <th>제목</th>
-                        <th>상태</th>
-                        <th>버전</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {detail.documents.map((doc) => (
-                        <tr key={doc.id}>
-                          <td>{DOCUMENT_TYPE_META[doc.type]?.label ?? doc.type}</td>
-                          <td style={{ fontWeight: 500 }}>{doc.title}</td>
-                          <td><StatusBadge status={doc.status} type="document" /></td>
-                          <td>v{doc.version}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+            {/* 입금 확인 버튼 */}
+            {selected.status === 'pending' && (
+              <div style={{ padding: '16px 0' }}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 0', fontWeight: 600 }}
+                  onClick={handleConfirmPayment}
+                  disabled={confirming}
+                >
+                  <LuCheck size={16} />
+                  {confirming ? '처리 중...' : '입금 확인'}
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>

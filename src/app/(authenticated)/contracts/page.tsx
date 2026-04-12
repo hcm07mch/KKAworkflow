@@ -1,40 +1,44 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { LuFilePen, LuLoader, LuPlus } from 'react-icons/lu';
-import { StatusBadge, ActionButton } from '@/components/ui';
-import type { DocumentStatus, ServiceType } from '@/lib/domain/types';
-import { SERVICE_TYPE_META } from '@/lib/domain/types';
+import { LuFilePen, LuExternalLink } from 'react-icons/lu';
+import { StatusBadge, useFeedback } from '@/components/ui';
+import type { DocumentStatus, ServiceType, ContractContent } from '@/lib/domain/types';
+import { ContractEditor } from './contract-editor';
 import panel from '../panel-layout.module.css';
 
 // ── Types ────────────────────────────────────────────────
 
-interface ContractItem {
+interface ContractListItem {
   id: string;
+  projectId: string;
   projectTitle: string;
+  clientId: string;
   clientName: string;
+  ownerId: string;
   ownerName: string;
   serviceType: ServiceType;
   status: DocumentStatus;
   monthlyAmount: number;
   contractMonths: number;
-  startDate: string | null;
+  hasFile: boolean;
   createdAt: string;
+  content: ContractContent;
 }
+
+type RightPanelMode = 'empty' | 'edit';
 
 function formatCurrency(n: number) {
   return new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW', maximumFractionDigits: 0 }).format(n);
-}
-function formatDate(d: string | null) {
-  if (!d) return '-';
-  return new Date(d).toLocaleDateString('ko-KR', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 // ── Page ─────────────────────────────────────────────────
 
 export default function ContractsPage() {
-  const [contracts, setContracts] = useState<ContractItem[]>([]);
+  const { toast, confirm } = useFeedback();
+  const [contracts, setContracts] = useState<ContractListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [ownerFilter, setOwnerFilter] = useState<string>(() => {
     if (typeof window !== 'undefined') {
@@ -42,32 +46,36 @@ export default function ContractsPage() {
     }
     return 'all';
   });
-  const [selected, setSelected] = useState<ContractItem | null>(null);
-
-  const selectContract = useCallback((c: ContractItem) => {
-    setSelected(c);
-    localStorage.setItem('contracts_selectedId', c.id);
-  }, []);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [panelMode, setPanelMode] = useState<RightPanelMode>('empty');
 
   useEffect(() => {
+    fetch('/api/auth/me').then((r) => r.json()).then((u) => setCurrentUserId(u.id ?? null)).catch(() => {});
+  }, []);
+
+  const fetchContracts = useCallback(() => {
     fetch('/api/documents?type=contract')
       .then((r) => r.json())
       .then((docs: any[]) => {
-        const items: ContractItem[] = docs.map((d) => {
-          const content = d.content ?? {};
-          const monthlyAmount = content.monthly_amount ?? content.monthlyAmount ?? d.project?.total_amount ?? 0;
-          const contractMonths = 3; // default
+        const items: ContractListItem[] = docs.map((d) => {
+          const content: ContractContent = d.content ?? {};
+          const monthlyAmount = content.monthly_amount ?? d.project?.total_amount ?? 0;
+          const contractMonths = content.contract_months ?? 3;
           return {
             id: d.id,
+            projectId: d.project?.id ?? '',
             projectTitle: d.project?.title ?? '',
+            clientId: d.project?.client?.id ?? '',
             clientName: d.project?.client?.name ?? '',
+            ownerId: d.project?.owner?.id ?? '',
             ownerName: d.project?.owner?.name ?? '-',
             serviceType: d.project?.service_type ?? 'viral',
             status: d.status,
             monthlyAmount,
             contractMonths,
-            startDate: content.effective_date ?? d.project?.start_date ?? null,
+            hasFile: !!content.file_path,
             createdAt: d.created_at,
+            content,
           };
         });
         setContracts(items);
@@ -75,52 +83,194 @@ export default function ContractsPage() {
         const savedId = localStorage.getItem('contracts_selectedId');
         if (savedId) {
           const target = items.find((c) => c.id === savedId);
-          if (target) setSelected(target);
+          if (target) { setSelectedId(target.id); setPanelMode('edit'); }
         }
       })
       .catch(() => setLoading(false));
   }, []);
 
+  useEffect(() => { fetchContracts(); }, [fetchContracts]);
+
+  // flow_number 기반 넘버링 (동일 프로젝트 여러 건 존재 시만 표시)
+  const projectHasSiblings = new Set<string>();
+  (() => {
+    const cnt: Record<string, number> = {};
+    for (const c of contracts) cnt[c.projectId] = (cnt[c.projectId] ?? 0) + 1;
+    for (const pid of Object.keys(cnt)) { if (cnt[pid] > 1) projectHasSiblings.add(pid); }
+  })();
+  const getFlowSuffix = (c: ContractListItem) => {
+    if (!projectHasSiblings.has(c.projectId)) return '';
+    const fn = (c.content as Record<string, any>)?.flow_number;
+    return fn >= 1 ? ` #${fn}` : '';
+  };
+
   const ownerNames = Array.from(new Set(contracts.map((c) => c.ownerName).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'ko'));
 
   const filtered = contracts.filter((c) => {
     if (ownerFilter !== 'all' && c.ownerName !== ownerFilter) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      return c.projectTitle.toLowerCase().includes(q) || c.clientName.toLowerCase().includes(q);
-    }
-    return true;
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return c.projectTitle.toLowerCase().includes(q) || c.clientName.toLowerCase().includes(q);
   });
 
-  if (loading) {
-    return (
-      <div className={panel.wrapper}>
-        <div className={panel.leftPanel}>
-          <div className={panel.leftHeader}>
-            <span className={panel.leftTitle}>계약서</span>
-            <div className={panel.searchInput} style={{ opacity: 0.5 }} />
-          </div>
-          <div className={panel.itemList}>
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className={panel.skeletonItem}>
-                <div className={panel.skeletonBar} style={{ width: '55%' }} />
-                <div className={panel.skeletonBar} style={{ width: '35%', height: 8 }} />
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className={panel.rightPanel}>
-          <div className={panel.emptyState}>
-            <span className={panel.emptyIcon}><LuFilePen size={32} /></span>
-            <span>계약서를 선택하세요</span>
-          </div>
-        </div>
-      </div>
-    );
+  const selected = selectedId ? contracts.find((c) => c.id === selectedId) ?? null : null;
+
+  // ── Handlers ──
+
+  const handleSelect = useCallback((item: ContractListItem) => {
+    setSelectedId(item.id);
+    setPanelMode('edit');
+    localStorage.setItem('contracts_selectedId', item.id);
+  }, []);
+
+  const handleSaveEdit = useCallback(
+    async (data: ContractContent) => {
+      if (!selectedId) return;
+
+      try {
+        const res = await fetch(`/api/documents/${selectedId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: data }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          toast({ title: err?.error?.message || '저장에 실패했습니다', variant: 'error' });
+          return;
+        }
+      } catch {
+        toast({ title: '저장 중 오류가 발생했습니다', variant: 'error' });
+        return;
+      }
+
+      setContracts((prev) =>
+        prev.map((c) =>
+          c.id === selectedId
+            ? {
+                ...c,
+                monthlyAmount: data.monthly_amount ?? c.monthlyAmount,
+                contractMonths: data.contract_months ?? c.contractMonths,
+                hasFile: !!data.file_path,
+                content: data,
+              }
+            : c,
+        ),
+      );
+      toast({ title: '계약서 정보가 저장되었습니다', variant: 'success' });
+    },
+    [selectedId, toast],
+  );
+
+  const handleSubmit = useCallback(
+    async (data: ContractContent) => {
+      if (!selectedId) return;
+
+      const ok = await confirm({
+        title: '계약서를 제출하시겠습니까?',
+        description: '프로젝트가 계약 승인 단계로 이동합니다.',
+        variant: 'info',
+        confirmLabel: '제출',
+        cancelLabel: '취소',
+      });
+      if (!ok) return;
+
+      // 먼저 메타 정보 저장
+      try {
+        await fetch(`/api/documents/${selectedId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: data }),
+        });
+      } catch { /* 제출 자체는 계속 진행 */ }
+
+      // 계약서 제출
+      try {
+        const res = await fetch(`/api/documents/${selectedId}/contract-submit`, {
+          method: 'POST',
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          toast({ title: err?.error?.message || '계약서 제출에 실패했습니다', variant: 'error' });
+          return;
+        }
+
+        setContracts((prev) =>
+          prev.map((c) =>
+            c.id === selectedId
+              ? { ...c, status: 'in_review' as DocumentStatus, content: data }
+              : c,
+          ),
+        );
+        toast({ title: '계약서가 제출되었습니다', message: '프로젝트가 계약 승인 단계로 이동합니다.', variant: 'success' });
+      } catch {
+        toast({ title: '계약서 제출 중 오류가 발생했습니다', variant: 'error' });
+      }
+    },
+    [selectedId, confirm, toast],
+  );
+
+  const handleRedraft = useCallback(
+    async () => {
+      if (!selectedId) return;
+
+      const ok = await confirm({
+        title: '계약서를 재작성하시겠습니까?',
+        description: '계약서가 작성중 상태로 돌아가며 다시 수정할 수 있습니다.',
+        variant: 'warning',
+        confirmLabel: '재작성',
+        cancelLabel: '취소',
+      });
+      if (!ok) return;
+
+      try {
+        const res = await fetch(`/api/documents/${selectedId}/contract-redraft`, {
+          method: 'POST',
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          toast({ title: err?.error?.message || '재작성 전환에 실패했습니다', variant: 'error' });
+          return;
+        }
+
+        setContracts((prev) =>
+          prev.map((c) =>
+            c.id === selectedId
+              ? { ...c, status: 'draft' as DocumentStatus }
+              : c,
+          ),
+        );
+        toast({ title: '계약서가 재작성 상태로 전환되었습니다', variant: 'success' });
+      } catch {
+        toast({ title: '재작성 전환 중 오류가 발생했습니다', variant: 'error' });
+      }
+    },
+    [selectedId, confirm, toast],
+  );
+
+  const handleStatusChange = useCallback(
+    (newStatus: string) => {
+      if (!selectedId) return;
+      setContracts((prev) =>
+        prev.map((c) =>
+          c.id === selectedId ? { ...c, status: newStatus as DocumentStatus } : c,
+        ),
+      );
+    },
+    [selectedId],
+  );
+
+  const handleFileUploaded = useCallback(() => {
+    fetchContracts();
+  }, [fetchContracts]);
+
+  function isActive(id: string) {
+    return panelMode === 'edit' && selectedId === id;
   }
 
   return (
     <div className={panel.wrapper}>
+      {/* ══════════ Left Panel ══════════ */}
       <div className={panel.leftPanel}>
         <div className={panel.leftHeader}>
           <div className={panel.leftTitleRow}>
@@ -140,63 +290,87 @@ export default function ContractsPage() {
               ))}
             </select>
           </div>
-          <input className={panel.searchInput} placeholder="프로젝트, 고객사 검색..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input
+            className={panel.searchInput}
+            placeholder="프로젝트, 고객사 검색..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
         <div className={panel.itemList}>
-          <div className={panel.addItem} onClick={() => alert('계약서 작성 (TODO)')}>
-            <LuPlus size={14} /> 새 계약서
-          </div>
-          {filtered.map((c) => (
-            <div key={c.id} className={`${panel.item} ${selected?.id === c.id ? panel.itemActive : ''}`} onClick={() => selectContract(c)}>
-              <span className={panel.itemName}>{c.clientName}</span>
-              <span className={panel.itemMeta}>
-                <span>{c.ownerName}</span>
-                <span>·</span>
-                <span>{formatCurrency(c.monthlyAmount)}/월</span>
-                <span>·</span>
-                <StatusBadge status={c.status} type="document" />
-              </span>
+          {loading
+            ? Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className={panel.skeletonItem}>
+                  <div className={panel.skeletonBar} style={{ width: '55%' }} />
+                  <div className={panel.skeletonBar} style={{ width: '35%', height: 8 }} />
+                </div>
+              ))
+            : filtered.map((c) => {
+                const suffix = getFlowSuffix(c);
+                return (
+                <div
+                  key={c.id}
+                  className={`${panel.item} ${isActive(c.id) ? panel.itemActive : ''}`}
+                  onClick={() => handleSelect(c)}
+                >
+                  <span className={panel.itemNameRow}>
+                    <span className={panel.itemName}>{c.clientName || '(미지정)'}{suffix}</span>
+                    {c.projectId && (
+                      <a
+                        href={`/projects?selected=${c.projectId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={panel.itemProjectLink}
+                        onClick={(ev) => ev.stopPropagation()}
+                        title="프로젝트 보기"
+                      >
+                        <LuExternalLink size={12} />
+                      </a>
+                    )}
+                  </span>
+                  <span className={panel.itemMeta}>
+                    <span>{c.ownerName}</span>
+                    <span>·</span>
+                    <span>{formatCurrency(c.monthlyAmount)}/월</span>
+                    <span>·</span>
+                    <StatusBadge status={c.status} type="document" />
+                  </span>
+                </div>
+              ); })}
+
+          {!loading && filtered.length === 0 && (
+            <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>
+              계약서가 없습니다.
             </div>
-          ))}
-          {filtered.length === 0 && (
-            <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>계약서가 없습니다.</div>
           )}
         </div>
-        <div className={panel.leftFooter}>{filtered.length}건</div>
+        <div className={panel.leftFooter}>{loading ? '-' : `${filtered.length}건`}</div>
       </div>
 
-      <div className={panel.rightPanel}>
-        {!selected ? (
-          <div className={panel.emptyState}><span className={panel.emptyIcon}><LuFilePen size={32} /></span><span>계약서를 선택하세요</span></div>
-        ) : (
-          <>
-            <div className={panel.detailHeader}>
-              <div>
-                <div className={panel.detailTitle}>{selected.clientName}</div>
-                <div className={panel.detailSubtitle}>{selected.projectTitle}</div>
-              </div>
-              <div className={panel.detailActions}>
-                <ActionButton label="발송" variant="primary" size="sm" onClick={() => alert('발송 (TODO)')} />
-                <ActionButton label="수정" variant="secondary" size="sm" onClick={() => alert('수정 (TODO)')} />
-              </div>
-            </div>
-            <div className="card">
-              <div className={panel.detailGrid}>
-                <div className={panel.detailField}><span className={panel.fieldLabel}>고객사</span><span className={panel.fieldValue}>{selected.clientName}</span></div>
-                <div className={panel.detailField}><span className={panel.fieldLabel}>상태</span><span className={panel.fieldValue}><StatusBadge status={selected.status} type="document" /></span></div>
-                <div className={panel.detailField}><span className={panel.fieldLabel}>서비스 유형</span><span className={panel.fieldValue}>{SERVICE_TYPE_META[selected.serviceType]?.label ?? '-'}</span></div>
-                <div className={panel.detailField}><span className={panel.fieldLabel}>월 금액</span><span className={panel.fieldValue}>{formatCurrency(selected.monthlyAmount)}</span></div>
-                <div className={panel.detailField}><span className={panel.fieldLabel}>계약 기간</span><span className={panel.fieldValue}>{selected.contractMonths}개월</span></div>
-                <div className={panel.detailField}><span className={panel.fieldLabel}>총 금액</span><span className={panel.fieldValue}>{formatCurrency(selected.monthlyAmount * selected.contractMonths)}</span></div>
-                <div className={panel.detailField}><span className={panel.fieldLabel}>시작일</span><span className={panel.fieldValue}>{formatDate(selected.startDate)}</span></div>
-                <div className={panel.detailField}><span className={panel.fieldLabel}>작성일</span><span className={panel.fieldValue}>{formatDate(selected.createdAt)}</span></div>
-              </div>
-            </div>
-            <div className={panel.detailSection}>
-              <div className={panel.detailSectionTitle}>승인 이력</div>
-              <div className="card" style={{ padding: '16px', fontSize: 13, color: 'var(--color-text-muted)' }}>승인/반려 이력이 여기에 표시됩니다.</div>
-            </div>
-          </>
+      {/* ══════════ Right Panel ══════════ */}
+      <div className={panel.rightPanel} style={{ padding: panelMode !== 'empty' ? 0 : undefined }}>
+        {panelMode === 'empty' && (
+          <div className={panel.emptyState}>
+            <span className={panel.emptyIcon}><LuFilePen size={32} /></span>
+            <span>계약서를 선택하세요</span>
+          </div>
+        )}
+
+        {panelMode === 'edit' && selected && (
+          <ContractEditor
+            key={selected.id}
+            mode="upload"
+            initialData={selected.content}
+            documentId={selected.id}
+            clientName={selected.clientName}
+            readOnly={selected.status !== 'draft' || !currentUserId || selected.ownerId !== currentUserId}
+            documentStatus={selected.status}
+            onSave={currentUserId && selected.ownerId === currentUserId ? handleSaveEdit : undefined}
+            onSubmit={currentUserId && selected.ownerId === currentUserId ? handleSubmit : undefined}
+            onRedraft={currentUserId && selected.ownerId === currentUserId ? handleRedraft : undefined}
+            onStatusChange={handleStatusChange}
+            onFileUploaded={handleFileUploaded}
+          />
         )}
       </div>
     </div>

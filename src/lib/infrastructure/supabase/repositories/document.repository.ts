@@ -216,7 +216,28 @@ export class SupabaseDocumentRepository implements IDocumentRepository {
       .select()
       .single();
 
-    if (error || !row) throw new Error(`document ?? ?ㅽ? ${error?.message}`);
+    if (error || !row) throw new Error(`document 업데이트 실패: ${error?.message}`);
     return row as unknown as ProjectDocument;
+  }
+
+  async deleteByProjectIdAndType(projectId: string, type: string): Promise<number> {
+    const { data, error } = await this.db
+      .from('workflow_project_documents')
+      .delete()
+      .eq('project_id', projectId)
+      .eq('type', type)
+      .select('id');
+
+    if (error) throw new Error(`document 삭제 실패: ${error.message}`);
+    return data?.length ?? 0;
+  }
+
+  async deleteById(id: string): Promise<void> {
+    const { error } = await this.db
+      .from('workflow_project_documents')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw new Error(`document 삭제 실패: ${error.message}`);
   }
 }

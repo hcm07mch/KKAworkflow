@@ -179,6 +179,9 @@ export interface IDocumentRepository {
     sent_to: string | null;
     metadata: JsonObject;
   }>): Promise<ProjectDocument>;
+
+  deleteByProjectIdAndType(projectId: string, type: DocumentType): Promise<number>;
+  deleteById(id: string): Promise<void>;
 }
 
 // ============================================================================

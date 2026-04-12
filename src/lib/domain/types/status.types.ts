@@ -38,7 +38,8 @@ export const PROJECT_STATUS_GROUPS: { key: string; label: string; statuses: Proj
   { key: 'C', label: '계약', statuses: ['C1_contract_draft', 'C2_contract_review', 'C3_contract_sent', 'C4_contract_signed'] },
   { key: 'D', label: '입금', statuses: ['D1_payment_pending', 'D2_payment_confirmed'] },
   { key: 'E', label: '집행', statuses: ['E1_prereport_draft', 'E2_prereport_review', 'E3_prereport_sent', 'E4_execution'] },
-  { key: 'F', label: '종료', statuses: ['F1_refund', 'F2_closed'] },
+  { key: 'F', label: '환불', statuses: ['F1_refund'] },
+  { key: 'G', label: '종료', statuses: ['F2_closed'] },
 ];
 
 export const PROJECT_STATUS_META: Record<
@@ -73,19 +74,19 @@ export const PROJECT_STATUS_META: Record<
  */
 export const PROJECT_STATUS_TRANSITIONS: Record<ProjectStatus, ProjectStatus[]> = {
   A_sales:              ['B1_estimate_draft', 'F2_closed'],
-  B1_estimate_draft:    ['B2_estimate_review'],
-  B2_estimate_review:   ['B3_estimate_sent', 'B1_estimate_draft'],       // 반려 시 B1로 복귀
-  B3_estimate_sent:     ['B4_estimate_response'],
-  B4_estimate_response: ['C1_contract_draft', 'D1_payment_pending', 'A_sales'],  // 거절 시 A로, 바이럴은 D1로 직행
-  C1_contract_draft:    ['C2_contract_review'],
-  C2_contract_review:   ['C3_contract_sent', 'C1_contract_draft'],       // 반려 시 C1로 복귀
-  C3_contract_sent:     ['C4_contract_signed'],
-  C4_contract_signed:   ['D1_payment_pending'],
-  D1_payment_pending:   ['D2_payment_confirmed'],
-  D2_payment_confirmed: ['E1_prereport_draft', 'E4_execution'],          // 바이럴은 E4 직행 가능
-  E1_prereport_draft:   ['E2_prereport_review'],
-  E2_prereport_review:  ['E3_prereport_sent', 'E1_prereport_draft'],     // 반려 시 E1로 복귀
-  E3_prereport_sent:    ['E4_execution'],
+  B1_estimate_draft:    ['B2_estimate_review', 'F1_refund', 'F2_closed'],
+  B2_estimate_review:   ['B3_estimate_sent', 'B1_estimate_draft', 'F1_refund', 'F2_closed'],
+  B3_estimate_sent:     ['B4_estimate_response', 'F1_refund', 'F2_closed'],
+  B4_estimate_response: ['C1_contract_draft', 'D1_payment_pending', 'A_sales', 'F1_refund', 'F2_closed'],
+  C1_contract_draft:    ['C2_contract_review', 'F1_refund', 'F2_closed'],
+  C2_contract_review:   ['C3_contract_sent', 'C1_contract_draft', 'F1_refund', 'F2_closed'],
+  C3_contract_sent:     ['C4_contract_signed', 'F1_refund', 'F2_closed'],
+  C4_contract_signed:   ['D1_payment_pending', 'F1_refund', 'F2_closed'],
+  D1_payment_pending:   ['D2_payment_confirmed', 'F1_refund', 'F2_closed'],
+  D2_payment_confirmed: ['E1_prereport_draft', 'E4_execution', 'F1_refund', 'F2_closed'],
+  E1_prereport_draft:   ['E2_prereport_review', 'F1_refund', 'F2_closed'],
+  E2_prereport_review:  ['E3_prereport_sent', 'E1_prereport_draft', 'F1_refund', 'F2_closed'],
+  E3_prereport_sent:    ['E4_execution', 'F1_refund', 'F2_closed'],
   E4_execution:         ['E1_prereport_draft', 'F1_refund', 'F2_closed'],  // E1 루프, 환불, 또는 종료
   F1_refund:            ['F2_closed'],                                     // 환불 → 종료
   F2_closed:            [],                                                // 최종 상태 (전환 불가)
@@ -135,7 +136,7 @@ export const DOCUMENT_STATUS_META: Record<
 export const DOCUMENT_STATUS_TRANSITIONS: Record<DocumentStatus, DocumentStatus[]> = {
   draft: ['in_review'],
   in_review: ['approved', 'rejected', 'draft'],
-  approved: ['sent'],
+  approved: ['sent', 'draft'],
   rejected: ['draft'],
   sent: [],
 };
@@ -149,6 +150,7 @@ export const DOCUMENT_TYPES = [
   'contract',
   'pre_report',
   'report',
+  'payment',
 ] as const;
 
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
@@ -186,6 +188,12 @@ export const DOCUMENT_TYPE_META: Record<
     allowedProjectStatuses: ['E4_execution'],
     allowedServiceTypes: null,
   },
+  payment: {
+    label: '입금 확인',
+    description: '입금 확인 기록',
+    allowedProjectStatuses: ['D1_payment_pending', 'D2_payment_confirmed'],
+    allowedServiceTypes: null,
+  },
 };
 
 // ============================================================================
@@ -221,7 +229,7 @@ export const SERVICE_TYPE_META: Record<
 // PAYMENT TYPE
 // ============================================================================
 
-export const PAYMENT_TYPES = ['deposit', 'per_invoice'] as const;
+export const PAYMENT_TYPES = ['per_invoice', 'monthly', 'deposit'] as const;
 
 export type PaymentType = (typeof PAYMENT_TYPES)[number];
 
@@ -229,8 +237,9 @@ export const PAYMENT_TYPE_META: Record<
   PaymentType,
   { label: string; description: string }
 > = {
-  deposit: { label: '선입금', description: '선입금 후 작업 진행' },
+  deposit: { label: '선수금', description: '선수금 입금 후 작업 진행' },
   per_invoice: { label: '건별결제', description: '건별 청구서 발행 후 결제' },
+  monthly: { label: '월결제', description: '월 단위 정기 결제' },
 };
 
 // ============================================================================

@@ -9,7 +9,7 @@ import type { ProjectStatus, ServiceType, PaymentType, DocumentStatus, DocumentT
 import {
   PROJECT_STATUS_META, PROJECT_STATUS_GROUPS, PROJECT_STATUS_TRANSITIONS,
   SERVICE_TYPE_META, SERVICE_TYPES, PAYMENT_TYPE_META, PAYMENT_TYPES,
-  DOCUMENT_TYPE_META,
+  DOCUMENT_TYPE_META, DOCUMENT_STATUS_META,
 } from '@/lib/domain/types';
 import { WorkflowProgress, WorkflowBuilder } from './[id]/components';
 import panel from '../panel-layout.module.css';
@@ -64,6 +64,7 @@ interface ProjectDetail {
     status: DocumentStatus;
     version: number;
     title: string;
+    content: Record<string, any>;
     updated_at: string;
     metadata: Record<string, any>;
   }[];
@@ -145,6 +146,12 @@ export default function ProjectsPage() {
   } | null>(null);
   const [closingReason, setClosingReason] = useState('');
   const closingReasonRef = useRef<HTMLTextAreaElement>(null);
+
+  // 입금 플로우 모달 상태
+  const [paymentModal, setPaymentModal] = useState(false);
+  const [paymentType, setPaymentType] = useState<PaymentType>('per_invoice');
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentMonths, setPaymentMonths] = useState('1');
 
   useEffect(() => {
     fetch('/api/settings/status-check-types')
@@ -300,8 +307,8 @@ export default function ProjectsPage() {
 
   function handleTransition(toStatus: ProjectStatus) {
     if (!detail || !selected) return;
-    // F 그룹(종료) 전환 시 종료 사유 모달 표시
-    if (toStatus === 'F1_refund' || toStatus === 'F2_closed') {
+    // G 그룹(종료) 전환 시 종료 사유 모달 표시
+    if (toStatus === 'F2_closed') {
       setClosingReason('');
       setClosingModal({ toStatus, source: 'transition' });
       return;
@@ -320,25 +327,67 @@ export default function ProjectsPage() {
       .catch(() => alert('상태 변경에 실패했습니다.'));
   }
 
+  // 그룹 → 문서 타입 매핑
+  const GROUP_DOC_TYPE_MAP: Record<string, { type: string; suffix: string }> = {
+    B: { type: 'estimate', suffix: '견적서' },
+    C: { type: 'contract', suffix: '계약서' },
+    E: { type: 'pre_report', suffix: '사전보고서' },
+  };
+
   function handleWorkflowAdd(groupKey: string, paymentAmount?: number) {
     if (!detail || !selected) return;
-    // F 그룹(종료) 추가 시 종료 사유 모달 표시
-    if (groupKey === 'F') {
-      const group = PROJECT_STATUS_GROUPS.find((g) => g.key === 'F');
-      const toStatus = (group?.statuses[0] ?? 'F1_refund') as ProjectStatus;
+    // G 그룹(종료) 추가 시 종료 사유 모달 표시
+    if (groupKey === 'G') {
       setClosingReason('');
-      setClosingModal({ toStatus, source: 'workflowAdd', groupKey: 'F' });
+      setClosingModal({ toStatus: 'F2_closed' as ProjectStatus, source: 'workflowAdd', groupKey: 'G' });
+      return;
+    }
+    // D 그룹(입금) 추가 시 결제 모달 표시 (paymentAmount 없으면)
+    if (groupKey === 'D' && paymentAmount == null) {
+      setPaymentType('per_invoice');
+      setPaymentAmount('');
+      setPaymentMonths('1');
+      setPaymentModal(true);
+      return;
+    }
+    // F 그룹(환불) 추가 시 환불 금액 저장 후 상태 변경
+    if (groupKey === 'F' && paymentAmount != null) {
+      const saved: string[] | undefined = detail.metadata?.workflow_stack as string[] | undefined;
+      const currentStack = saved && saved.length > 0 ? saved : inferStackFromStatus(selected.status);
+      const newStack = [...currentStack, groupKey];
+      const newMeta = { ...detail.metadata, workflow_stack: newStack };
+      const newStatus = 'F1_refund' as ProjectStatus;
+      setDetail((prev) => prev ? { ...prev, status: newStatus, metadata: newMeta } : prev);
+      setSelected((prev) => prev ? { ...prev, status: newStatus } : prev);
+      setProjects((prev) => prev.map((p) => p.id === detail.id ? { ...p, status: newStatus } : p));
+      fetch(`/api/projects/${detail.id}/refunds`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: paymentAmount }),
+      }).then((r) => {
+        if (!r.ok) throw new Error();
+        return fetch(`/api/projects/${detail.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: newStatus, metadata: newMeta }),
+        });
+      }).then((r) => {
+        if (!r.ok) throw new Error();
+      }).catch(() => {
+        setDetail((prev) => prev ? { ...prev, status: selected.status, metadata: detail.metadata } : prev);
+        setSelected((prev) => prev ? { ...prev, status: selected.status } : prev);
+        setProjects((prev) => prev.map((p) => p.id === detail.id ? { ...p, status: selected.status } : p));
+        alert('환불 처리에 실패했습니다.');
+      });
       return;
     }
     const saved: string[] | undefined = detail.metadata?.workflow_stack as string[] | undefined;
     const currentStack = saved && saved.length > 0 ? saved : inferStackFromStatus(selected.status);
     const newStack = [...currentStack, groupKey];
     const group = PROJECT_STATUS_GROUPS.find((g) => g.key === groupKey);
-    // D 그룹: D1(입금 대기) 자동 완료 → D2 로 시작
     const newStatus = groupKey === 'D'
-      ? 'D2_payment_confirmed' as ProjectStatus
+      ? 'D1_payment_pending' as ProjectStatus
       : (group?.statuses[0] ?? selected.status) as ProjectStatus;
-    // 낙관적 업데이트
     const newMeta = { ...detail.metadata, workflow_stack: newStack };
     const newAmount = groupKey === 'D' && paymentAmount != null ? paymentAmount : selected.totalAmount;
     setDetail((prev) => prev ? { ...prev, status: newStatus, metadata: newMeta, total_amount: newAmount } : prev);
@@ -348,12 +397,37 @@ export default function ProjectsPage() {
     if (groupKey === 'D' && paymentAmount != null) {
       patchBody.total_amount = paymentAmount;
     }
+    // 프로젝트 상태 변경 후 문서 생성
     fetch(`/api/projects/${detail.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(patchBody),
+    }).then((r) => {
+      if (!r.ok) throw new Error();
+      // 해당 그룹에 연결된 문서 자동 생성 (B/C/E)
+      const docConfig = GROUP_DOC_TYPE_MAP[groupKey];
+      if (docConfig) {
+        const flowNumber = newStack.filter((k) => k === groupKey).length;
+        const numSuffix = flowNumber > 1 ? ` #${flowNumber}` : '';
+        return fetch('/api/documents', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project_id: detail.id,
+            type: docConfig.type,
+            title: `${detail.title} ${docConfig.suffix}${numSuffix}`,
+            content: { flow_number: flowNumber },
+          }),
+        });
+      }
+      return null;
+    }).then((r) => {
+      if (r && !r.ok) throw new Error();
+      // 문서 목록 갱신을 위해 detail 리로드
+      return fetch(`/api/projects/${detail.id}`).then((r2) => r2.json());
+    }).then((data) => {
+      if (data && !data.error) setDetail(data);
     }).catch(() => {
-      // 실패 시 롤백
       setDetail((prev) => prev ? { ...prev, status: selected.status, metadata: detail.metadata, total_amount: selected.totalAmount } : prev);
       setSelected((prev) => prev ? { ...prev, status: selected.status, totalAmount: selected.totalAmount } : prev);
       setProjects((prev) => prev.map((p) => p.id === detail.id ? { ...p, status: selected.status, totalAmount: selected.totalAmount } : p));
@@ -361,10 +435,113 @@ export default function ProjectsPage() {
     });
   }
 
-  function handleWorkflowDelete(index: number) {
+  // 입금 모달 확인 핸들러
+  function handlePaymentConfirm() {
+    const amount = parseInt(paymentAmount.replace(/[^0-9]/g, ''), 10);
+    if (isNaN(amount) || amount <= 0) {
+      alert('올바른 금액을 입력해주세요.');
+      return;
+    }
+    const months = parseInt(paymentMonths, 10) || 1;
+    if ((paymentType === 'deposit' || paymentType === 'monthly') && months < 1) {
+      alert('개월 수를 입력해주세요.');
+      return;
+    }
+    setPaymentModal(false);
     if (!detail || !selected) return;
     const saved: string[] | undefined = detail.metadata?.workflow_stack as string[] | undefined;
     const currentStack = saved && saved.length > 0 ? saved : inferStackFromStatus(selected.status);
+    const newStack = [...currentStack, 'D'];
+    const newStatus = 'D1_payment_pending' as ProjectStatus;
+    const paymentInfo: Record<string, unknown> = { type: paymentType, amount };
+    if (paymentType === 'deposit') paymentInfo.months_covered = months;
+    if (paymentType === 'monthly') paymentInfo.installment_months = months;
+    const totalAmount = amount;
+    const newMeta = {
+      ...detail.metadata,
+      workflow_stack: newStack,
+      payment_info: paymentInfo,
+    };
+    // 낙관적 업데이트
+    setDetail((prev) => prev ? { ...prev, status: newStatus, metadata: newMeta, total_amount: totalAmount } : prev);
+    setSelected((prev) => prev ? { ...prev, status: newStatus, totalAmount: totalAmount } : prev);
+    setProjects((prev) => prev.map((p) => p.id === detail.id ? { ...p, status: newStatus, totalAmount: totalAmount } : p));
+    // 프로젝트 상태 변경 후 입금 문서 생성
+    fetch(`/api/projects/${detail.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus, metadata: newMeta, total_amount: totalAmount }),
+    }).then((r) => {
+      if (!r.ok) throw new Error();
+      // 입금 확인 문서 생성
+      const flowNumber = newStack.filter((k) => k === 'D').length;
+      const numSuffix = flowNumber > 1 ? ` #${flowNumber}` : '';
+      return fetch('/api/documents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project_id: detail.id,
+          type: 'payment',
+          title: `${detail.title} 입금확인${numSuffix}`,
+          content: {
+            payment_type: paymentType,
+            amount,
+            months: (paymentType === 'deposit' || paymentType === 'monthly') ? months : undefined,
+            flow_number: flowNumber,
+          },
+        }),
+      });
+    }).then((r) => {
+      if (r && !r.ok) throw new Error();
+      // detail 리로드
+      return fetch(`/api/projects/${detail.id}`).then((r2) => r2.json());
+    }).then((data) => {
+      if (data && !data.error) setDetail(data);
+    }).catch(() => {
+      setDetail((prev) => prev ? { ...prev, status: selected.status, metadata: detail.metadata, total_amount: selected.totalAmount } : prev);
+      setSelected((prev) => prev ? { ...prev, status: selected.status, totalAmount: selected.totalAmount } : prev);
+      setProjects((prev) => prev.map((p) => p.id === detail.id ? { ...p, status: selected.status, totalAmount: selected.totalAmount } : p));
+      alert('상태 변경에 실패했습니다.');
+    });
+  }
+
+  async function handleWorkflowDelete(index: number) {
+    if (!detail || !selected) return;
+    const saved: string[] | undefined = detail.metadata?.workflow_stack as string[] | undefined;
+    const currentStack = saved && saved.length > 0 ? saved : inferStackFromStatus(selected.status);
+    const deletedGroupKey = currentStack[index];
+
+    // 삭제할 그룹에 연결된 문서 타입 매핑
+    const groupDocTypeMap: Record<string, { type: string; label: string }> = {
+      B: { type: 'estimate', label: '견적서' },
+      C: { type: 'contract', label: '계약서' },
+      D: { type: 'payment', label: '입금확인' },
+      E: { type: 'pre_report', label: '사전보고서' },
+    };
+
+    const docConfig = groupDocTypeMap[deletedGroupKey];
+    const groupLabel = PROJECT_STATUS_GROUPS.find((g) => g.key === deletedGroupKey)?.label ?? deletedGroupKey;
+
+    // 해당 타입의 가장 최근 문서 1건 찾기
+    let targetDoc: { id: string; type: string } | null = null;
+    if (docConfig && detail.documents) {
+      const docsOfType = detail.documents.filter((d) => d.type === docConfig.type);
+      if (docsOfType.length > 0) {
+        targetDoc = docsOfType[docsOfType.length - 1]; // 가장 마지막 (최근) 문서
+      }
+    }
+
+    // 경고 메시지 구성
+    let message = `"${groupLabel}" 단계를 삭제하시겠습니까?`;
+    if (targetDoc) {
+      message += `\n\n⚠️ 연결된 ${docConfig!.label} 1건이 함께 삭제됩니다.\n삭제된 문서는 복구할 수 없습니다.`;
+    }
+    if (deletedGroupKey === 'F') {
+      message += `\n\n⚠️ 환불 내역도 함께 삭제됩니다.`;
+    }
+
+    if (!confirm(message)) return;
+
     const newStack = currentStack.filter((_, i) => i !== index);
     let newStatus: ProjectStatus = 'A_sales';
     if (newStack.length > 0) {
@@ -372,17 +549,47 @@ export default function ProjectsPage() {
       const group = PROJECT_STATUS_GROUPS.find((g) => g.key === lastKey);
       if (group) newStatus = group.statuses[0];
     }
+
     // 낙관적 업데이트
     const newMeta = { ...detail.metadata, workflow_stack: newStack };
-    setDetail((prev) => prev ? { ...prev, status: newStatus, metadata: newMeta } : prev);
+    const prevDocuments = detail.documents;
+    setDetail((prev) => prev ? {
+      ...prev,
+      status: newStatus,
+      metadata: newMeta,
+      documents: targetDoc ? prev.documents.filter((d) => d.id !== targetDoc!.id) : prev.documents,
+    } : prev);
     setSelected((prev) => prev ? { ...prev, status: newStatus } : prev);
     setProjects((prev) => prev.map((p) => p.id === detail.id ? { ...p, status: newStatus } : p));
-    fetch(`/api/projects/${detail.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: newStatus, metadata: newMeta }),
-    }).catch(() => {
-      setDetail((prev) => prev ? { ...prev, status: selected.status, metadata: detail.metadata } : prev);
+
+    // 병렬 삭제 요청
+    const deletions: Promise<any>[] = [];
+
+    // 해당 문서 1건 삭제
+    if (targetDoc) {
+      deletions.push(
+        fetch(`/api/documents/${targetDoc.id}`, { method: 'DELETE' }),
+      );
+    }
+
+    // F(종료) 그룹 삭제 시 환불 내역도 함께 삭제
+    if (deletedGroupKey === 'F') {
+      deletions.push(
+        fetch(`/api/projects/${detail.id}/refunds`, { method: 'DELETE' }),
+      );
+    }
+
+    // 프로젝트 상태 + 메타데이터 갱신
+    deletions.push(
+      fetch(`/api/projects/${detail.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus, metadata: newMeta }),
+      }),
+    );
+
+    Promise.all(deletions).catch(() => {
+      setDetail((prev) => prev ? { ...prev, status: selected.status, metadata: detail.metadata, documents: prevDocuments } : prev);
       setSelected((prev) => prev ? { ...prev, status: selected.status } : prev);
       setProjects((prev) => prev.map((p) => p.id === detail.id ? { ...p, status: selected.status } : p));
       alert('상태 변경에 실패했습니다.');
@@ -391,8 +598,8 @@ export default function ProjectsPage() {
 
   function handleWorkflowStatusChange(toStatus: ProjectStatus) {
     if (!detail || !selected) return;
-    // F 그룹(종료) 상태 변경 시 종료 사유 모달 표시
-    if (toStatus === 'F1_refund' || toStatus === 'F2_closed') {
+    // G 그룹(종료) 상태 변경 시 종료 사유 모달 표시
+    if (toStatus === 'F2_closed') {
       setClosingReason('');
       setClosingModal({ toStatus, source: 'workflowStatus' });
       return;
@@ -406,6 +613,24 @@ export default function ProjectsPage() {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: toStatus }),
+    }).then(async (r) => {
+      if (!r.ok) throw new Error();
+      // D2 입금 완료 전환 시 → 해당 입금 문서에 confirmed_at 기록
+      if (toStatus === ('D2_payment_confirmed' as ProjectStatus) && detail.documents) {
+        const paymentDocs = detail.documents.filter((d) => d.type === 'payment');
+        const targetDoc = paymentDocs.find((d) => !(d.content as Record<string, unknown>)?.confirmed_at);
+        if (targetDoc) {
+          const prevContent = (targetDoc.content ?? {}) as Record<string, unknown>;
+          await fetch(`/api/documents/${targetDoc.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: { ...prevContent, confirmed_at: new Date().toISOString() } }),
+          });
+          // detail 리로드
+          const data = await fetch(`/api/projects/${detail.id}`).then((r2) => r2.json());
+          if (data && !data.error) setDetail(data);
+        }
+      }
     }).catch(() => {
       setDetail((prev) => prev ? { ...prev, status: prevStatus } : prev);
       setSelected((prev) => prev ? { ...prev, status: prevStatus } : prev);
@@ -415,33 +640,24 @@ export default function ProjectsPage() {
   }
 
   // 종료 사유 모달 확인 핸들러
-  function handleClosingConfirm() {
+  async function handleClosingConfirm() {
     if (!closingModal || !detail || !selected) return;
     const { toStatus, source, groupKey } = closingModal;
     const reason = closingReason.trim();
 
     if (source === 'workflowAdd' && groupKey) {
-      // 워크플로우에 F 그룹 추가
+      // 워크플로우에 G 그룹 추가 — 단일 PATCH로 status + metadata 동시 변경
       const saved: string[] | undefined = detail.metadata?.workflow_stack as string[] | undefined;
       const currentStack = saved && saved.length > 0 ? saved : inferStackFromStatus(selected.status);
       const newStack = [...currentStack, groupKey];
       const newMeta = { ...detail.metadata, workflow_stack: newStack };
-      // 낙관적 업데이트
       setDetail((prev) => prev ? { ...prev, status: toStatus, metadata: newMeta } : prev);
       setSelected((prev) => prev ? { ...prev, status: toStatus } : prev);
       setProjects((prev) => prev.map((p) => p.id === detail.id ? { ...p, status: toStatus } : p));
-      // metadata 먼저 업데이트 후 transition (F 상태에서는 metadata 수정 불가하므로)
       fetch(`/api/projects/${detail.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ metadata: newMeta }),
-      }).then((r) => {
-        if (!r.ok) throw new Error();
-        return fetch(`/api/projects/${detail.id}/transition`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: toStatus, reason: reason || undefined }),
-        });
+        body: JSON.stringify({ status: toStatus, metadata: newMeta }),
       }).then((r) => {
         if (!r.ok) throw new Error();
       }).catch(() => {
@@ -451,15 +667,15 @@ export default function ProjectsPage() {
         alert('상태 변경에 실패했습니다.');
       });
     } else {
-      // transition / workflowStatus: transition API로 사유 전달
+      // transition / workflowStatus: 단일 PATCH로 상태 변경
       const prevStatus = selected.status;
       setDetail((prev) => prev ? { ...prev, status: toStatus } : prev);
       setSelected((prev) => prev ? { ...prev, status: toStatus } : prev);
       setProjects((prev) => prev.map((p) => p.id === detail.id ? { ...p, status: toStatus } : p));
-      fetch(`/api/projects/${detail.id}/transition`, {
-        method: 'POST',
+      fetch(`/api/projects/${detail.id}`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: toStatus, reason: reason || undefined }),
+        body: JSON.stringify({ status: toStatus }),
       }).then((r) => {
         if (!r.ok) throw new Error();
         if (source === 'transition') selectProject({ ...selected, status: toStatus });
@@ -873,6 +1089,247 @@ export default function ProjectsPage() {
           </>
         )}
       </div>
+      )}
+
+      {/* ── 입금 플로우 모달 ── */}
+      {paymentModal && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(2px)',
+          }}
+          onClick={() => setPaymentModal(false)}
+        >
+          <div
+            style={{
+              width: 480, maxWidth: 'calc(100vw - 32px)',
+              background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius)', boxShadow: '0 16px 48px rgba(0,0,0,0.18)',
+              overflow: 'hidden',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ padding: '20px 24px 0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: '50%',
+                  background: '#fffbeb', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#d97706', flexShrink: 0,
+                }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" />
+                  </svg>
+                </div>
+                <div>
+                  <p style={{ fontSize: 15, fontWeight: 600, margin: 0, color: 'var(--color-text-primary)' }}>
+                    입금 플로우 추가
+                  </p>
+                  <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '2px 0 0' }}>
+                    결제 유형과 금액을 입력해 주세요.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ padding: '16px 24px 20px', display: 'flex', flexDirection: 'column', gap: 16, maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}>
+              {/* 문서 정보 참조 — 견적서/계약서 전체 나열, 클릭으로 자동 입력 */}
+              {(() => {
+                const docs = (detail?.documents ?? []).filter((d) => d.type === 'estimate' || d.type === 'contract');
+                if (docs.length === 0) return null;
+                return (
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6, display: 'block' }}>
+                      문서 정보 참조
+                    </label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {docs.map((doc) => {
+                        const typeMeta = DOCUMENT_TYPE_META[doc.type];
+                        const statusMeta = DOCUMENT_STATUS_META[doc.status];
+                        const c = doc.content ?? {};
+                        const amount = doc.type === 'estimate' ? (c.total ?? null) : (c.total_amount ?? null);
+                        const docPt = c.payment_type ?? null;
+                        const months = doc.type === 'estimate' ? (c.payment_months ?? null) : (c.contract_months ?? null);
+                        return (
+                          <button
+                            key={doc.id}
+                            type="button"
+                            onClick={() => {
+                              // 문서 정보로 자동 입력
+                              if (docPt && PAYMENT_TYPES.includes(docPt)) setPaymentType(docPt as PaymentType);
+                              if (amount != null) {
+                                if (doc.type === 'contract' && c.monthly_amount && (docPt === 'monthly' || docPt === 'deposit')) {
+                                  // 계약서 월결제/선수금은 월 금액 기준
+                                  setPaymentAmount(String(c.monthly_amount));
+                                } else {
+                                  setPaymentAmount(String(amount));
+                                }
+                              }
+                              if (months != null && months > 0) setPaymentMonths(String(months));
+                            }}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 10,
+                              padding: '10px 12px', borderRadius: 8,
+                              border: '1px solid var(--color-border)',
+                              background: 'var(--color-bg)',
+                              cursor: 'pointer', textAlign: 'left',
+                              transition: 'all 0.15s',
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#d97706'; e.currentTarget.style.background = '#fffbeb'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.background = 'var(--color-bg)'; }}
+                          >
+                            <div style={{
+                              width: 32, height: 32, borderRadius: 6, flexShrink: 0,
+                              background: doc.type === 'estimate' ? '#eff6ff' : '#f5f3ff',
+                              color: doc.type === 'estimate' ? '#3b82f6' : '#8b5cf6',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: 11, fontWeight: 700,
+                            }}>
+                              {doc.type === 'estimate' ? '견' : '계'}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {doc.title || typeMeta.label}
+                              </div>
+                              <div style={{ display: 'flex', gap: 8, fontSize: 11, color: 'var(--color-text-muted)', marginTop: 1 }}>
+                                <span style={{
+                                  padding: '1px 5px', borderRadius: 3, fontSize: 10,
+                                  background: statusMeta.color === 'green' ? '#dcfce7'
+                                    : statusMeta.color === 'yellow' ? '#fef9c3'
+                                    : statusMeta.color === 'blue' ? '#dbeafe'
+                                    : statusMeta.color === 'red' ? '#fee2e2'
+                                    : '#f3f4f6',
+                                  color: statusMeta.color === 'green' ? '#16a34a'
+                                    : statusMeta.color === 'yellow' ? '#ca8a04'
+                                    : statusMeta.color === 'blue' ? '#2563eb'
+                                    : statusMeta.color === 'red' ? '#dc2626'
+                                    : '#6b7280',
+                                }}>
+                                  {statusMeta.label}
+                                </span>
+                                {amount != null && <span>{formatCurrency(amount)}</span>}
+                                {docPt && <span>{PAYMENT_TYPE_META[docPt as PaymentType]?.label ?? docPt}</span>}
+                                {months != null && months > 0 && <span>{months}개월</span>}
+                              </div>
+                            </div>
+                            <div style={{ fontSize: 11, color: '#d97706', fontWeight: 500, flexShrink: 0 }}>적용</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* 결제 유형 선택 */}
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6, display: 'block' }}>
+                  결제 유형
+                </label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {PAYMENT_TYPES.map((pt) => {
+                    const meta = PAYMENT_TYPE_META[pt];
+                    const isActive = paymentType === pt;
+                    return (
+                      <button
+                        key={pt}
+                        type="button"
+                        onClick={() => setPaymentType(pt)}
+                        style={{
+                          flex: 1, padding: '10px 8px', borderRadius: 8,
+                          border: isActive ? '2px solid #d97706' : '1px solid var(--color-border)',
+                          background: isActive ? '#fffbeb' : 'var(--color-bg)',
+                          cursor: 'pointer', textAlign: 'center',
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        <div style={{ fontSize: 13, fontWeight: 600, color: isActive ? '#d97706' : 'var(--color-text-primary)' }}>
+                          {meta.label}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
+                          {meta.description}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 입금 금액 입력 */}
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6, display: 'block' }}>
+                  {paymentType === 'deposit' ? '선수금 총액 (원)'
+                    : paymentType === 'monthly' ? '월 납부 금액 (원)'
+                    : '결제 금액 (원)'}
+                </label>
+                <input
+                  className="form-input"
+                  type="text"
+                  value={paymentAmount}
+                  onChange={(e) => setPaymentAmount(e.target.value.replace(/[^0-9]/g, ''))}
+                  placeholder="금액을 입력하세요"
+                  autoFocus
+                  style={{ width: '100%', fontSize: 14, padding: '10px 12px', borderRadius: 6 }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && paymentAmount.trim()) handlePaymentConfirm();
+                  }}
+                />
+                {paymentAmount && !isNaN(Number(paymentAmount)) && Number(paymentAmount) > 0 && (
+                  <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4 }}>
+                    {formatCurrency(Number(paymentAmount))}
+                  </div>
+                )}
+              </div>
+
+              {/* 개월 수 입력 (선수금 / 월결제) */}
+              {(paymentType === 'deposit' || paymentType === 'monthly') && (
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6, display: 'block' }}>
+                    {paymentType === 'deposit' ? '해당 금액은 몇 개월 치 인가요?' : '몇 개월에 걸쳐 납부 예정인가요?'}
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input
+                      className="form-input"
+                      type="number"
+                      min={1}
+                      value={paymentMonths}
+                      onChange={(e) => setPaymentMonths(e.target.value.replace(/[^0-9]/g, ''))}
+                      style={{ width: 100, fontSize: 14, padding: '10px 12px', borderRadius: 6 }}
+                    />
+                    <span style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>개월</span>
+                  </div>
+                  {paymentAmount && Number(paymentAmount) > 0 && Number(paymentMonths) > 0 && (
+                    <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 6, padding: '8px 10px', background: 'var(--color-bg)', borderRadius: 6, border: '1px solid var(--color-border)' }}>
+                      {paymentType === 'deposit'
+                        ? <>선수금 {formatCurrency(Number(paymentAmount))} · {paymentMonths}개월 분 (월 {formatCurrency(Math.round(Number(paymentAmount) / Number(paymentMonths)))})</>
+                        : <>월 {formatCurrency(Number(paymentAmount))} × {paymentMonths}개월 = 총 {formatCurrency(Number(paymentAmount) * Number(paymentMonths))}</>}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 버튼 */}
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  className="btn btn-md btn-secondary"
+                  onClick={() => setPaymentModal(false)}
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-md btn-primary"
+                  disabled={!paymentAmount.trim() || isNaN(Number(paymentAmount)) || Number(paymentAmount) <= 0
+                    || ((paymentType === 'deposit' || paymentType === 'monthly') && (!paymentMonths || Number(paymentMonths) < 1))}
+                  onClick={handlePaymentConfirm}
+                >
+                  입금 확인
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── 종료 사유 모달 ── */}

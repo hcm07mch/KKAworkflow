@@ -20,8 +20,8 @@ import type {
   ProcessApprovalInput,
   CancelApprovalInput,
 } from '../types';
-import { DOCUMENT_STATUS_META, APPROVAL_ACTION_META, USER_ROLE_META } from '../types';
-import type { IApprovalRepository, IDocumentRepository, IApprovalPolicyRepository } from '../repositories/interfaces';
+import { DOCUMENT_STATUS_META, APPROVAL_ACTION_META, USER_ROLE_META, PROJECT_STATUS_GROUPS } from '../types';
+import type { IApprovalRepository, IDocumentRepository, IApprovalPolicyRepository, IProjectRepository } from '../repositories/interfaces';
 import type { DocumentService } from './document.service';
 import type { ActivityLogService } from './activity-log.service';
 
@@ -44,6 +44,7 @@ export class ApprovalService {
     private readonly policyRepo: IApprovalPolicyRepository,
     private readonly documentService: DocumentService,
     private readonly activityLog: ActivityLogService,
+    private readonly projectRepo: IProjectRepository,
   ) {}
 
   // --------------------------------------------------------------------------
@@ -472,10 +473,12 @@ export class ApprovalService {
    * 비즈니스 규칙:
    * 1. 승인 요청 존재 + approve/reject 처리 여부 검증
    * 2. manager 이상 역할 필요
-   * 3. 해당 단계 이후 자동 생성된 승인 레코드 삭제
-   * 4. 승인 레코드를 대기(action=null)로 리셋
-   * 5. 문서가 approved/rejected이면 in_review로 복원
-   * 6. 활동 로그 기록
+   * 3. 프로젝트가 다음 플로우로 넘어갔으면 번복 불가
+   * 4. 해당 단계 이후 자동 생성된 승인 레코드 삭제
+   * 5. 승인 레코드를 대기(action=null)로 리셋
+   * 6. 문서가 approved/rejected이면 in_review로 복원
+   * 7. 프로젝트 상태를 해당 플로우의 review 상태로 복원
+   * 8. 활동 로그 기록
    */
   async revertApproval(
     input: ProcessApprovalInput,
@@ -512,6 +515,35 @@ export class ApprovalService {
       };
     }
 
+    // ── 프로젝트 플로우 그룹 검증 ──
+    // 문서 타입 → 플로우 그룹 매핑
+    const DOC_TYPE_FLOW_MAP: Record<string, { groupKey: string; reviewStatus: string }> = {
+      estimate:   { groupKey: 'B', reviewStatus: 'B2_estimate_review' },
+      contract:   { groupKey: 'C', reviewStatus: 'C2_contract_review' },
+      pre_report: { groupKey: 'E', reviewStatus: 'E2_prereport_review' },
+    };
+
+    const flowConfig = DOC_TYPE_FLOW_MAP[document.type];
+    let project = flowConfig ? await this.projectRepo.findById(document.project_id) : null;
+
+    if (flowConfig && project) {
+      // 프로젝트의 현재 상태가 속한 그룹 확인
+      const currentGroup = PROJECT_STATUS_GROUPS.find((g) =>
+        g.statuses.includes(project!.status as any),
+      );
+
+      if (currentGroup && currentGroup.key !== flowConfig.groupKey) {
+        const groupLabel = PROJECT_STATUS_GROUPS.find((g) => g.key === flowConfig.groupKey)?.label ?? '';
+        return {
+          success: false,
+          error: {
+            code: 'FLOW_ALREADY_ADVANCED',
+            message: `프로젝트가 이미 다음 단계로 진행되어 ${groupLabel} 승인을 번복할 수 없습니다`,
+          },
+        };
+      }
+    }
+
     const previousAction = approval.action;
 
     // 해당 단계 이후에 자동 생성된 승인 레코드 삭제 (다단계일 때)
@@ -541,6 +573,20 @@ export class ApprovalService {
     // 문서 상태 복원: approved/rejected → in_review
     if (document.status === 'approved' || document.status === 'rejected') {
       await this.documentRepo.update(approval.document_id, { status: 'in_review' });
+    }
+
+    // 프로젝트 상태를 해당 플로우의 review 상태로 복원
+    if (flowConfig && project) {
+      const currentGroup = PROJECT_STATUS_GROUPS.find((g) =>
+        g.statuses.includes(project!.status as any),
+      );
+
+      // 같은 그룹 내에 있고 review 상태가 아닌 경우 review 상태로 되돌림
+      if (currentGroup?.key === flowConfig.groupKey && project.status !== flowConfig.reviewStatus) {
+        await this.projectRepo.update(document.project_id, {
+          status: flowConfig.reviewStatus as any,
+        });
+      }
     }
 
     // 활동 로그 기록

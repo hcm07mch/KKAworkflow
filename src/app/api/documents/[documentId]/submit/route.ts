@@ -1,14 +1,23 @@
 /**
- * API Route: Document Submit (견적서 제출)
+ * API Route: Document Submit (문서 제출 — 견적서 / 사전보고서 공용)
  * POST /api/documents/:documentId/submit
  *
  * 1. 문서 상태를 in_review로 전환
- * 2. 프로젝트 상태를 B2_estimate_review(견적 승인)로 전환
+ * 2. 문서 유형에 따라 프로젝트 상태를 전환
+ *    - estimate   → B2_estimate_review
+ *    - pre_report → E2_prereport_review
  * (PDF 생성은 별도 /api/documents/:documentId/pdf/generate 에서 처리)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthContext } from '@/lib/auth';
+import type { ProjectStatus } from '@/lib/domain/types';
+
+/** 문서 유형 → 프로젝트 전환 상태 매핑 */
+const DOC_SUBMIT_STATUS_MAP: Record<string, { toStatus: ProjectStatus; reason: string; label: string }> = {
+  estimate:   { toStatus: 'B2_estimate_review',   reason: '견적서 제출',       label: '견적서' },
+  pre_report: { toStatus: 'E2_prereport_review',  reason: '사전 보고서 제출',  label: '진행안' },
+};
 
 export async function POST(
   _request: NextRequest,
@@ -35,11 +44,20 @@ export async function POST(
     );
   }
 
+  // 문서 유형에 따른 전환 정보 조회
+  const flowInfo = DOC_SUBMIT_STATUS_MAP[existingDoc.type];
+  if (!flowInfo) {
+    return NextResponse.json(
+      { error: { code: 'UNSUPPORTED_TYPE', message: `이 문서 유형(${existingDoc.type})은 제출을 지원하지 않습니다` } },
+      { status: 400 },
+    );
+  }
+
   // 담당자(프로젝트 소유자)만 제출 가능
   const ownerProject = await auth.services.projectRepo.findById(existingDoc.project_id);
   if (ownerProject && ownerProject.owner_id && ownerProject.owner_id !== ctx.userId) {
     return NextResponse.json(
-      { error: { code: 'FORBIDDEN', message: '담당자만 견적서를 제출할 수 있습니다' } },
+      { error: { code: 'FORBIDDEN', message: `담당자만 ${flowInfo.label}을(를) 제출할 수 있습니다` } },
       { status: 403 },
     );
   }
@@ -72,13 +90,13 @@ export async function POST(
     finalDoc = (await auth.services.documentRepo.findById(documentId)) ?? existingDoc;
   }
 
-  // 3) 프로젝트 상태를 B2_estimate_review (견적 승인)로 전환 (이미 해당 상태면 건너뜀)
+  // 3) 프로젝트 상태 전환 (이미 해당 상태면 건너뜀)
   const projectId = finalDoc.project_id;
   const project = await auth.services.projectRepo.findById(projectId);
 
-  if (project && project.status !== 'B2_estimate_review') {
+  if (project && project.status !== flowInfo.toStatus) {
     const projectResult = await auth.services.projectService.transitionStatus(
-      { project_id: projectId, to_status: 'B2_estimate_review', reason: '견적서 제출' },
+      { project_id: projectId, to_status: flowInfo.toStatus, reason: flowInfo.reason },
       ctx,
     );
 

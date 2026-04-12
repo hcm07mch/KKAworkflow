@@ -1,0 +1,203 @@
+/* ============================================================================
+   Campaign Plan Preview — 캠페인 진행안 A4 문서 스타일
+   ============================================================================ */
+
+/* ── Dark Gradient Header ── */
+
+.cpHeader {
+  background: linear-gradient(135deg, #13264E 0%, #1e3a6e 100%);
+  border-radius: 10px;
+  padding: 28px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.cpHeaderLeft {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cpHeaderClient {
+  font-size: 20px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.02em;
+}
+
+.cpHeaderSubtitle {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.cpHeaderBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 16px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(4px);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* ── Execution Period Bar ── */
+
+.cpPeriodBar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #f3f4f6;
+  border-radius: 8px;
+  padding: 14px 20px;
+  margin-bottom: 24px;
+}
+
+.cpPeriodLabel {
+  font-size: 13px;
+  font-weight: 700;
+  color: #13264E;
+}
+
+.cpPeriodValue {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.cpPeriodNote {
+  font-size: 12px;
+  font-weight: 500;
+  color: #6b7280;
+  margin-left: 6px;
+}
+
+/* ── Section Title ── */
+
+.cpSectionTitle {
+  font-size: 15px;
+  font-weight: 800;
+  color: #13264E;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #13264E;
+}
+
+/* ── Service Card ── */
+
+.cpServiceCard {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+
+.cpServiceHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  background: #f8f9fb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.cpServiceIcon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.cpServiceName {
+  font-size: 14px;
+  font-weight: 700;
+  color: #13264E;
+}
+
+/* ── Service Fields ── */
+
+.cpServiceFields {
+  padding: 4px 0;
+}
+
+.cpFieldRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 18px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.cpFieldRow:last-child {
+  border-bottom: none;
+}
+
+.cpFieldLabel {
+  font-size: 13px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.cpFieldValue {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111;
+}
+
+/* Subtotal row */
+
+.cpFieldSubtotal {
+  background: #f9fafb;
+  border-top: 1px solid #e5e7eb;
+}
+
+.cpFieldSubtotal .cpFieldLabel {
+  font-weight: 700;
+  color: #13264E;
+}
+
+.cpFieldSubtotal .cpFieldValue {
+  font-weight: 700;
+  color: #13264E;
+}
+
+/* ── Total Monthly Bar ── */
+
+.cpTotalBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(135deg, #13264E 0%, #1e3a6e 100%);
+  border-radius: 10px;
+  padding: 18px 24px;
+  margin-top: 8px;
+  margin-bottom: 20px;
+}
+
+.cpTotalLabel {
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.cpTotalValue {
+  font-size: 18px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.01em;
+}
+
+/* ── Footer ── */
+
+.cpFooter {
+  text-align: center;
+  font-size: 11px;
+  color: #9ca3af;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+  margin-top: 16px;
+}

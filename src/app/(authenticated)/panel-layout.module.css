@@ -161,6 +161,34 @@
   text-overflow: ellipsis;
 }
 
+.itemNameRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.itemProjectLink {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  color: var(--color-text-muted);
+  opacity: 0;
+  transition: opacity 0.15s, background 0.1s, color 0.1s;
+}
+
+.item:hover .itemProjectLink {
+  opacity: 1;
+}
+
+.itemProjectLink:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-primary);
+}
+
 .itemMeta {
   font-size: 11px;
   color: var(--color-text-muted);

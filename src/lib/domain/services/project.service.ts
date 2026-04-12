@@ -117,9 +117,11 @@ export class ProjectService {
       };
     }
 
-    // [단계 2] 집행/환불/종료 상태에서는 상태 변경 외 수정 불가
-    const isStatusOnlyUpdate = Object.keys(input).length === 1 && 'status' in input;
-    if (['E4_execution', 'F1_refund', 'F2_closed'].includes(existing.status) && !isStatusOnlyUpdate) {
+    // [단계 2] 집행/환불/종료 상태에서는 상태/메타데이터 변경 외 수정 불가
+    const inputKeys = new Set(Object.keys(input));
+    const allowedKeys = new Set(['status', 'metadata']);
+    const isAllowedUpdate = inputKeys.size > 0 && [...inputKeys].every((k) => allowedKeys.has(k));
+    if (['E4_execution', 'F1_refund', 'F2_closed'].includes(existing.status) && !isAllowedUpdate) {
       return {
         success: false,
         error: {

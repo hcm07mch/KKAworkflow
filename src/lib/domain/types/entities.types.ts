@@ -278,6 +278,10 @@ export interface EstimateContent {
     }>;
   }>;
 
+  /** 결제 방식 */
+  payment_type?: string;          // 결제 유형 (per_invoice | monthly | deposit)
+  payment_months?: number;        // 개월 수 (월결제·선수금 시)
+
   /** 금액 */
   subtotal?: number;              // 공급가액 (부가세 제외)
   tax_rate?: number;              // 세율 (기본 10)
@@ -296,34 +300,61 @@ export interface EstimateContent {
   [key: string]: unknown;
 }
 
-/** 怨?쎌 content */
+/** 계약서 content */
 export interface ContractContent {
-  terms?: string;
-  special_conditions?: string;
+  /** 업로드 방식 — 파일 경로 */
+  file_path?: string;
+  file_name?: string;
+  file_size?: number;
+  file_type?: string;
+
+  /** 메타 정보 */
+  title?: string;
   contract_date?: string;
   effective_date?: string;
   expiry_date?: string;
+  parties?: string;
+  payment_type?: string;          // 결제 유형 (per_invoice | monthly | deposit)
+  monthly_amount?: number;
+  contract_months?: number;
+  total_amount?: number;
+  terms?: string;
+  special_conditions?: string;
+  notes?: string;
+
   [key: string]: unknown;
 }
 
-/** 吏? ?ъ 蹂닿?? content */
+/** 사전 보고(캠페인 진행안) 문서 content */
 export interface PreReportContent {
-  platform?: string;
-  objective?: string;
-  budget?: number;
-  schedule_start?: string;
-  schedule_end?: string;
-  target_audience?: string;
-  /** 吏? ?? ?? 紐⑸? */
-  tasks?: Array<{
-    name: string;
-    description?: string;
-    quantity?: number;
-    unit_price?: number;
-    amount?: number;
+  /** 기본 정보 */
+  document_number?: string;
+  recipient?: string;             // 고객사명
+  project_name?: string;          // 프로젝트명
+  issued_date?: string;           // 작성일자
+
+  /** 집행 기간 */
+  execution_months?: number;      // 집행 기간 (개월)
+  execution_note?: string;        // 부가 표시 (예: '계약 완료')
+
+  /** 서비스 구성 — 카드형 항목 */
+  services?: Array<{
+    icon?: string;                // 아이콘 식별자 (shopping_reward | cafe_viral | blog_viral | sns | sa_ad | meta_ad 등)
+    name: string;                 // 서비스명 (쇼핑 리워드, 맘카페 바이럴 등)
+    fields: Array<{
+      label: string;              // 필드명 (대상 상품, 슬롯 수, 건당 단가 등)
+      value: string;              // 필드 값 (텍스트로 표시)
+    }>;
+    subtotal?: number;            // 소계
   }>;
-  total_budget?: number;
-  notes?: string;
+
+  /** 금액 */
+  total_monthly?: number;         // 월 총 집행 금액
+
+  /** 회사 정보 (footer) */
+  company_name?: string;
+  vat_note?: string;              // 'VAT 별도' 등
+
   [key: string]: unknown;
 }
 
@@ -337,13 +368,26 @@ export interface ReportContent {
 }
 
 /**
- * 臾몄 ?? ? content ?? 留ㅽ
+ * PaymentContent — 입금 확인 문서 content
+ */
+export interface PaymentContent {
+  payment_type?: string;           // per_invoice | monthly | deposit
+  amount?: number;                 // 입금 금액
+  months?: number;                 // 개월 수 (monthly: installment_months, deposit: months_covered)
+  confirmed_at?: string;           // 입금 확인 일시
+  note?: string;                   // 비고
+  [key: string]: unknown;
+}
+
+/**
+ * 문서 타입 → content 타입 매핑
  */
 export interface DocumentContentMap {
   estimate: EstimateContent;
   contract: ContractContent;
   pre_report: PreReportContent;
   report: ReportContent;
+  payment: PaymentContent;
 }
 
 /**

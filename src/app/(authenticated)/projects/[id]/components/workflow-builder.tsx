@@ -45,22 +45,31 @@ function buildFromStack(stack: string[], currentStatus: ProjectStatus) {
   const allStatuses = Object.keys(PROJECT_STATUS_META) as ProjectStatus[];
   const currentIdx = allStatuses.indexOf(currentStatus);
 
+  // 동일 그룹 카운트 (넘버링용)
+  const keyCountSoFar: Record<string, number> = {};
+  const totalKeyCount: Record<string, number> = {};
+  for (const key of stack) {
+    totalKeyCount[key] = (totalKeyCount[key] ?? 0) + 1;
+  }
+
   return stack.map((key, idx) => {
     const group = GROUP_MAP[key];
     if (!group) return null;
     const isLast = idx === stack.length - 1;
+
+    // 넘버링: 동일 그룹이 2개 이상일 때만 표시
+    keyCountSoFar[key] = (keyCountSoFar[key] ?? 0) + 1;
+    const flowNumber = totalKeyCount[key] > 1 ? keyCountSoFar[key] : null;
 
     // 그룹 내 세부 상태별로 done/active/upcoming 판정
     const statusItems = group.statuses.map((s) => {
       const sIdx = allStatuses.indexOf(s);
       let state: 'done' | 'active' | 'upcoming';
       if (isLast) {
-        // 현재(마지막) 그룹: 실제 상태 기준으로 판정
         if (sIdx < currentIdx) state = 'done';
         else if (sIdx === currentIdx) state = 'active';
         else state = 'upcoming';
       } else {
-        // 이전 그룹: 모두 done
         state = 'done';
       }
       return { status: s, state };
@@ -68,7 +77,7 @@ function buildFromStack(stack: string[], currentStatus: ProjectStatus) {
 
     return {
       groupKey: key,
-      label: group.label,
+      label: flowNumber ? `${group.label} #${flowNumber}` : group.label,
       isCurrent: isLast,
       isDone: !isLast,
       statuses: statusItems,
@@ -126,14 +135,8 @@ export function WorkflowBuilder({ serviceType, projectStatus, workflowStack, man
 
   function handleSelect(group: typeof PROJECT_STATUS_GROUPS[number]) {
     if (group.key === 'D') {
-      const amountStr = prompt('입금 받아야 할 금액을 입력하세요 (원)');
-      if (amountStr === null) { setOpen(false); return; }
-      const amount = parseInt(amountStr.replace(/[^0-9]/g, ''), 10);
-      if (isNaN(amount) || amount <= 0) {
-        alert('올바른 금액을 입력해주세요.');
-        return;
-      }
-      onAdd(group.key, amount);
+      // D 그룹은 부모에서 결제 모달을 표시하므로 바로 위임
+      onAdd(group.key);
     } else {
       if (confirm(`워크플로우에 "${group.label}" 단계를 추가하시겠습니까?`)) {
         onAdd(group.key);
@@ -178,8 +181,6 @@ export function WorkflowBuilder({ serviceType, projectStatus, workflowStack, man
   }
 
   function handleDelete(gIdx: number) {
-    const group = stack[gIdx];
-    if (!confirm(`"${group.label}" 단계를 삭제하시겠습니까?`)) return;
     onDelete(gIdx);
   }
 

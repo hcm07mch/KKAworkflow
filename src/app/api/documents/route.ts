@@ -1,10 +1,12 @@
 /**
  * API Route: Documents (org-wide)
- * GET /api/documents?type=estimate|contract|pre_report|report
+ * GET  /api/documents?type=estimate|contract|pre_report|report|payment
+ * POST /api/documents  — 문서 직접 생성
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthContext } from '@/lib/auth';
+import { DOCUMENT_TYPES } from '@/lib/domain/types';
 
 export async function GET(request: NextRequest) {
   const auth = await getAuthContext();
@@ -35,4 +37,43 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json(data ?? []);
+}
+
+/**
+ * POST /api/documents
+ * body: { project_id, type, title, content? }
+ */
+export async function POST(request: NextRequest) {
+  const auth = await getAuthContext();
+  if (!auth.success) return auth.response;
+
+  const body = await request.json();
+  const { project_id, type, title, content } = body;
+
+  if (!project_id || !type || !title) {
+    return NextResponse.json(
+      { error: { code: 'INVALID_INPUT', message: 'project_id, type, title은 필수입니다.' } },
+      { status: 400 },
+    );
+  }
+
+  if (!DOCUMENT_TYPES.includes(type)) {
+    return NextResponse.json(
+      { error: { code: 'INVALID_TYPE', message: '유효하지 않은 문서 타입입니다.' } },
+      { status: 400 },
+    );
+  }
+
+  const ctx = { userId: auth.dbUser.id, userRole: auth.role, organizationId: auth.organizationId };
+
+  const result = await auth.services.documentService.createProjectDocument(
+    { project_id, type, title, content: content ?? {} },
+    ctx,
+  );
+
+  if (!result.success) {
+    return NextResponse.json({ error: result.error }, { status: 400 });
+  }
+
+  return NextResponse.json(result.data, { status: 201 });
 }
