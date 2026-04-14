@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { LuCreditCard, LuExternalLink, LuCheck } from 'react-icons/lu';
+import { LuCreditCard, LuExternalLink, LuCheck, LuFileText, LuFileCheck, LuChevronDown, LuChevronRight } from 'react-icons/lu';
 import { StatusBadge, useFeedback } from '@/components/ui';
-import { SERVICE_TYPE_META, PAYMENT_TYPE_META } from '@/lib/domain/types';
-import type { ServiceType, ProjectStatus } from '@/lib/domain/types';
+import { SERVICE_TYPE_META, PAYMENT_TYPE_META, DOCUMENT_STATUS_META } from '@/lib/domain/types';
+import type { ServiceType, ProjectStatus, DocumentStatus, DocumentType } from '@/lib/domain/types';
 import panel from '../panel-layout.module.css';
 
 // ── Types ────────────────────────────────────────────────
@@ -33,6 +33,16 @@ interface PaymentItem {
   flowNumber: number | null;
 }
 
+interface ProjectDocItem {
+  id: string;
+  type: DocumentType;
+  title: string;
+  status: DocumentStatus;
+  content: any;
+  version: number;
+  created_at: string;
+}
+
 function formatCurrency(n: number) {
   return new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW', maximumFractionDigits: 0 }).format(n);
 }
@@ -57,11 +67,41 @@ export default function PaymentsPage() {
     return 'all';
   });
   const [selected, setSelected] = useState<PaymentItem | null>(null);
+  const [projectDocs, setProjectDocs] = useState<ProjectDocItem[]>([]);
+  const [docsLoading, setDocsLoading] = useState(false);
+  const [docsExpanded, setDocsExpanded] = useState(true);
 
   const selectPayment = useCallback((p: PaymentItem) => {
     setSelected(p);
     localStorage.setItem('payments_selectedId', p.id);
   }, []);
+
+  // 선택된 입금 건의 프로젝트 견적서·계약서 조회
+  useEffect(() => {
+    if (!selected?.projectId) {
+      setProjectDocs([]);
+      return;
+    }
+    setDocsLoading(true);
+    fetch(`/api/projects/${selected.projectId}/documents`)
+      .then((r) => r.json())
+      .then((docs: any[]) => {
+        const relevant = (docs ?? [])
+          .filter((d: any) => d.type === 'estimate' || d.type === 'contract')
+          .map((d: any) => ({
+            id: d.id,
+            type: d.type as DocumentType,
+            title: d.title ?? '',
+            status: d.status as DocumentStatus,
+            content: d.content ?? {},
+            version: d.version ?? 1,
+            created_at: d.created_at,
+          }));
+        setProjectDocs(relevant);
+      })
+      .catch(() => setProjectDocs([]))
+      .finally(() => setDocsLoading(false));
+  }, [selected?.projectId]);
 
   useEffect(() => {
     fetch('/api/documents?type=payment')
@@ -302,6 +342,90 @@ export default function PaymentsPage() {
                   </tr>
                 </tbody>
               </table>
+            </div>
+
+            {/* 관련 문서 (견적서·계약서) */}
+            <div className="card" style={{ padding: 0, overflow: 'hidden', marginTop: 12 }}>
+              <button
+                type="button"
+                onClick={() => setDocsExpanded((v) => !v)}
+                style={{
+                  width: '100%', display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer',
+                  fontWeight: 600, fontSize: 13, color: 'var(--color-text)',
+                }}
+              >
+                {docsExpanded ? <LuChevronDown size={14} /> : <LuChevronRight size={14} />}
+                관련 문서 (견적서 · 계약서)
+                <span style={{ marginLeft: 'auto', fontWeight: 400, fontSize: 12, color: 'var(--color-text-muted)' }}>
+                  {projectDocs.length}건
+                </span>
+              </button>
+              {docsExpanded && (
+                <div style={{ borderTop: '1px solid var(--color-border)' }}>
+                  {docsLoading ? (
+                    <div style={{ padding: 16, textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>불러오는 중...</div>
+                  ) : projectDocs.length === 0 ? (
+                    <div style={{ padding: 16, textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>관련 견적서·계약서가 없습니다.</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      {projectDocs.map((doc) => {
+                        const isEstimate = doc.type === 'estimate';
+                        const Icon = isEstimate ? LuFileText : LuFileCheck;
+                        const typeLabel = isEstimate ? '견적서' : '계약서';
+                        const statusMeta = DOCUMENT_STATUS_META[doc.status];
+                        const c = doc.content;
+
+                        return (
+                          <div
+                            key={doc.id}
+                            style={{
+                              padding: '12px 14px',
+                              borderBottom: '1px solid var(--color-border)',
+                              fontSize: 13,
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                              <Icon size={14} style={{ color: isEstimate ? 'var(--color-primary)' : 'var(--color-warning)' }} />
+                              <span style={{ fontWeight: 600 }}>{typeLabel}</span>
+                              <span className={`badge badge-sm badge-${statusMeta?.color ?? 'gray'}`} style={{ marginLeft: 4 }}>
+                                {statusMeta?.label ?? doc.status}
+                              </span>
+                              <span style={{ marginLeft: 'auto', color: 'var(--color-text-muted)', fontSize: 12 }}>v{doc.version}</span>
+                            </div>
+                            <div style={{ color: 'var(--color-text-secondary)', marginBottom: 4 }}>
+                              {doc.title || '(제목 없음)'}
+                            </div>
+                            {isEstimate && c && (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px', fontSize: 12, color: 'var(--color-text-muted)' }}>
+                                {c.total != null && <span>총액: {formatCurrency(c.total)}</span>}
+                                {c.subtotal != null && <span>공급가: {formatCurrency(c.subtotal)}</span>}
+                                {c.tax != null && <span>부가세: {formatCurrency(c.tax)}</span>}
+                                {c.payment_type && <span>결제: {PAYMENT_TYPE_META[c.payment_type as keyof typeof PAYMENT_TYPE_META]?.label ?? c.payment_type}</span>}
+                                {c.items?.length > 0 && <span>항목: {c.items.length}건</span>}
+                                {c.valid_until && <span>유효기한: {formatDate(c.valid_until)}</span>}
+                              </div>
+                            )}
+                            {!isEstimate && c && (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px', fontSize: 12, color: 'var(--color-text-muted)' }}>
+                                {c.total_amount != null && <span>계약금액: {formatCurrency(c.total_amount)}</span>}
+                                {c.contract_date && <span>계약일: {formatDate(c.contract_date)}</span>}
+                                {c.effective_date && <span>시작일: {formatDate(c.effective_date)}</span>}
+                                {c.expiry_date && <span>종료일: {formatDate(c.expiry_date)}</span>}
+                                {c.payment_type && <span>결제: {PAYMENT_TYPE_META[c.payment_type as keyof typeof PAYMENT_TYPE_META]?.label ?? c.payment_type}</span>}
+                                {c.file_name && <span>파일: {c.file_name}</span>}
+                              </div>
+                            )}
+                            <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>
+                              등록일: {formatDate(doc.created_at)}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* 입금 확인 버튼 */}
