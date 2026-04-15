@@ -8,8 +8,8 @@
  */
 
 import { useState, useRef, useEffect } from 'react';
-import { LuPlus, LuTrash2 } from 'react-icons/lu';
-import type { ProjectStatus, ServiceType } from '@/lib/domain/types';
+import { LuPlus, LuTrash2, LuExternalLink } from 'react-icons/lu';
+import type { ProjectStatus, ServiceType, DocumentType } from '@/lib/domain/types';
 import {
   PROJECT_STATUS_META,
   PROJECT_STATUS_GROUPS,
@@ -91,17 +91,53 @@ function buildFromStack(stack: string[], currentStatus: ProjectStatus) {
   }[];
 }
 
+interface WorkflowDocument {
+  id: string;
+  type: DocumentType;
+  content: Record<string, any>;
+}
+
+/** 그룹 키 → 문서 타입 / 페이지 경로 매핑 */
+const GROUP_NAV_MAP: Record<string, { docType: DocumentType; path: string; label: string }> = {
+  B: { docType: 'estimate', path: '/estimates', label: '견적서 보기' },
+  C: { docType: 'contract', path: '/contracts', label: '계약서 보기' },
+  D: { docType: 'payment', path: '/payments', label: '입금 내역 보기' },
+  E: { docType: 'pre_report', path: '/executions', label: '집행 보고서 보기' },
+};
+
+/** 스택에서 해당 그룹의 flow_number 계산 (동일 그룹이 여러 번 나올 때) */
+function getFlowNumber(stack: string[], groupKey: string, groupIndex: number): number {
+  let count = 0;
+  for (let i = 0; i <= groupIndex; i++) {
+    if (stack[i] === groupKey) count++;
+  }
+  return count;
+}
+
+/** documents 중 해당 그룹/flow_number에 매칭되는 문서 찾기 */
+function findDocForGroup(documents: WorkflowDocument[], groupKey: string, flowNumber: number): WorkflowDocument | null {
+  const nav = GROUP_NAV_MAP[groupKey];
+  if (!nav) return null;
+  const docsOfType = documents.filter((d) => d.type === nav.docType);
+  // flow_number가 있으면 매칭, 없으면 순서대로  
+  const byFlow = docsOfType.find((d) => d.content?.flow_number === flowNumber);
+  if (byFlow) return byFlow;
+  // flow_number 없으면 n번째 문서
+  return docsOfType[flowNumber - 1] ?? null;
+}
+
 interface WorkflowBuilderProps {
   serviceType: ServiceType;
   projectStatus: ProjectStatus;
   workflowStack: string[];
   manualStatuses: Set<string>;
+  documents?: WorkflowDocument[];
   onAdd: (groupKey: string, paymentAmount?: number) => void;
   onDelete: (index: number) => void;
   onStatusChange: (toStatus: ProjectStatus) => void;
 }
 
-export function WorkflowBuilder({ serviceType, projectStatus, workflowStack, manualStatuses, onAdd, onDelete, onStatusChange }: WorkflowBuilderProps) {
+export function WorkflowBuilder({ serviceType, projectStatus, workflowStack, manualStatuses, documents = [], onAdd, onDelete, onStatusChange }: WorkflowBuilderProps) {
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const addBtnRef = useRef<HTMLButtonElement>(null);
@@ -233,10 +269,15 @@ export function WorkflowBuilder({ serviceType, projectStatus, workflowStack, man
                       const meta = PROJECT_STATUS_META[item.status];
                       const isManual = manualStatuses.has(item.status);
                       const isClickable = isManual && group.isCurrent;
+                      const isSystem = !isManual;
+                      const nav = GROUP_NAV_MAP[group.groupKey];
+                      const flowNum = getFlowNumber(effectiveStack, group.groupKey, gIdx);
+                      const doc = nav ? findDocForGroup(documents, group.groupKey, flowNum) : null;
+                      const navHref = nav && doc ? `${nav.path}?selected=${doc.id}` : null;
                       return (
                         <div
                           key={item.status}
-                          className={`${styles.subStep} ${styles[`sub_${item.state}`]} ${isClickable ? styles.subClickable : ''}`}
+                          className={`${styles.subStep} ${styles[`sub_${item.state}`]} ${isClickable ? styles.subClickable : ''} ${isSystem && navHref ? styles.subHoverable : ''}`}
                           onClick={isClickable ? () => handleSubClick(item, group, gIdx) : undefined}
                           role={isClickable ? 'button' : undefined}
                           tabIndex={isClickable ? 0 : undefined}
@@ -251,6 +292,18 @@ export function WorkflowBuilder({ serviceType, projectStatus, workflowStack, man
                             )}
                           </div>
                           <span className={styles.subLabel}>{meta.shortLabel}</span>
+                          {isSystem && navHref && (
+                            <a
+                              href={navHref}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={styles.navLink}
+                              onClick={(e) => e.stopPropagation()}
+                              title={nav!.label}
+                            >
+                              <LuExternalLink size={12} />
+                            </a>
+                          )}
                         </div>
                       );
                     })}

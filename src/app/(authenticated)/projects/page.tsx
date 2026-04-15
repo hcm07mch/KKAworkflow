@@ -1016,6 +1016,7 @@ export default function ProjectsPage() {
                 projectStatus={selected.status}
                 workflowStack={(detail?.metadata?.workflow_stack as string[]) ?? []}
                 manualStatuses={manualStatuses}
+                documents={detail?.documents}
                 onAdd={handleWorkflowAdd}
                 onDelete={handleWorkflowDelete}
                 onStatusChange={handleWorkflowStatusChange}

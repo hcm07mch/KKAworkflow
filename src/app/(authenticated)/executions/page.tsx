@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { LuRocket, LuExternalLink } from 'react-icons/lu';
 import { StatusBadge, useFeedback } from '@/components/ui';
 import type { DocumentStatus, PreReportContent } from '@/lib/domain/types';
@@ -32,6 +33,7 @@ type RightPanelMode = 'empty' | 'edit';
 // ── Page ─────────────────────────────────────────────────
 
 export default function ExecutionsPage() {
+  const searchParams = useSearchParams();
   const { toast, confirm } = useFeedback();
   const [executions, setExecutions] = useState<ExecItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,7 +75,7 @@ export default function ExecutionsPage() {
         });
         setExecutions(items);
         setLoading(false);
-        const savedId = localStorage.getItem('executions_selectedId');
+        const savedId = searchParams.get('selected') ?? localStorage.getItem('executions_selectedId');
         if (savedId) {
           const target = items.find((ex) => ex.id === savedId);
           if (target) { setSelectedId(target.id); setPanelMode('edit'); }

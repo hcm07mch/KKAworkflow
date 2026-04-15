@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { LuCreditCard, LuExternalLink, LuCheck, LuFileText, LuFileCheck, LuChevronDown, LuChevronRight } from 'react-icons/lu';
 import { StatusBadge, useFeedback } from '@/components/ui';
 import { SERVICE_TYPE_META, PAYMENT_TYPE_META, DOCUMENT_STATUS_META } from '@/lib/domain/types';
@@ -54,6 +55,7 @@ function formatDate(d: string | null) {
 // ── Page ─────────────────────────────────────────────────
 
 export default function PaymentsPage() {
+  const searchParams = useSearchParams();
   const { toast, confirm } = useFeedback();
   const [payments, setPayments] = useState<PaymentItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -129,7 +131,7 @@ export default function PaymentsPage() {
         });
         setPayments(items);
         setLoading(false);
-        const savedId = localStorage.getItem('payments_selectedId');
+        const savedId = searchParams.get('selected') ?? localStorage.getItem('payments_selectedId');
         if (savedId) {
           const target = items.find((p) => p.id === savedId);
           if (target) selectPayment(target);

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { LuFileText, LuPlus, LuExternalLink } from 'react-icons/lu';
 import { StatusBadge, useFeedback } from '@/components/ui';
 import type { DocumentStatus, ServiceType, EstimateContent } from '@/lib/domain/types';
@@ -37,6 +38,7 @@ function formatCurrency(n: number) {
 // ── Page ─────────────────────────────────────────────────
 
 export default function EstimatesPage() {
+  const searchParams = useSearchParams();
   const { toast, confirm } = useFeedback();
   const [estimates, setEstimates] = useState<EstimateListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,7 +84,7 @@ export default function EstimatesPage() {
         });
         setEstimates(items);
         setLoading(false);
-        const savedId = localStorage.getItem('estimates_selectedId');
+        const savedId = searchParams.get('selected') ?? localStorage.getItem('estimates_selectedId');
         if (savedId) {
           const target = items.find((e) => e.id === savedId);
           if (target) { setSelectedId(target.id); setPanelMode('edit'); }

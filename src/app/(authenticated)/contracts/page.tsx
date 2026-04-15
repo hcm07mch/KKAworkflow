@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { LuFilePen, LuExternalLink } from 'react-icons/lu';
 import { StatusBadge, useFeedback } from '@/components/ui';
 import type { DocumentStatus, ServiceType, ContractContent } from '@/lib/domain/types';
@@ -35,6 +36,7 @@ function formatCurrency(n: number) {
 // ── Page ─────────────────────────────────────────────────
 
 export default function ContractsPage() {
+  const searchParams = useSearchParams();
   const { toast, confirm } = useFeedback();
   const [contracts, setContracts] = useState<ContractListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,7 +82,7 @@ export default function ContractsPage() {
         });
         setContracts(items);
         setLoading(false);
-        const savedId = localStorage.getItem('contracts_selectedId');
+        const savedId = searchParams.get('selected') ?? localStorage.getItem('contracts_selectedId');
         if (savedId) {
           const target = items.find((c) => c.id === savedId);
           if (target) { setSelectedId(target.id); setPanelMode('edit'); }

@@ -55,7 +55,7 @@ const DOT_COLORS: Record<string, string> = {
 
 function PipelineDotMap({ projects }: { projects: PipelineProject[] }) {
   const grouped = PROJECT_STATUS_GROUPS
-    .filter((g) => g.key !== 'F')
+    .filter((g) => g.key !== 'F' && g.key !== 'G')
     .map((group) => {
       const items = projects.filter((p) => group.statuses.includes(p.status));
       return { ...group, items };
