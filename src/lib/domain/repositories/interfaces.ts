@@ -130,6 +130,14 @@ export interface IProjectRepository {
     currency: string;
     metadata: JsonObject;
   }>): Promise<Project>;
+
+  recordStatusHistory(data: {
+    project_id: string;
+    from_status: string;
+    to_status: string;
+    changed_by: string | null;
+    note?: string | null;
+  }): Promise<void>;
 }
 
 // ============================================================================

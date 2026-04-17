@@ -334,7 +334,8 @@ export interface PreReportContent {
   issued_date?: string;           // 작성일자
 
   /** 집행 기간 */
-  execution_months?: number;      // 집행 기간 (개월)
+  execution_months?: number;      // 집행 기간 (숫자)
+  execution_period_unit?: 'month' | 'week';  // 기간 단위 (월/주)
   execution_note?: string;        // 부가 표시 (예: '계약 완료')
 
   /** 서비스 구성 — 카드형 항목 */

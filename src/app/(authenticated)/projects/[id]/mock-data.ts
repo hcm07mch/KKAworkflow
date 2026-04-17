@@ -148,7 +148,7 @@ export const MOCK_DOCUMENTS: ProjectDocument[] = [
   {
     id: 'doc4',
     project_id: 'p1',
-    type: 'report',
+    type: 'pre_report',
     status: 'draft',
     version: 1,
     title: '3월 캠페인 중간 보고서',
@@ -486,6 +486,7 @@ export const MOCK_PROJECT: ProjectWithRelations = {
   code: 'PRJ-2026-0042',
   status: 'E4_execution',
   service_type: 'viral_performance',
+  payment_type: 'deposit',
   owner_id: 'u2',
   start_date: '2026-03-15',
   end_date: '2026-05-31',

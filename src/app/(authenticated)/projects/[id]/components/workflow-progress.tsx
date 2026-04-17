@@ -29,8 +29,8 @@ function getVisibleStatuses(serviceType: ServiceType, currentStatus: ProjectStat
         'E1_prereport_draft', 'E2_prereport_review', 'E3_prereport_sent', 'E4_execution',
       ];
 
-  if (currentStatus === 'F1_refund') base.push('F1_refund', 'F2_closed');
-  else if (currentStatus === 'F2_closed') base.push('F2_closed');
+  if (currentStatus === 'F1_refund') base.push('F1_refund', 'G1_closed');
+  else if (currentStatus === 'G1_closed') base.push('G1_closed');
 
   return base;
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { Suspense, useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { LuCreditCard, LuExternalLink, LuCheck, LuFileText, LuFileCheck, LuChevronDown, LuChevronRight } from 'react-icons/lu';
 import { StatusBadge, useFeedback } from '@/components/ui';
@@ -55,6 +55,14 @@ function formatDate(d: string | null) {
 // ── Page ─────────────────────────────────────────────────
 
 export default function PaymentsPage() {
+  return (
+    <Suspense>
+      <PaymentsContent />
+    </Suspense>
+  );
+}
+
+function PaymentsContent() {
   const searchParams = useSearchParams();
   const { toast, confirm } = useFeedback();
   const [payments, setPayments] = useState<PaymentItem[]>([]);
@@ -250,7 +258,7 @@ export default function PaymentsPage() {
           {filtered.map((p) => (
             <div key={p.id} className={`${panel.item} ${selected?.id === p.id ? panel.itemActive : ''}`} onClick={() => selectPayment(p)}>
               <span className={panel.itemNameRow}>
-                <span className={panel.itemName}>{p.clientName}{projectHasSiblings.has(p.projectId) && p.flowNumber ? ` #${p.flowNumber}` : ''}</span>
+                <span className={panel.itemName}>{p.projectTitle || '(미지정)'}{projectHasSiblings.has(p.projectId) && p.flowNumber ? ` #${p.flowNumber}` : ''}</span>
                 <a
                   href={`/projects?selected=${p.projectId}`}
                   target="_blank"
@@ -296,14 +304,16 @@ export default function PaymentsPage() {
                 <tbody>
                   <tr>
                     <th>입금 상태</th>
-                    <td><span className={`badge badge-sm ${PAYMENT_STATUS_META[selected.status].badge}`}>{PAYMENT_STATUS_META[selected.status].label}</span></td>
+                    <td><span className={panel.fieldValue}><span className={`badge badge-sm ${PAYMENT_STATUS_META[selected.status].badge}`}>{PAYMENT_STATUS_META[selected.status].label}</span></span></td>
                   </tr>
                   <tr>
                     <th>프로젝트</th>
                     <td>
-                      <a href={`/projects?selected=${selected.projectId}`} style={{ color: 'var(--color-primary)', textDecoration: 'none', fontWeight: 500 }}>
-                        {selected.projectTitle}
-                      </a>
+                      <span className={panel.fieldValue}>
+                        <a href={`/projects?selected=${selected.projectId}`} style={{ color: 'var(--color-primary)', textDecoration: 'none', fontWeight: 500 }}>
+                          {selected.projectTitle}
+                        </a>
+                      </span>
                     </td>
                   </tr>
                   <tr>

@@ -98,6 +98,25 @@
   color: #ef4444;
 }
 
+.refreshBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color 0.1s, background 0.1s;
+}
+
+.refreshBtn:hover {
+  color: var(--color-text-primary);
+  background: var(--color-bg);
+}
+
 .nodeIcon {
   width: 28px;
   height: 28px;

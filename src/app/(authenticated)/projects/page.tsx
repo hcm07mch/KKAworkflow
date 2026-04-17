@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { LuFolderOpen, LuPlus, LuPanelLeftOpen, LuPanelLeftClose, LuDownload, LuPencil, LuX, LuCheck } from 'react-icons/lu';
+
+import { LuFolderOpen, LuPanelLeftOpen, LuPanelLeftClose, LuDownload, LuPencil, LuX, LuCheck, LuExternalLink, LuChevronDown, LuChevronUp, LuRefreshCw } from 'react-icons/lu';
 import { StatusBadge, ActionButton } from '@/components/ui';
 import type { ProjectStatus, ServiceType, PaymentType, DocumentStatus, DocumentType } from '@/lib/domain/types';
 import {
@@ -15,15 +15,119 @@ import { WorkflowProgress, WorkflowBuilder } from './[id]/components';
 import panel from '../panel-layout.module.css';
 
 /** metadata.workflow_stack이 없을 때 현재 status에서 스택 추론 */
+/** 상태 문자열에서 그룹 키 추출 (예: 'B3_estimate_sent' → 'B') */
+function statusToGroupKey(status: string): string {
+  // G1_closed → 'G', F1_refund → 'F', B3_estimate_sent → 'B', etc.
+  return status.charAt(0);
+}
+
+/** 레거시/불완전한 스택을 정규화: 모든 세부 상태를 개별 엔트리로 확장 */
+function normalizeStack(stack: string[], currentStatus: ProjectStatus): string[] {
+  // Step 1: 레거시 그룹 키 → 상태 코드로 변환 (한 엔트리 → 여러 엔트리 가능)
+  const expanded: string[] = [];
+  for (const entry of stack) {
+    if (entry.includes('_')) {
+      expanded.push(entry);
+    } else {
+      // 레거시 그룹 키 → 그룹의 마지막 상태 추가
+      const group = PROJECT_STATUS_GROUPS.find((g) => g.key === entry);
+      if (group) expanded.push(group.statuses[group.statuses.length - 1]);
+      else expanded.push(entry);
+    }
+  }
+
+  // Step 2: 각 그룹 세그먼트에서 선행 상태 보충
+  const result: string[] = [];
+  let i = 0;
+  while (i < expanded.length) {
+    const key = statusToGroupKey(expanded[i]);
+    const group = PROJECT_STATUS_GROUPS.find((g) => g.key === key);
+    if (!group) { result.push(expanded[i]); i++; continue; }
+
+    // 세그먼트 수집 (같은 그룹 연속)
+    const segEntries: string[] = [];
+    while (i < expanded.length && statusToGroupKey(expanded[i]) === key) {
+      segEntries.push(expanded[i]);
+      i++;
+    }
+
+    // 세그먼트 내 가장 마지막 상태 위치 파악
+    let maxIdx = -1;
+    for (const e of segEntries) {
+      const idx = group.statuses.indexOf(e as ProjectStatus);
+      if (idx > maxIdx) maxIdx = idx;
+    }
+
+    // 0부터 maxIdx까지 모든 세부 상태 채워넣기
+    for (let j = 0; j <= maxIdx; j++) {
+      result.push(group.statuses[j]);
+    }
+  }
+
+  // Step 3: 마지막 세그먼트가 현재 상태까지 도달하지 못했으면 보충
+  if (result.length > 0) {
+    const lastKey = statusToGroupKey(result[result.length - 1]);
+    const currentKey = statusToGroupKey(currentStatus);
+    if (currentKey === lastKey) {
+      const group = PROJECT_STATUS_GROUPS.find((g) => g.key === currentKey);
+      if (group) {
+        const lastIdx = group.statuses.indexOf(result[result.length - 1] as ProjectStatus);
+        const currentIdx = group.statuses.indexOf(currentStatus);
+        for (let j = lastIdx + 1; j <= currentIdx; j++) {
+          result.push(group.statuses[j]);
+        }
+      }
+    }
+  }
+
+  return result;
+}
+
+/** 스택에서 그룹 세그먼트(연속된 동일 그룹 엔트리) 경계 계산 */
+function getGroupSegments(stack: string[]): { key: string; startIdx: number; endIdx: number }[] {
+  const segments: { key: string; startIdx: number; endIdx: number }[] = [];
+  for (let i = 0; i < stack.length; i++) {
+    const key = statusToGroupKey(stack[i]);
+    if (segments.length > 0 && segments[segments.length - 1].key === key) {
+      segments[segments.length - 1].endIdx = i;
+    } else {
+      segments.push({ key, startIdx: i, endIdx: i });
+    }
+  }
+  return segments;
+}
+
+/** 그룹 세그먼트 수 카운트 */
+function countGroupSegments(stack: string[], targetKey: string): number {
+  let count = 0;
+  let lastKey = '';
+  for (const s of stack) {
+    const key = statusToGroupKey(s);
+    if (key === targetKey && key !== lastKey) count++;
+    lastKey = key;
+  }
+  return count;
+}
+
+/** metadata에서 workflow_stack 읽기 + 정규화 */
+function readStack(metadata: Record<string, any> | undefined, currentStatus: ProjectStatus): string[] {
+  const saved: string[] | undefined = metadata?.workflow_stack as string[] | undefined;
+  const raw = saved && saved.length > 0 ? saved : inferStackFromStatus(currentStatus);
+  return normalizeStack(raw, currentStatus);
+}
+
 function inferStackFromStatus(currentStatus: ProjectStatus): string[] {
   const allStatuses = Object.keys(PROJECT_STATUS_META) as ProjectStatus[];
   const currentIdx = allStatuses.indexOf(currentStatus);
-  const keys: string[] = [];
+  const result: string[] = [];
   for (const group of PROJECT_STATUS_GROUPS) {
-    const hasRelevant = group.statuses.some((s) => allStatuses.indexOf(s) <= currentIdx);
-    if (hasRelevant) keys.push(group.key);
+    for (const s of group.statuses) {
+      if (allStatuses.indexOf(s) <= currentIdx) {
+        result.push(s);
+      }
+    }
   }
-  return keys;
+  return result;
 }
 
 // ── Types ────────────────────────────────────────────────
@@ -93,6 +197,15 @@ interface EditForm {
   total_amount: string;
 }
 
+interface StatusHistoryItem {
+  id: string;
+  from_status: string;
+  to_status: string;
+  note: string | null;
+  created_at: string;
+  changed_by_name: string | null;
+}
+
 function formatCurrency(amount: number | null) {
   if (amount == null) return '-';
   return new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW', maximumFractionDigits: 0 }).format(amount);
@@ -113,6 +226,14 @@ function formatDateTime(d: string) {
 // ── Page ─────────────────────────────────────────────────
 
 export default function ProjectsPage() {
+  return (
+    <Suspense>
+      <ProjectsContent />
+    </Suspense>
+  );
+}
+
+function ProjectsContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [projects, setProjects] = useState<ProjectItem[]>([]);
@@ -146,6 +267,15 @@ export default function ProjectsPage() {
   } | null>(null);
   const [closingReason, setClosingReason] = useState('');
   const closingReasonRef = useRef<HTMLTextAreaElement>(null);
+
+  // 활동 로그 (상태 변경 이력)
+  const [statusHistory, setStatusHistory] = useState<StatusHistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyNextCursor, setHistoryNextCursor] = useState<string | null>(null);
+  const [historyHasMore, setHistoryHasMore] = useState(false);
+  const [historyLoadingMore, setHistoryLoadingMore] = useState(false);
+  const [historyInitialCount, setHistoryInitialCount] = useState(0);
+  const [collapsingHistory, setCollapsingHistory] = useState(false);
 
   // 입금 플로우 모달 상태
   const [paymentModal, setPaymentModal] = useState(false);
@@ -210,6 +340,9 @@ export default function ProjectsPage() {
     localStorage.setItem('projects_selectedId', p.id);
     setDetail(null);
     setDetailLoading(true);
+    setStatusHistory([]);
+    setHistoryNextCursor(null);
+    setHistoryHasMore(false);
     fetch(`/api/projects/${p.id}`)
       .then((r) => r.json())
       .then((data) => {
@@ -218,7 +351,51 @@ export default function ProjectsPage() {
       })
       .catch(() => {})
       .finally(() => setDetailLoading(false));
+    // 상태 변경 이력 로드
+    fetchStatusHistory(p.id);
   }, []);
+
+  const fetchStatusHistory = useCallback((projectId: string, cursor?: string) => {
+    const isLoadMore = !!cursor;
+    if (isLoadMore) setHistoryLoadingMore(true);
+    else setHistoryLoading(true);
+    const url = cursor
+      ? `/api/projects/${projectId}/status-history?limit=20&cursor=${encodeURIComponent(cursor)}`
+      : `/api/projects/${projectId}/status-history?limit=20`;
+    fetch(url)
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.error) throw new Error();
+        if (isLoadMore) {
+          setStatusHistory((prev) => [...prev, ...res.items]);
+        } else {
+          setStatusHistory(res.items ?? []);
+          setHistoryInitialCount((res.items ?? []).length);
+        }
+        setHistoryNextCursor(res.nextCursor ?? null);
+        setHistoryHasMore(res.hasMore ?? false);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (isLoadMore) setHistoryLoadingMore(false);
+        else setHistoryLoading(false);
+      });
+  }, []);
+
+  const refreshDetail = useCallback(() => {
+    if (!detail) return;
+    fetch(`/api/projects/${detail.id}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && !data.error) {
+          setDetail(data);
+          setSelected((prev) => prev ? { ...prev, status: data.status } : prev);
+          setProjects((prev) => prev.map((p) => p.id === data.id ? { ...p, status: data.status } : p));
+        }
+      })
+      .catch(() => {});
+    fetchStatusHistory(detail.id);
+  }, [detail?.id, fetchStatusHistory]);
 
   function startEdit() {
     if (!detail || !selected) return;
@@ -308,7 +485,7 @@ export default function ProjectsPage() {
   function handleTransition(toStatus: ProjectStatus) {
     if (!detail || !selected) return;
     // G 그룹(종료) 전환 시 종료 사유 모달 표시
-    if (toStatus === 'F2_closed') {
+    if (toStatus === 'G1_closed') {
       setClosingReason('');
       setClosingModal({ toStatus, source: 'transition' });
       return;
@@ -339,7 +516,7 @@ export default function ProjectsPage() {
     // G 그룹(종료) 추가 시 종료 사유 모달 표시
     if (groupKey === 'G') {
       setClosingReason('');
-      setClosingModal({ toStatus: 'F2_closed' as ProjectStatus, source: 'workflowAdd', groupKey: 'G' });
+      setClosingModal({ toStatus: 'G1_closed' as ProjectStatus, source: 'workflowAdd', groupKey: 'G' });
       return;
     }
     // D 그룹(입금) 추가 시 결제 모달 표시 (paymentAmount 없으면)
@@ -352,11 +529,10 @@ export default function ProjectsPage() {
     }
     // F 그룹(환불) 추가 시 환불 금액 저장 후 상태 변경
     if (groupKey === 'F' && paymentAmount != null) {
-      const saved: string[] | undefined = detail.metadata?.workflow_stack as string[] | undefined;
-      const currentStack = saved && saved.length > 0 ? saved : inferStackFromStatus(selected.status);
-      const newStack = [...currentStack, groupKey];
-      const newMeta = { ...detail.metadata, workflow_stack: newStack };
+      const currentStack = readStack(detail.metadata, selected.status);
       const newStatus = 'F1_refund' as ProjectStatus;
+      const newStack = [...currentStack, newStatus];
+      const newMeta = { ...detail.metadata, workflow_stack: newStack };
       setDetail((prev) => prev ? { ...prev, status: newStatus, metadata: newMeta } : prev);
       setSelected((prev) => prev ? { ...prev, status: newStatus } : prev);
       setProjects((prev) => prev.map((p) => p.id === detail.id ? { ...p, status: newStatus } : p));
@@ -381,13 +557,12 @@ export default function ProjectsPage() {
       });
       return;
     }
-    const saved: string[] | undefined = detail.metadata?.workflow_stack as string[] | undefined;
-    const currentStack = saved && saved.length > 0 ? saved : inferStackFromStatus(selected.status);
-    const newStack = [...currentStack, groupKey];
+    const currentStack = readStack(detail.metadata, selected.status);
     const group = PROJECT_STATUS_GROUPS.find((g) => g.key === groupKey);
     const newStatus = groupKey === 'D'
       ? 'D1_payment_pending' as ProjectStatus
       : (group?.statuses[0] ?? selected.status) as ProjectStatus;
+    const newStack = [...currentStack, newStatus];
     const newMeta = { ...detail.metadata, workflow_stack: newStack };
     const newAmount = groupKey === 'D' && paymentAmount != null ? paymentAmount : selected.totalAmount;
     setDetail((prev) => prev ? { ...prev, status: newStatus, metadata: newMeta, total_amount: newAmount } : prev);
@@ -407,7 +582,7 @@ export default function ProjectsPage() {
       // 해당 그룹에 연결된 문서 자동 생성 (B/C/E)
       const docConfig = GROUP_DOC_TYPE_MAP[groupKey];
       if (docConfig) {
-        const flowNumber = newStack.filter((k) => k === groupKey).length;
+        const flowNumber = countGroupSegments(newStack, groupKey);
         const numSuffix = flowNumber > 1 ? ` #${flowNumber}` : '';
         return fetch('/api/documents', {
           method: 'POST',
@@ -449,10 +624,9 @@ export default function ProjectsPage() {
     }
     setPaymentModal(false);
     if (!detail || !selected) return;
-    const saved: string[] | undefined = detail.metadata?.workflow_stack as string[] | undefined;
-    const currentStack = saved && saved.length > 0 ? saved : inferStackFromStatus(selected.status);
-    const newStack = [...currentStack, 'D'];
+    const currentStack = readStack(detail.metadata, selected.status);
     const newStatus = 'D1_payment_pending' as ProjectStatus;
+    const newStack = [...currentStack, newStatus];
     const paymentInfo: Record<string, unknown> = { type: paymentType, amount };
     if (paymentType === 'deposit') paymentInfo.months_covered = months;
     if (paymentType === 'monthly') paymentInfo.installment_months = months;
@@ -474,7 +648,7 @@ export default function ProjectsPage() {
     }).then((r) => {
       if (!r.ok) throw new Error();
       // 입금 확인 문서 생성
-      const flowNumber = newStack.filter((k) => k === 'D').length;
+      const flowNumber = countGroupSegments(newStack, 'D');
       const numSuffix = flowNumber > 1 ? ` #${flowNumber}` : '';
       return fetch('/api/documents', {
         method: 'POST',
@@ -507,9 +681,13 @@ export default function ProjectsPage() {
 
   async function handleWorkflowDelete(index: number) {
     if (!detail || !selected) return;
-    const saved: string[] | undefined = detail.metadata?.workflow_stack as string[] | undefined;
-    const currentStack = saved && saved.length > 0 ? saved : inferStackFromStatus(selected.status);
-    const deletedGroupKey = currentStack[index];
+    const currentStack = readStack(detail.metadata, selected.status);
+
+    // index는 세그먼트(표시 그룹) 인덱스 → 실제 스택 범위 계산
+    const segments = getGroupSegments(currentStack);
+    const segment = segments[index];
+    if (!segment) return;
+    const deletedGroupKey = segment.key;
 
     // 삭제할 그룹에 연결된 문서 타입 매핑
     const groupDocTypeMap: Record<string, { type: string; label: string }> = {
@@ -522,19 +700,16 @@ export default function ProjectsPage() {
     const docConfig = groupDocTypeMap[deletedGroupKey];
     const groupLabel = PROJECT_STATUS_GROUPS.find((g) => g.key === deletedGroupKey)?.label ?? deletedGroupKey;
 
-    // 해당 타입의 가장 최근 문서 1건 찾기
-    let targetDoc: { id: string; type: string } | null = null;
+    // 해당 타입의 문서 목록 찾기
+    let docsOfType: { id: string; type: string }[] = [];
     if (docConfig && detail.documents) {
-      const docsOfType = detail.documents.filter((d) => d.type === docConfig.type);
-      if (docsOfType.length > 0) {
-        targetDoc = docsOfType[docsOfType.length - 1]; // 가장 마지막 (최근) 문서
-      }
+      docsOfType = detail.documents.filter((d) => d.type === docConfig.type);
     }
 
     // 경고 메시지 구성
     let message = `"${groupLabel}" 단계를 삭제하시겠습니까?`;
-    if (targetDoc) {
-      message += `\n\n⚠️ 연결된 ${docConfig!.label} 1건이 함께 삭제됩니다.\n삭제된 문서는 복구할 수 없습니다.`;
+    if (docsOfType.length > 0) {
+      message += `\n\n⚠️ 연결된 ${docConfig!.label} ${docsOfType.length}건이 함께 삭제됩니다.\n삭제된 문서는 복구할 수 없습니다.`;
     }
     if (deletedGroupKey === 'F') {
       message += `\n\n⚠️ 환불 내역도 함께 삭제됩니다.`;
@@ -542,22 +717,29 @@ export default function ProjectsPage() {
 
     if (!confirm(message)) return;
 
-    const newStack = currentStack.filter((_, i) => i !== index);
+    // 세그먼트 전체 제거
+    const newStack = currentStack.filter((_, i) => i < segment.startIdx || i > segment.endIdx);
     let newStatus: ProjectStatus = 'A_sales';
     if (newStack.length > 0) {
-      const lastKey = newStack[newStack.length - 1];
-      const group = PROJECT_STATUS_GROUPS.find((g) => g.key === lastKey);
-      if (group) newStatus = group.statuses[0];
+      const lastStatus = newStack[newStack.length - 1];
+      // 스택의 마지막 상태를 그대로 사용
+      if (Object.keys(PROJECT_STATUS_META).includes(lastStatus)) {
+        newStatus = lastStatus as ProjectStatus;
+      } else {
+        const group = PROJECT_STATUS_GROUPS.find((g) => g.key === lastStatus);
+        if (group) newStatus = group.statuses[group.statuses.length - 1];
+      }
     }
 
     // 낙관적 업데이트
     const newMeta = { ...detail.metadata, workflow_stack: newStack };
     const prevDocuments = detail.documents;
+    const deleteDocIds = new Set(docsOfType.map((d) => d.id));
     setDetail((prev) => prev ? {
       ...prev,
       status: newStatus,
       metadata: newMeta,
-      documents: targetDoc ? prev.documents.filter((d) => d.id !== targetDoc!.id) : prev.documents,
+      documents: deleteDocIds.size > 0 ? prev.documents.filter((d) => !deleteDocIds.has(d.id)) : prev.documents,
     } : prev);
     setSelected((prev) => prev ? { ...prev, status: newStatus } : prev);
     setProjects((prev) => prev.map((p) => p.id === detail.id ? { ...p, status: newStatus } : p));
@@ -565,10 +747,10 @@ export default function ProjectsPage() {
     // 병렬 삭제 요청
     const deletions: Promise<any>[] = [];
 
-    // 해당 문서 1건 삭제
-    if (targetDoc) {
+    // 해당 타입 문서 전체 삭제
+    if (docConfig && docsOfType.length > 0) {
       deletions.push(
-        fetch(`/api/documents/${targetDoc.id}`, { method: 'DELETE' }),
+        fetch(`/api/projects/${detail.id}/documents?type=${docConfig.type}`, { method: 'DELETE' }),
       );
     }
 
@@ -599,20 +781,48 @@ export default function ProjectsPage() {
   function handleWorkflowStatusChange(toStatus: ProjectStatus) {
     if (!detail || !selected) return;
     // G 그룹(종료) 상태 변경 시 종료 사유 모달 표시
-    if (toStatus === 'F2_closed') {
+    if (toStatus === 'G1_closed') {
       setClosingReason('');
       setClosingModal({ toStatus, source: 'workflowStatus' });
       return;
     }
     const prevStatus = selected.status;
+    const currentStack = readStack(detail.metadata, selected.status);
+
+    // 마지막 세그먼트 시작 위치 찾기
+    const lastKey = currentStack.length > 0 ? statusToGroupKey(currentStack[currentStack.length - 1]) : '';
+    let segStart = currentStack.length - 1;
+    while (segStart > 0 && statusToGroupKey(currentStack[segStart - 1]) === lastKey) segStart--;
+
+    // 대상 상태가 현재 세그먼트에 이미 있으면 → 롤백 (해당 위치까지 truncate)
+    const targetIdxInStack = currentStack.indexOf(toStatus, segStart);
+    let newStack: string[];
+    if (targetIdxInStack >= segStart) {
+      // 롤백: 해당 상태까지만 유지
+      newStack = currentStack.slice(0, targetIdxInStack + 1);
+    } else {
+      // 전진: 현재 마지막 상태와 대상 사이의 모든 중간 상태도 추가
+      const group = PROJECT_STATUS_GROUPS.find((g) => g.key === statusToGroupKey(toStatus));
+      if (group) {
+        const lastInStack = currentStack[currentStack.length - 1];
+        const lastIdx = group.statuses.indexOf(lastInStack as ProjectStatus);
+        const targetIdx = group.statuses.indexOf(toStatus);
+        const newEntries = group.statuses.slice(lastIdx + 1, targetIdx + 1);
+        newStack = [...currentStack, ...newEntries];
+      } else {
+        newStack = [...currentStack, toStatus];
+      }
+    }
+
+    const newMeta = { ...detail.metadata, workflow_stack: newStack };
     // 낙관적 업데이트
-    setDetail((prev) => prev ? { ...prev, status: toStatus } : prev);
+    setDetail((prev) => prev ? { ...prev, status: toStatus, metadata: newMeta } : prev);
     setSelected((prev) => prev ? { ...prev, status: toStatus } : prev);
     setProjects((prev) => prev.map((p) => p.id === detail.id ? { ...p, status: toStatus } : p));
     fetch(`/api/projects/${detail.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: toStatus }),
+      body: JSON.stringify({ status: toStatus, metadata: newMeta }),
     }).then(async (r) => {
       if (!r.ok) throw new Error();
       // D2 입금 완료 전환 시 → 해당 입금 문서에 confirmed_at 기록
@@ -632,7 +842,7 @@ export default function ProjectsPage() {
         }
       }
     }).catch(() => {
-      setDetail((prev) => prev ? { ...prev, status: prevStatus } : prev);
+      setDetail((prev) => prev ? { ...prev, status: prevStatus, metadata: detail.metadata } : prev);
       setSelected((prev) => prev ? { ...prev, status: prevStatus } : prev);
       setProjects((prev) => prev.map((p) => p.id === detail.id ? { ...p, status: prevStatus } : p));
       alert('상태 변경에 실패했습니다.');
@@ -647,9 +857,8 @@ export default function ProjectsPage() {
 
     if (source === 'workflowAdd' && groupKey) {
       // 워크플로우에 G 그룹 추가 — 단일 PATCH로 status + metadata 동시 변경
-      const saved: string[] | undefined = detail.metadata?.workflow_stack as string[] | undefined;
-      const currentStack = saved && saved.length > 0 ? saved : inferStackFromStatus(selected.status);
-      const newStack = [...currentStack, groupKey];
+      const currentStack = readStack(detail.metadata, selected.status);
+      const newStack = [...currentStack, toStatus];
       const newMeta = { ...detail.metadata, workflow_stack: newStack };
       setDetail((prev) => prev ? { ...prev, status: toStatus, metadata: newMeta } : prev);
       setSelected((prev) => prev ? { ...prev, status: toStatus } : prev);
@@ -837,9 +1046,6 @@ export default function ProjectsPage() {
           /* ── Collapsed: Normal List ── */
           <>
             <div className={panel.itemList}>
-              <Link href="/projects/new" className={panel.addItem}>
-                <LuPlus size={14} /> 새 프로젝트
-              </Link>
               {filtered.map((p) => (
                 <div
                   key={p.id}
@@ -878,7 +1084,7 @@ export default function ProjectsPage() {
                 </div>
               </div>
               <div className={panel.detailActions}>
-                {!editing && !['E4_execution', 'F1_refund', 'F2_closed'].includes(selected.status) && (
+                {!editing && !['E4_execution', 'F1_refund', 'G1_closed'].includes(selected.status) && (
                   <ActionButton label="수정" variant="ghost-filled" size="sm" icon={<LuPencil size={13} />} onClick={startEdit} />
                 )}
                 {editing && (
@@ -975,7 +1181,16 @@ export default function ProjectsPage() {
                     <>
                       <tr>
                         <th>고객사</th>
-                        <td><span className={panel.fieldValue}>{detail?.client?.name ?? selected.clientName}</span></td>
+                        <td>
+                          <span className={panel.fieldValue}>
+                            {detail?.client?.id ? (
+                              <a href={`/clients?selected=${detail.client.id}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-primary)', textDecoration: 'none', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                {detail.client.name}
+                                <LuExternalLink size={12} style={{ opacity: 0.6 }} />
+                              </a>
+                            ) : selected.clientName}
+                          </span>
+                        </td>
                       </tr>
                       <tr>
                         <th>서비스 유형</th>
@@ -1011,16 +1226,23 @@ export default function ProjectsPage() {
 
             {/* 워크플로우 진행 현황 */}
             <div className={panel.detailSection}>
-              <WorkflowBuilder
-                serviceType={selected.serviceType}
-                projectStatus={selected.status}
-                workflowStack={(detail?.metadata?.workflow_stack as string[]) ?? []}
-                manualStatuses={manualStatuses}
-                documents={detail?.documents}
-                onAdd={handleWorkflowAdd}
-                onDelete={handleWorkflowDelete}
-                onStatusChange={handleWorkflowStatusChange}
-              />
+              {detailLoading ? (
+                <div className="card" style={{ padding: '16px', fontSize: 13, color: 'var(--color-text-muted)' }}>
+                  워크플로우를 불러오는 중...
+                </div>
+              ) : (
+                <WorkflowBuilder
+                  serviceType={selected.serviceType}
+                  projectStatus={selected.status}
+                  workflowStack={(detail?.metadata?.workflow_stack as string[]) ?? []}
+                  manualStatuses={manualStatuses}
+                  documents={detail?.documents}
+                  onAdd={handleWorkflowAdd}
+                  onDelete={handleWorkflowDelete}
+                  onStatusChange={handleWorkflowStatusChange}
+                  onRefresh={refreshDetail}
+                />
+              )}
             </div>
 
             {/* 문서 목록 */}
@@ -1048,7 +1270,7 @@ export default function ProjectsPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {detail.documents.map((doc) => (
+                      {detail.documents.filter((doc) => doc.type !== 'payment').map((doc) => (
                         <tr key={doc.id}>
                           <td>{DOCUMENT_TYPE_META[doc.type]?.label ?? doc.type}</td>
                           <td style={{ fontWeight: 500 }}>{doc.title}</td>
@@ -1071,6 +1293,21 @@ export default function ProjectsPage() {
                                 <LuDownload size={14} />
                               </button>
                             )}
+                            {doc.type === 'contract' && doc.content?.file_path && (
+                              <button
+                                type="button"
+                                className="btn btn-ghost btn-sm"
+                                title="계약서 다운로드"
+                                onClick={async () => {
+                                  const res = await fetch(`/api/documents/${doc.id}/file-url`);
+                                  if (!res.ok) { alert('파일을 불러올 수 없습니다.'); return; }
+                                  const { url } = await res.json();
+                                  window.open(url, '_blank');
+                                }}
+                              >
+                                <LuDownload size={14} />
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -1080,12 +1317,112 @@ export default function ProjectsPage() {
               )}
             </div>
 
-            {/* 활동 로그 */}
+            {/* 활동 로그 (상태 변경 이력) */}
             <div className={panel.detailSection}>
-              <div className={panel.detailSectionTitle}>활동 로그</div>
-              <div className="card" style={{ padding: '16px', fontSize: 13, color: 'var(--color-text-muted)' }}>
-                최근 활동이 여기에 표시됩니다.
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div className={panel.detailSectionTitle} style={{ margin: 0 }}>활동 로그</div>
+                <button
+                  type="button"
+                  onClick={() => selected && fetchStatusHistory(selected.id)}
+                  title="활동 로그 새로고침"
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    width: 28, height: 28, border: 'none', borderRadius: 4,
+                    background: 'none', color: 'var(--color-text-muted)', cursor: 'pointer',
+                    transition: 'color 0.1s, background 0.1s',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-primary)'; e.currentTarget.style.background = 'var(--color-bg)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-muted)'; e.currentTarget.style.background = 'none'; }}
+                >
+                  <LuRefreshCw size={14} />
+                </button>
               </div>
+              {historyLoading ? (
+                <div className="card" style={{ padding: '16px', fontSize: 13, color: 'var(--color-text-muted)' }}>
+                  로그를 불러오는 중...
+                </div>
+              ) : statusHistory.length === 0 ? (
+                <div className="card" style={{ padding: '16px', fontSize: 13, color: 'var(--color-text-muted)' }}>
+                  상태 변경 이력이 없습니다.
+                </div>
+              ) : (
+                <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                  <table className="data-table" style={{ fontSize: 12 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ padding: '6px 10px' }}>이전</th>
+                        <th style={{ padding: '6px 10px' }}>변경</th>
+                        <th style={{ padding: '6px 10px' }}>사유</th>
+                        <th style={{ padding: '6px 10px' }}>변경자</th>
+                        <th style={{ padding: '6px 10px', whiteSpace: 'nowrap' }}>일시</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {statusHistory.map((h, index) => {
+                        const isExtra = collapsingHistory && index >= historyInitialCount;
+                        return (
+                          <tr
+                            key={h.id}
+                            style={{
+                              transition: 'opacity 0.28s ease, transform 0.28s ease',
+                              opacity: isExtra ? 0 : 1,
+                              transform: isExtra ? 'translateY(-6px)' : 'translateY(0)',
+                            }}
+                          >
+                            <td style={{ padding: '5px 10px' }}><StatusBadge status={h.from_status as ProjectStatus} type="project" /></td>
+                            <td style={{ padding: '5px 10px' }}><StatusBadge status={h.to_status as ProjectStatus} type="project" /></td>
+                            <td style={{ padding: '5px 10px', color: 'var(--color-text-muted)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={h.note ?? undefined}>{h.note ?? '-'}</td>
+                            <td style={{ padding: '5px 10px', whiteSpace: 'nowrap' }}>{h.changed_by_name ?? '시스템'}</td>
+                            <td style={{ padding: '5px 10px', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>{formatDateTime(h.created_at)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  {historyHasMore && (
+                    <button
+                      type="button"
+                      onClick={() => selected && historyNextCursor && fetchStatusHistory(selected.id, historyNextCursor)}
+                      disabled={historyLoadingMore}
+                      style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        width: '100%', padding: '10px 0', border: 'none', background: 'none',
+                        cursor: 'pointer', fontSize: 12, color: 'var(--color-primary, #3b82f6)',
+                        borderTop: '1px solid var(--color-border-light, #f0f0f0)',
+                      }}
+                    >
+                      <LuChevronDown size={14} />
+                      {historyLoadingMore ? '불러오는 중...' : '더 보기'}
+                    </button>
+                  )}
+                  {!historyHasMore && statusHistory.length > historyInitialCount && historyInitialCount > 0 && (
+                    <button
+                      type="button"
+                      disabled={collapsingHistory}
+                      onClick={() => {
+                        setCollapsingHistory(true);
+                        setTimeout(() => {
+                          setStatusHistory((prev) => prev.slice(0, historyInitialCount));
+                          setHistoryHasMore(true);
+                          setHistoryNextCursor(statusHistory[historyInitialCount - 1]?.created_at ?? null);
+                          setCollapsingHistory(false);
+                        }, 300);
+                      }}
+                      style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        width: '100%', padding: '10px 0', border: 'none', background: 'none',
+                        cursor: 'pointer', fontSize: 12, color: 'var(--color-text-muted)',
+                        borderTop: '1px solid var(--color-border-light, #f0f0f0)',
+                        transition: 'opacity 0.2s ease',
+                        opacity: collapsingHistory ? 0.5 : 1,
+                      }}
+                    >
+                      <LuChevronUp size={14} style={{ transition: 'transform 0.2s ease', transform: collapsingHistory ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+                      {collapsingHistory ? '접는 중...' : '접기'}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </>
         )}
@@ -1100,7 +1437,6 @@ export default function ProjectsPage() {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(2px)',
           }}
-          onClick={() => setPaymentModal(false)}
         >
           <div
             style={{
@@ -1325,7 +1661,7 @@ export default function ProjectsPage() {
                     || ((paymentType === 'deposit' || paymentType === 'monthly') && (!paymentMonths || Number(paymentMonths) < 1))}
                   onClick={handlePaymentConfirm}
                 >
-                  입금 확인
+                  확인
                 </button>
               </div>
             </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { Suspense, useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { LuFilePen, LuExternalLink } from 'react-icons/lu';
 import { StatusBadge, useFeedback } from '@/components/ui';
@@ -36,6 +36,14 @@ function formatCurrency(n: number) {
 // ── Page ─────────────────────────────────────────────────
 
 export default function ContractsPage() {
+  return (
+    <Suspense>
+      <ContractsContent />
+    </Suspense>
+  );
+}
+
+function ContractsContent() {
   const searchParams = useSearchParams();
   const { toast, confirm } = useFeedback();
   const [contracts, setContracts] = useState<ContractListItem[]>([]);
@@ -316,7 +324,7 @@ export default function ContractsPage() {
                   onClick={() => handleSelect(c)}
                 >
                   <span className={panel.itemNameRow}>
-                    <span className={panel.itemName}>{c.clientName || '(미지정)'}{suffix}</span>
+                    <span className={panel.itemName}>{c.projectTitle || '(미지정)'}{suffix}</span>
                     {c.projectId && (
                       <a
                         href={`/projects?selected=${c.projectId}`}

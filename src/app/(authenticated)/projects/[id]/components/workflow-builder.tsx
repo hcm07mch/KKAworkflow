@@ -8,8 +8,8 @@
  */
 
 import { useState, useRef, useEffect } from 'react';
-import { LuPlus, LuTrash2, LuExternalLink } from 'react-icons/lu';
-import type { ProjectStatus, ServiceType, DocumentType } from '@/lib/domain/types';
+import { LuPlus, LuTrash2, LuExternalLink, LuRefreshCw } from 'react-icons/lu';
+import type { ProjectStatus, ServiceType, DocumentType, DocumentStatus } from '@/lib/domain/types';
 import {
   PROJECT_STATUS_META,
   PROJECT_STATUS_GROUPS,
@@ -23,51 +23,131 @@ const GROUP_COLORS: Record<string, string> = {
   C: '#8b5cf6', // 계약 - purple
   D: '#f59e0b', // 입금 - amber
   E: '#10b981', // 집행 - emerald
-  F: '#ef4444', // 종료 - red
+  F: '#ef4444', // 환불 - red
+  G: '#6b7280', // 종료 - gray
 };
 
 const GROUP_MAP = Object.fromEntries(PROJECT_STATUS_GROUPS.map((g) => [g.key, g]));
+
+/** 상태 코드에서 그룹 키 추출: 'B3_estimate_sent' → 'B' */
+function statusToGroupKey(status: string): string {
+  return status.charAt(0);
+}
 
 /** projectStatus로부터 워크플로우 스택을 추론 (metadata에 저장된 stack이 없을 때 폴백) */
 function inferStackFromStatus(currentStatus: ProjectStatus): string[] {
   const allStatuses = Object.keys(PROJECT_STATUS_META) as ProjectStatus[];
   const currentIdx = allStatuses.indexOf(currentStatus);
-  const keys: string[] = [];
+  const result: string[] = [];
   for (const group of PROJECT_STATUS_GROUPS) {
-    const hasRelevant = group.statuses.some((s) => allStatuses.indexOf(s) <= currentIdx);
-    if (hasRelevant) keys.push(group.key);
+    for (const s of group.statuses) {
+      if (allStatuses.indexOf(s) <= currentIdx) {
+        result.push(s);
+      }
+    }
   }
-  return keys;
+  return result;
 }
 
-/** 스택 배열에서 표시용 그룹 데이터를 생성 */
-function buildFromStack(stack: string[], currentStatus: ProjectStatus) {
-  const allStatuses = Object.keys(PROJECT_STATUS_META) as ProjectStatus[];
-  const currentIdx = allStatuses.indexOf(currentStatus);
-
-  // 동일 그룹 카운트 (넘버링용)
-  const keyCountSoFar: Record<string, number> = {};
-  const totalKeyCount: Record<string, number> = {};
-  for (const key of stack) {
-    totalKeyCount[key] = (totalKeyCount[key] ?? 0) + 1;
+/** 레거시/불완전한 스택을 정규화: 모든 세부 상태를 개별 엔트리로 확장 */
+function normalizeStack(stack: string[], currentStatus: ProjectStatus): string[] {
+  const expanded: string[] = [];
+  for (const entry of stack) {
+    if (entry.includes('_')) {
+      expanded.push(entry);
+    } else {
+      const group = PROJECT_STATUS_GROUPS.find((g) => g.key === entry);
+      if (group) expanded.push(group.statuses[group.statuses.length - 1]);
+      else expanded.push(entry);
+    }
   }
 
-  return stack.map((key, idx) => {
-    const group = GROUP_MAP[key];
+  const result: string[] = [];
+  let i = 0;
+  while (i < expanded.length) {
+    const key = statusToGroupKey(expanded[i]);
+    const group = PROJECT_STATUS_GROUPS.find((g) => g.key === key);
+    if (!group) { result.push(expanded[i]); i++; continue; }
+
+    const segEntries: string[] = [];
+    while (i < expanded.length && statusToGroupKey(expanded[i]) === key) {
+      segEntries.push(expanded[i]);
+      i++;
+    }
+
+    let maxIdx = -1;
+    for (const e of segEntries) {
+      const idx = group.statuses.indexOf(e as ProjectStatus);
+      if (idx > maxIdx) maxIdx = idx;
+    }
+
+    for (let j = 0; j <= maxIdx; j++) {
+      result.push(group.statuses[j]);
+    }
+  }
+
+  if (result.length > 0) {
+    const lastKey = statusToGroupKey(result[result.length - 1]);
+    const currentKey = statusToGroupKey(currentStatus);
+    if (currentKey === lastKey) {
+      const group = PROJECT_STATUS_GROUPS.find((g) => g.key === currentKey);
+      if (group) {
+        const lastIdx = group.statuses.indexOf(result[result.length - 1] as ProjectStatus);
+        const currentIdx = group.statuses.indexOf(currentStatus);
+        for (let j = lastIdx + 1; j <= currentIdx; j++) {
+          result.push(group.statuses[j]);
+        }
+      }
+    }
+  }
+
+  return result;
+}
+
+/** 스택에서 그룹 세그먼트(연속된 동일 그룹 엔트리) 경계 계산 */
+function getGroupSegments(stack: string[]): { key: string; startIdx: number; endIdx: number }[] {
+  const segments: { key: string; startIdx: number; endIdx: number }[] = [];
+  for (let i = 0; i < stack.length; i++) {
+    const key = statusToGroupKey(stack[i]);
+    if (segments.length > 0 && segments[segments.length - 1].key === key) {
+      segments[segments.length - 1].endIdx = i;
+    } else {
+      segments.push({ key, startIdx: i, endIdx: i });
+    }
+  }
+  return segments;
+}
+
+/** 스택 배열에서 표시용 그룹 데이터를 생성 (세그먼트 기반) */
+function buildFromStack(stack: string[], currentStatus: ProjectStatus) {
+  const segments = getGroupSegments(stack);
+
+  // 동일 그룹 카운트 (넘버링용)
+  const totalSegCount: Record<string, number> = {};
+  for (const seg of segments) {
+    totalSegCount[seg.key] = (totalSegCount[seg.key] ?? 0) + 1;
+  }
+  const segCountSoFar: Record<string, number> = {};
+
+  return segments.map((seg, segIdx) => {
+    const group = GROUP_MAP[seg.key];
     if (!group) return null;
-    const isLast = idx === stack.length - 1;
+    const isLast = segIdx === segments.length - 1;
 
     // 넘버링: 동일 그룹이 2개 이상일 때만 표시
-    keyCountSoFar[key] = (keyCountSoFar[key] ?? 0) + 1;
-    const flowNumber = totalKeyCount[key] > 1 ? keyCountSoFar[key] : null;
+    segCountSoFar[seg.key] = (segCountSoFar[seg.key] ?? 0) + 1;
+    const flowNumber = totalSegCount[seg.key] > 1 ? segCountSoFar[seg.key] : null;
+
+    // 세그먼트에 포함된 상태 목록
+    const entrySet = new Set(stack.slice(seg.startIdx, seg.endIdx + 1));
+    const lastEntry = stack[seg.endIdx];
 
     // 그룹 내 세부 상태별로 done/active/upcoming 판정
     const statusItems = group.statuses.map((s) => {
-      const sIdx = allStatuses.indexOf(s);
       let state: 'done' | 'active' | 'upcoming';
       if (isLast) {
-        if (sIdx < currentIdx) state = 'done';
-        else if (sIdx === currentIdx) state = 'active';
+        if (entrySet.has(s) && s !== lastEntry) state = 'done';
+        else if (s === lastEntry) state = 'active';
         else state = 'upcoming';
       } else {
         state = 'done';
@@ -76,7 +156,7 @@ function buildFromStack(stack: string[], currentStatus: ProjectStatus) {
     });
 
     return {
-      groupKey: key,
+      groupKey: seg.key,
       label: flowNumber ? `${group.label} #${flowNumber}` : group.label,
       isCurrent: isLast,
       isDone: !isLast,
@@ -91,9 +171,13 @@ function buildFromStack(stack: string[], currentStatus: ProjectStatus) {
   }[];
 }
 
+/** 승인 단계 status 목록 (B2, C2, E2) */
+const REVIEW_STATUSES = new Set<string>(['B2_estimate_review', 'C2_contract_review', 'E2_prereport_review']);
+
 interface WorkflowDocument {
   id: string;
   type: DocumentType;
+  status: DocumentStatus;
   content: Record<string, any>;
 }
 
@@ -105,11 +189,12 @@ const GROUP_NAV_MAP: Record<string, { docType: DocumentType; path: string; label
   E: { docType: 'pre_report', path: '/executions', label: '집행 보고서 보기' },
 };
 
-/** 스택에서 해당 그룹의 flow_number 계산 (동일 그룹이 여러 번 나올 때) */
-function getFlowNumber(stack: string[], groupKey: string, groupIndex: number): number {
+/** 스택에서 해당 그룹의 flow_number 계산 (세그먼트 기반: 동일 그룹 세그먼트가 여러 번 나올 때) */
+function getFlowNumber(stack: string[], groupKey: string, segmentIndex: number): number {
+  const segments = getGroupSegments(stack);
   let count = 0;
-  for (let i = 0; i <= groupIndex; i++) {
-    if (stack[i] === groupKey) count++;
+  for (let i = 0; i <= segmentIndex && i < segments.length; i++) {
+    if (segments[i].key === groupKey) count++;
   }
   return count;
 }
@@ -135,21 +220,38 @@ interface WorkflowBuilderProps {
   onAdd: (groupKey: string, paymentAmount?: number) => void;
   onDelete: (index: number) => void;
   onStatusChange: (toStatus: ProjectStatus) => void;
+  onRefresh?: () => void;
 }
 
-export function WorkflowBuilder({ serviceType, projectStatus, workflowStack, manualStatuses, documents = [], onAdd, onDelete, onStatusChange }: WorkflowBuilderProps) {
+export function WorkflowBuilder({ serviceType, projectStatus, workflowStack, manualStatuses, documents = [], onAdd, onDelete, onStatusChange, onRefresh }: WorkflowBuilderProps) {
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const addBtnRef = useRef<HTMLButtonElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [pickerPos, setPickerPos] = useState<{ top: number; left: number } | null>(null);
 
-  // workflow_stack이 비어있으면 현재 status에서 추론
-  const effectiveStack = workflowStack.length > 0 ? workflowStack : inferStackFromStatus(projectStatus);
+  // workflow_stack이 비어있으면 현재 status에서 추론 + 레거시 키 정규화
+  const rawStack = workflowStack.length > 0 ? workflowStack : inferStackFromStatus(projectStatus);
+  const effectiveStack = normalizeStack(rawStack, projectStatus);
   const stack = buildFromStack(effectiveStack, projectStatus);
 
   // 종료 상태면 추가 불가
-  const isFinal = projectStatus === 'F2_closed';
+  const isFinal = projectStatus === 'G1_closed';
+
+  // 승인이 필요한 그룹: B(견적), C(계약), E(집행) — 문서 승인 전까지 다음 진행 차단
+  const APPROVAL_REQUIRED_GROUPS: Record<string, DocumentType> = { B: 'estimate', C: 'contract', E: 'pre_report' };
+
+  const lastGroup = stack.length > 0 ? stack[stack.length - 1] : null;
+  const approvalBlocked = (() => {
+    if (!lastGroup) return false;
+    const docType = APPROVAL_REQUIRED_GROUPS[lastGroup.groupKey];
+    if (!docType) return false;
+    const flowNum = getFlowNumber(effectiveStack, lastGroup.groupKey, stack.length - 1);
+    const doc = findDocForGroup(documents, lastGroup.groupKey, flowNum);
+    if (!doc) return false;
+    // approved 또는 sent 상태면 차단 해제
+    return doc.status !== 'approved' && doc.status !== 'sent';
+  })();
 
   // 가장 최근 그룹이 보이도록 오른쪽 끝으로 스크롤
   useEffect(() => {
@@ -184,6 +286,7 @@ export function WorkflowBuilder({ serviceType, projectStatus, workflowStack, man
   function handleSubClick(item: { status: ProjectStatus; state: 'done' | 'active' | 'upcoming' }, group: typeof stack[number], gIdx: number) {
     if (!manualStatuses.has(item.status)) return;
     if (!group.isCurrent) return;
+    if (approvalBlocked && item.state !== 'done') return; // 승인 전이면 전진 차단 (되돌리기는 허용)
 
     const groupDef = GROUP_MAP[group.groupKey];
     if (!groupDef) return;
@@ -222,7 +325,19 @@ export function WorkflowBuilder({ serviceType, projectStatus, workflowStack, man
 
   return (
     <>
-      <h2 className="section-title">워크플로우</h2>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <h2 className="section-title" style={{ margin: 0 }}>워크플로우</h2>
+        {onRefresh && (
+          <button
+            type="button"
+            onClick={onRefresh}
+            className={styles.refreshBtn}
+            title="워크플로우 새로고침"
+          >
+            <LuRefreshCw size={14} />
+          </button>
+        )}
+      </div>
       <section className="card">
 
         <div className={styles.scrollContainer} ref={scrollRef}>
@@ -274,6 +389,9 @@ export function WorkflowBuilder({ serviceType, projectStatus, workflowStack, man
                       const flowNum = getFlowNumber(effectiveStack, group.groupKey, gIdx);
                       const doc = nav ? findDocForGroup(documents, group.groupKey, flowNum) : null;
                       const navHref = nav && doc ? `${nav.path}?selected=${doc.id}` : null;
+                      // 승인 단계일 때 문서가 승인/발송 상태인지 확인
+                      const isReviewStep = REVIEW_STATUSES.has(item.status);
+                      const isDocApproved = isReviewStep && doc && (doc.status === 'approved' || doc.status === 'sent');
                       return (
                         <div
                           key={item.status}
@@ -282,8 +400,8 @@ export function WorkflowBuilder({ serviceType, projectStatus, workflowStack, man
                           role={isClickable ? 'button' : undefined}
                           tabIndex={isClickable ? 0 : undefined}
                         >
-                          <div className={`${styles.subNode} ${isManual ? styles.subNodeManual : ''}`} style={item.state === 'done' ? { background: color, borderColor: color } : item.state === 'active' ? { borderColor: color, color } : {}}>
-                            {item.state === 'done' ? (
+                          <div className={`${styles.subNode} ${isManual ? styles.subNodeManual : ''}`} style={isDocApproved ? { background: color, borderColor: color, color: '#fff' } : item.state === 'done' ? { background: color, borderColor: color } : item.state === 'active' ? { borderColor: color, color } : {}}>
+                            {item.state === 'done' || isDocApproved ? (
                               <svg className={styles.subCheckIcon} viewBox="0 0 16 16" fill="currentColor">
                                 <path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z" />
                               </svg>
@@ -323,7 +441,7 @@ export function WorkflowBuilder({ serviceType, projectStatus, workflowStack, man
           )}
 
           {/* 추가 버튼 */}
-          {!isFinal && (
+          {!isFinal && !approvalBlocked && (
             <div className={styles.addColumn} ref={dropdownRef}>
               <button
                 type="button"

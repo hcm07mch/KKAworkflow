@@ -85,6 +85,7 @@ export async function POST(
       const projectResult = await auth.services.projectService.transitionStatus(
         { project_id: projectId, to_status: 'C2_contract_review', reason: '계약서 제출' },
         ctx,
+        { systemInitiated: true },
       );
 
       if (!projectResult.success) {

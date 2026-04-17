@@ -507,6 +507,14 @@ export class ApprovalService {
       };
     }
 
+    // 본인 확인: 승인/반려 당사자 또는 admin만 번복 가능
+    if (approval.approver_id !== ctx.userId && ctx.userRole !== 'admin') {
+      return {
+        success: false,
+        error: { code: 'NOT_ORIGINAL_APPROVER', message: '본인이 처리한 승인/반려만 번복할 수 있습니다' },
+      };
+    }
+
     const document = await this.documentRepo.findById(approval.document_id);
     if (!document) {
       return {

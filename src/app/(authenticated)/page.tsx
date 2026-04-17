@@ -5,13 +5,10 @@ import Link from 'next/link';
 import type { ProjectStatus } from '@/lib/domain/types';
 import { PROJECT_STATUS_META, PROJECT_STATUS_GROUPS } from '@/lib/domain/types';
 import {
-  LuFileCheck2,
-  LuBanknote,
-  LuPlay,
-  LuRefreshCw,
   LuArrowRight,
   LuClock,
-  LuLoader,
+  LuExternalLink,
+  LuInfo,
 } from 'react-icons/lu';
 import styles from './dashboard.module.css';
 
@@ -22,6 +19,7 @@ interface PipelineProject {
   client: string;
   title: string;
   status: ProjectStatus;
+  owner: string | null;
 }
 
 interface DashboardData {
@@ -78,12 +76,30 @@ function PipelineDotMap({ projects }: { projects: PipelineProject[] }) {
               const meta = PROJECT_STATUS_META[p.status];
               const bg = DOT_COLORS[meta.color] ?? DOT_COLORS.gray;
               return (
-                <span
-                  key={p.id}
-                  className={styles.dot}
-                  style={{ background: bg }}
-                  title={`${p.client} – ${p.title} (${meta.shortLabel})`}
-                />
+                <span key={p.id} className={styles.dotWrap}>
+                  <span
+                    className={styles.dot}
+                    style={{ background: bg }}
+                  />
+                  <span className={styles.dotTooltip}>
+                    <span className={styles.dotTooltipClient}>{p.client}</span>
+                    <span className={styles.dotTooltipTitleRow}>
+                      <span className={styles.dotTooltipTitle}>{p.title}</span>
+                      <Link href={`/projects?selected=${p.id}`} className={styles.dotTooltipIconLink} title="프로젝트 보기">
+                        <LuExternalLink size={12} />
+                      </Link>
+                    </span>
+                    <span className={styles.dotTooltipStatus}>
+                      <span className={styles.dotTooltipStatusDot} style={{ background: bg }} />
+                      {meta.shortLabel}
+                    </span>
+                    {p.owner && (
+                      <span className={styles.dotTooltipAssignee}>
+                        담당: {p.owner}
+                      </span>
+                    )}
+                  </span>
+                </span>
               );
             })}
           </div>
@@ -156,7 +172,7 @@ export default function DashboardPage() {
         <div className={styles.statItem}>
           <span className={styles.statLabel}>견적 승인율</span>
           <span className={styles.statValue}>{estimateStats.approveRate}%</span>
-          <span className={styles.statSub}>승인 {estimateStats.approved} / 거절 {estimateStats.rejected}</span>
+          <span className={styles.statSub}>승인 {estimateStats.approved} · 거절 {estimateStats.rejected}</span>
         </div>
         <div className={styles.statDivider} />
         <div className={styles.statItem}>
@@ -172,7 +188,7 @@ export default function DashboardPage() {
         </div>
         <div className={styles.statDivider} />
         <div className={styles.statItem}>
-          <span className={styles.statLabel}>월계약 갱신율</span>
+          <span className={styles.statLabel}>계약 갱신율</span>
           <span className={styles.statValue}>{renewal.renewRate}%</span>
           <span className={styles.statSub}>갱신 {renewal.renewed} · 해지 {renewal.cancelled}</span>
         </div>
@@ -182,6 +198,21 @@ export default function DashboardPage() {
       <section className={styles.section}>
         <div className={styles.sectionHeader}>
           <h2 className={styles.sectionTitle}>프로젝트 현황</h2>
+          <span className={styles.legendHelpWrap}>
+            <LuInfo size={14} className={styles.legendHelpIcon} />
+            <span className={styles.legendHelpTooltip}>
+              <span className={styles.legendHelpTitle}>닷 컬러 가이드</span>
+              <span className={styles.legendRow}><span className={styles.legendSwatch} style={{ background: '#3b82f6' }} />작성 단계</span>
+              <span className={styles.legendRow}><span className={styles.legendSwatch} style={{ background: '#f59e0b' }} />승인 단계</span>
+              <span className={styles.legendRow}><span className={styles.legendSwatch} style={{ background: '#6366f1' }} />전달 단계</span>
+              <span className={styles.legendRow}><span className={styles.legendSwatch} style={{ background: '#06b6d4' }} />응답 단계</span>
+              <span className={styles.legendRow}><span className={styles.legendSwatch} style={{ background: '#10b981' }} />확인/체결</span>
+              <span className={styles.legendRow}><span className={styles.legendSwatch} style={{ background: '#f97316' }} />대기</span>
+              <span className={styles.legendRow}><span className={styles.legendSwatch} style={{ background: '#22c55e' }} />집행</span>
+              <span className={styles.legendRow}><span className={styles.legendSwatch} style={{ background: '#9ca3af' }} />영업/종료</span>
+              <span className={styles.legendRow}><span className={styles.legendSwatch} style={{ background: '#ef4444' }} />환불</span>
+            </span>
+          </span>
           <span className={styles.sectionSub}>전체 {pipelineTotal}건</span>
           <Link href="/projects" className={styles.sectionLink}>프로젝트 목록 <LuArrowRight size={12} /></Link>
         </div>
@@ -195,7 +226,7 @@ export default function DashboardPage() {
         <section className={styles.section}>
           <div className={styles.sectionHeader}>
             <h2 className={styles.sectionTitle}>
-              <LuBanknote size={16} style={{ verticalAlign: '-2px', marginRight: 6 }} />미입금 목록
+              미입금 목록
             </h2>
             <Link href="/payments" className={styles.sectionLink}>전체보기 <LuArrowRight size={12} /></Link>
           </div>
@@ -228,37 +259,11 @@ export default function DashboardPage() {
         </section>
 
         <div className={styles.rightStack}>
-          {/* 견적 승인 비율 바 */}
-          <section className={styles.section}>
-            <div className={styles.sectionHeader}>
-              <h2 className={styles.sectionTitle}>
-                <LuFileCheck2 size={16} style={{ verticalAlign: '-2px', marginRight: 6 }} />견적 승인 현황
-              </h2>
-              <Link href="/estimates" className={styles.sectionLink}>자세히 <LuArrowRight size={12} /></Link>
-            </div>
-            <div className="card">
-              <div className={styles.ratioBar}>
-                <div className={styles.ratioApproved} style={{ width: `${estimateStats.approveRate}%` }}>
-                  승인 {estimateStats.approved}
-                </div>
-                {estimateStats.rejectRate > 0 && (
-                  <div className={styles.ratioRejected} style={{ width: `${estimateStats.rejectRate}%` }}>
-                    {estimateStats.rejected}
-                  </div>
-                )}
-              </div>
-              <div className={styles.ratioMeta}>
-                <span>대기 중 <strong>{estimateStats.pending}</strong>건</span>
-                <span>총 <strong>{estimateStats.total}</strong>건</span>
-              </div>
-            </div>
-          </section>
-
           {/* 집행 대기 */}
           <section className={styles.section}>
             <div className={styles.sectionHeader}>
               <h2 className={styles.sectionTitle}>
-                <LuPlay size={16} style={{ verticalAlign: '-2px', marginRight: 6 }} />집행 대기
+                집행 대기
               </h2>
               <Link href="/executions" className={styles.sectionLink}>전체보기 <LuArrowRight size={12} /></Link>
             </div>
@@ -280,30 +285,6 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          {/* 완료/환불 */}
-          <section className={styles.section}>
-            <div className={styles.sectionHeader}>
-              <h2 className={styles.sectionTitle}>
-                <LuRefreshCw size={16} style={{ verticalAlign: '-2px', marginRight: 6 }} />월계약 갱신/해지
-              </h2>
-            </div>
-            <div className="card">
-              <div className={styles.renewalGrid}>
-                <div className={styles.renewalStat}>
-                  <span className={styles.renewalNum}>{renewal.renewed}</span>
-                  <span className={styles.renewalLabel}>갱신</span>
-                </div>
-                <div className={styles.renewalStat}>
-                  <span className={`${styles.renewalNum} ${styles.cellDanger}`}>{renewal.cancelled}</span>
-                  <span className={styles.renewalLabel}>해지</span>
-                </div>
-                <div className={styles.renewalStat}>
-                  <span className={styles.renewalNum}>{renewal.renewRate}%</span>
-                  <span className={styles.renewalLabel}>갱신율</span>
-                </div>
-              </div>
-            </div>
-          </section>
         </div>
       </div>
     </div>

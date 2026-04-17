@@ -27,12 +27,24 @@ export function UserNav() {
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
-    supabase.auth.getUser().then(({ data: { user: authUser } }) => {
+    supabase.auth.getUser().then(async ({ data: { user: authUser } }) => {
       if (authUser) {
-        setUser({
-          email: authUser.email ?? '',
-          name: authUser.user_metadata?.full_name ?? authUser.email?.split('@')[0] ?? '',
-        });
+        const email = authUser.email ?? '';
+        let name = authUser.user_metadata?.full_name ?? email.split('@')[0] ?? '';
+
+        // workflow_users 테이블에서 실제 이름 조회
+        const { data: dbUser } = await supabase
+          .from('workflow_users')
+          .select('name')
+          .eq('auth_id', authUser.id)
+          .eq('is_active', true)
+          .single();
+
+        if (dbUser?.name) {
+          name = dbUser.name;
+        }
+
+        setUser({ email, name });
       }
     });
   }, []);
@@ -97,7 +109,7 @@ export function UserNav() {
 
           {/* 테마 선택 */}
           <div className={styles.themeSection}>
-            <span className={styles.themeSectionLabel}>Theme</span>
+            <span className={styles.themeSectionLabel}>테마</span>
             <div className={styles.themeOptions}>
               <button
                 type="button"
@@ -105,7 +117,7 @@ export function UserNav() {
                 onClick={() => applyTheme('light')}
               >
                 <LuSun size={14} />
-                <span>Light</span>
+                <span>라이트</span>
               </button>
               <button
                 type="button"
@@ -113,7 +125,7 @@ export function UserNav() {
                 onClick={() => applyTheme('dark')}
               >
                 <LuMoon size={14} />
-                <span>Dark</span>
+                <span>다크</span>
               </button>
             </div>
           </div>

@@ -107,3 +107,41 @@
   color: var(--color-secondary);
   margin: 0;
 }
+
+/* ── Blocked / Not Invited ── */
+.blockedBox {
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+}
+
+.blockedIcon {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+.blockedMessage {
+  font-size: 13px;
+  color: #92400e;
+  margin: 0 0 12px;
+  line-height: 1.5;
+  white-space: pre-line;
+}
+
+.blockedDismiss {
+  font-size: 12px;
+  font-weight: 500;
+  color: #92400e;
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid #f59e0b;
+  border-radius: 4px;
+  padding: 5px 16px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.blockedDismiss:hover {
+  background: rgba(245, 158, 11, 0.25);
+}

@@ -39,7 +39,7 @@ interface ProjectItem {
 
 interface MemberItem {
   id: string;
-  display_name: string;
+  name: string;
   role: string;
 }
 
@@ -524,7 +524,7 @@ export default function ClientsPage() {
                       >
                         <option value="">본인 (기본)</option>
                         {members.map((m) => (
-                          <option key={m.id} value={m.id}>{m.display_name}</option>
+                          <option key={m.id} value={m.id}>{m.name}</option>
                         ))}
                       </select>
                     </td>
@@ -714,7 +714,7 @@ export default function ClientsPage() {
                           >
                             <option value="">본인 (기본)</option>
                             {members.map((m) => (
-                              <option key={m.id} value={m.id}>{m.display_name}</option>
+                              <option key={m.id} value={m.id}>{m.name}</option>
                             ))}
                           </select>
                         </td>

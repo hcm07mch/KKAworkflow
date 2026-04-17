@@ -58,7 +58,7 @@ export async function DELETE(
   const { id } = await params;
   const type = request.nextUrl.searchParams.get('type');
 
-  if (!type || !['estimate', 'contract', 'pre_report', 'report'].includes(type)) {
+  if (!type || !['estimate', 'contract', 'pre_report', 'report', 'payment'].includes(type)) {
     return NextResponse.json(
       { error: { code: 'INVALID_TYPE', message: '유효한 문서 타입을 지정해 주세요.' } },
       { status: 400 },

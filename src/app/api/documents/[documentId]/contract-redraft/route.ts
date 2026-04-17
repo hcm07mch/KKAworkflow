@@ -73,6 +73,7 @@ export async function POST(
       const projectResult = await auth.services.projectService.transitionStatus(
         { project_id: projectId, to_status: 'C1_contract_draft', reason: '계약서 재작성' },
         ctx,
+        { systemInitiated: true },
       );
 
       if (!projectResult.success) {

@@ -17,7 +17,11 @@ export async function GET(request: NextRequest) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error) {
-      await ensureUserExists(supabase);
+      const allowed = await checkUserAllowed(supabase);
+      if (!allowed) {
+        await supabase.auth.signOut();
+        return NextResponse.redirect(`${origin}/login?error=not_invited`);
+      }
       return NextResponse.redirect(`${origin}${redirectTo}`);
     }
   }
@@ -26,36 +30,19 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * auth.users -> workflow_users 동기화
- * 미등록 사용자는 member 역할로 자동 생성
+ * workflow_users에 등록된 활성 사용자인지 확인
  */
-async function ensureUserExists(supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>) {
+async function checkUserAllowed(supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>): Promise<boolean> {
   const { data: { user: authUser } } = await supabase.auth.getUser();
-  if (!authUser) return;
+  if (!authUser) return false;
 
   const serviceClient = createSupabaseServiceClient();
 
   const { data: existing } = await serviceClient
     .from('workflow_users')
-    .select('id')
+    .select('id, is_active')
     .eq('auth_id', authUser.id)
-    .maybeSingle() as { data: { id: string } | null };
+    .maybeSingle() as { data: { id: string; is_active: boolean } | null };
 
-  if (existing) return;
-
-  const { data: org } = await serviceClient
-    .from('workflow_organizations')
-    .select('id')
-    .limit(1)
-    .single() as { data: { id: string } | null };
-
-  if (!org) return;
-
-  await (serviceClient.from('workflow_users') as any).insert({
-    auth_id: authUser.id,
-    email: authUser.email!,
-    name: authUser.user_metadata?.full_name ?? authUser.email!.split('@')[0],
-    organization_id: org.id,
-    role: 'member',
-  });
+  return existing?.is_active === true;
 }

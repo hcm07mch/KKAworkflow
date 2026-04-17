@@ -1,8 +1,8 @@
 /**
- * POST /api/auth/ensure-user - 로그인 후 DB 사용자 동기화
+ * POST /api/auth/ensure-user - 로그인 후 DB 사용자 확인
  *
- * Password 로그인 후 workflow_users 테이블에 사용자가 없으면 자동 생성.
- * profiles 테이블이 있으면 기존 정보(역할, 이름 등)를 반영합니다.
+ * workflow_users에 등록된 사용자만 통과.
+ * 미등록 사용자는 접근 거부 (관리자에게 초대 요청 안내).
  */
 
 import { NextResponse } from 'next/server';
@@ -20,70 +20,43 @@ export async function POST() {
     );
   }
 
-  // Service role client (RLS 우회 - 신규 사용자는 RLS로 자기 자신 INSERT 불가)
   const serviceClient = createSupabaseServiceClient();
 
-  // 이미 등록된 사용자인지 확인
+  // workflow_users에 등록 여부 확인
   const { data: existing } = await serviceClient
     .from('workflow_users')
-    .select('id')
+    .select('id, is_active')
     .eq('auth_id', authUser.id)
-    .maybeSingle() as { data: { id: string } | null };
+    .maybeSingle() as { data: { id: string; is_active: boolean } | null };
 
   if (existing) {
-    return NextResponse.json({ success: true, created: false });
+    if (!existing.is_active) {
+      return NextResponse.json(
+        { error: { code: 'DEACTIVATED', message: '비활성화된 계정입니다. 관리자에게 문의하세요.' } },
+        { status: 403 },
+      );
+    }
+    return NextResponse.json({ success: true });
   }
 
-  // 조직 조회 (첫 번째 조직을 배정)
-  const { data: org } = await serviceClient
-    .from('workflow_organizations')
-    .select('id')
-    .limit(1)
-    .single() as { data: { id: string } | null };
+  // workflow_users에 없음 → profiles에 있는지 확인
+  const { data: profile } = await serviceClient
+    .from('profiles')
+    .select('user_id')
+    .eq('user_id', authUser.id)
+    .maybeSingle() as { data: { user_id: string } | null };
 
-  if (!org) {
+  if (profile) {
+    // profiles에는 있지만 초대받지 않은 사용자
     return NextResponse.json(
-      { error: { code: 'NO_ORGANIZATION', message: '등록된 조직이 없습니다' } },
-      { status: 400 },
+      { error: { code: 'NOT_INVITED', message: '워크플로우 멤버로 등록되지 않았습니다.\n관리자에게 멤버 초대를 요청하세요.' } },
+      { status: 403 },
     );
   }
 
-  // profiles 테이블에서 기존 유저 정보 조회
-  const { data: profile } = await serviceClient
-    .from('profiles')
-    .select('display_name, email, tier_code, is_kicked, business_owner_name, company_name')
-    .eq('user_id', authUser.id)
-    .maybeSingle() as {
-      data: {
-        display_name: string | null;
-        email: string | null;
-        tier_code: string;
-        is_kicked: boolean;
-        business_owner_name: string | null;
-        company_name: string | null;
-      } | null;
-    };
-
-  const tierToRole: Record<string, string> = {
-    admin: 'admin',
-    manager: 'manager',
-    branch: 'member',
-  };
-  const role = profile ? (tierToRole[profile.tier_code] ?? 'member') : 'member';
-  const name = profile?.display_name
-    ?? profile?.business_owner_name
-    ?? profile?.company_name
-    ?? authUser.user_metadata?.full_name
-    ?? authUser.email!.split('@')[0];
-
-  await (serviceClient.from('workflow_users') as any).insert({
-    auth_id: authUser.id,
-    email: profile?.email ?? authUser.email!,
-    name,
-    organization_id: org.id,
-    role,
-    is_active: profile ? !profile.is_kicked : true,
-  });
-
-  return NextResponse.json({ success: true, created: true });
+  // profiles에도 없는 사용자
+  return NextResponse.json(
+    { error: { code: 'NOT_REGISTERED', message: '등록되지 않은 사용자입니다. 관리자에게 문의하세요.' } },
+    { status: 403 },
+  );
 }

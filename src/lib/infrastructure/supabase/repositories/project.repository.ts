@@ -187,4 +187,20 @@ export class SupabaseProjectRepository implements IProjectRepository {
     if (error || !row) throw new Error(`project ?? ?ㅽ? ${error?.message}`);
     return row as unknown as Project;
   }
-}
+  async recordStatusHistory(data: {
+    project_id: string;
+    from_status: string;
+    to_status: string;
+    changed_by: string | null;
+    note?: string | null;
+  }): Promise<void> {
+    await this.db
+      .from('workflow_project_status_history')
+      .insert({
+        project_id: data.project_id,
+        from_status: data.from_status,
+        to_status: data.to_status,
+        changed_by: data.changed_by,
+        note: data.note ?? null,
+      });
+  }}

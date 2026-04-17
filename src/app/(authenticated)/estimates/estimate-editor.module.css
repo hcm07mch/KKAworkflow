@@ -158,15 +158,13 @@
 .formTable {
   width: 100%;
   border-collapse: collapse;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  overflow: hidden;
+  border: none;
   font-size: 12px;
 }
 
 .formTable th,
 .formTable td {
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: none;
   padding: 0;
   vertical-align: middle;
 }
@@ -177,21 +175,20 @@
 }
 
 .formTable th {
-  width: 80px;
-  min-width: 80px;
-  max-width: 80px;
+  width: 56px;
+  min-width: 56px;
+  max-width: 56px;
   font-size: 11px;
   font-weight: 600;
-  color: var(--color-text-secondary);
+  color: var(--color-text-muted);
   text-align: left;
-  padding: 7px 10px;
-  background: var(--color-bg);
+  padding: 4px 0;
+  background: none;
   white-space: nowrap;
-  border-right: 1px solid var(--color-border);
 }
 
 .formTable td {
-  padding: 3px 4px;
+  padding: 2px 0;
 }
 
 .formTable td .form-input,
@@ -255,29 +252,82 @@
 .itemCard {
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  padding: 14px;
-  margin-bottom: 10px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
   background: var(--color-bg);
+}
+
+.itemCard:last-of-type {
+  margin-bottom: 0;
 }
 
 .itemHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.itemHeaderLeft {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .itemNo {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--color-primary);
-  width: 22px;
-  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
-  background: var(--color-primary-light);
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.reorderBtns {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.reorderBtn {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 18px;
+  height: 14px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  background: var(--color-bg, #fafafa);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.reorderBtn:hover:not(:disabled) {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+
+.reorderBtn:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.itemLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-right: 6px;
 }
 
 .removeBtn {
@@ -297,27 +347,53 @@
   color: #b91c1c;
 }
 
-/* ── Detail Sub-sections ── */
+/* ── Sub-sections (세부 항목 / 옵션) ── */
+
+.subSectionArea {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--color-border);
+}
+
+.subSectionTitle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  margin-bottom: 6px;
+}
+
+.subSectionTitle svg {
+  opacity: 0.6;
+}
 
 .detailSection {
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  padding: 10px;
-  margin-top: 8px;
-  background: var(--color-surface);
+  padding: 6px 0 6px 10px;
+  margin-bottom: 4px;
+  border-left: 2px solid var(--color-primary-light, #e0e7ff);
+  background: none;
+  position: relative;
+}
+
+.detailSection:last-of-type {
+  margin-bottom: 0;
 }
 
 .detailHeaderRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .detailLabel {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
-  color: var(--color-text-primary);
+  color: var(--color-text-secondary);
 }
 
 .descriptionRow {
@@ -351,24 +427,60 @@
   color: var(--color-secondary);
 }
 
-.addDetailBtn,
-.addDescBtn {
-  display: inline-flex;
+/* ── Inline add buttons (dashed, full-width) ── */
+
+.addInlineBtn {
+  display: flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
-  font-size: 11px;
-  color: var(--color-primary);
-  cursor: pointer;
-  padding: 4px 0;
+  width: 100%;
+  height: 26px;
+  margin-top: 6px;
+  border: 1px dashed var(--color-border);
+  border-radius: 4px;
   background: none;
-  border: none;
+  color: var(--color-text-muted);
+  font-size: 11px;
   font-weight: 600;
-  transition: opacity 0.15s;
+  cursor: pointer;
+  transition: all 0.15s;
 }
 
-.addDetailBtn:hover,
-.addDescBtn:hover {
-  opacity: 0.7;
+.addInlineBtn:hover {
+  border-color: var(--color-primary);
+  border-style: solid;
+  color: var(--color-primary);
+  background: var(--color-primary-light, #eef2ff);
+}
+
+/* ── Add Description Inline Button (+ in table row) ── */
+
+.addDescInlineBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 24px;
+  border: 1px dashed var(--color-text-muted);
+  border-radius: 4px;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.addDescInlineBtn:hover {
+  border-color: var(--color-primary);
+  border-style: solid;
+  color: var(--color-primary);
+  background: var(--color-primary-light, #eef2ff);
+}
+
+/* Legacy aliases — keep for any remaining references */
+.addDetailBtn,
+.addDescBtn {
+  display: none;
 }
 
 /* ── Notes ── */
@@ -398,17 +510,18 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
   width: 100%;
-  padding: 10px;
-  border: 2px dashed var(--color-border);
-  border-radius: 8px;
+  padding: 8px;
+  border: 1px dashed var(--color-border);
+  border-radius: 6px;
   cursor: pointer;
   color: var(--color-primary);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   background: transparent;
   transition: all 0.15s;
+  margin-top: 6px;
 }
 
 .addItemBtn:hover {
@@ -931,9 +1044,8 @@
 /* ── Option (editor form) ── */
 
 .optionSection {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px dashed var(--color-border);
+  margin-top: 0;
+  padding-top: 0;
 }
 
 .optionRow {
@@ -1052,4 +1164,70 @@
     height: auto;
     overflow: visible;
   }
+}
+
+/* ── Icon Picker (horizontal) ── */
+
+.iconPicker {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.iconPickerRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: 1;
+  max-height: 30px;
+  overflow: hidden;
+  transition: max-height 0.2s ease;
+}
+
+.iconPickerExpanded .iconPickerRow {
+  max-height: 200px;
+}
+
+.iconExpandBtn {
+  width: 22px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: #9ca3af;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.iconExpandBtn:hover {
+  color: #6366f1;
+}
+
+.iconBtn {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  transition: border-color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+
+.iconBtn:hover {
+  border-color: #a5b4fc;
+  background: #f0f4ff;
+}
+
+.iconBtnActive {
+  border-color: #6366f1;
+  background: #eef2ff;
 }

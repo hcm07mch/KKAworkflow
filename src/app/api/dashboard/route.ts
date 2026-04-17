@@ -14,22 +14,15 @@ export async function GET() {
 
   // ── 병렬로 필요한 데이터 조회 ──
 
-  const [projectsRes, estimatesRes, statusHistoryRes] = await Promise.all([
+  const [projectsRes, statusHistoryRes] = await Promise.all([
     // 1) 전체 프로젝트 (파이프라인 + 미입금 + 집행대기 + 갱신 계산)
     supabase
       .from('workflow_projects')
-      .select('id, title, status, total_amount, start_date, client:workflow_clients(name)')
+      .select('id, title, status, total_amount, start_date, metadata, client:workflow_clients(name), owner:workflow_users!workflow_projects_owner_id_fkey(name)')
       .eq('organization_id', organizationId)
       .order('created_at', { ascending: false }),
 
-    // 2) 견적서 문서 상태별 집계
-    supabase
-      .from('workflow_project_documents')
-      .select('id, status, project:workflow_projects!inner(organization_id)')
-      .eq('type', 'estimate')
-      .eq('project.organization_id', organizationId),
-
-    // 3) D1 진입 이력 (미입금 경과일 계산용)
+    // 2) D1 진입 이력 (미입금 경과일 계산용)
     supabase
       .from('workflow_project_status_history')
       .select('project_id, to_status, created_at')
@@ -38,36 +31,81 @@ export async function GET() {
   ]);
 
   const projects = projectsRes.data ?? [];
-  const estimates = estimatesRes.data ?? [];
 
   // ── 파이프라인 (F그룹 제외) ──
   const pipeline = projects
-    .filter((p: any) => !p.status.startsWith('F'))
+    .filter((p: any) => !p.status.startsWith('F') && !p.status.startsWith('G'))
     .map((p: any) => ({
       id: p.id,
       client: p.client?.name ?? '',
       title: p.title,
       status: p.status,
+      owner: p.owner?.name ?? null,
     }));
 
-  // ── 견적 승인 현황 ──
-  const estApproved = estimates.filter((e: any) => e.status === 'approved').length;
-  const estRejected = estimates.filter((e: any) => e.status === 'rejected').length;
-  const estPending = estimates.filter((e: any) => e.status === 'in_review' || e.status === 'draft').length;
-  const estSent = estimates.filter((e: any) => e.status === 'sent').length;
-  const estTotal = estimates.length;
+  // ── 견적 승인 현황 (workflow_stack 기반) ──
+  // B그룹(견적) 플로우가 스택에 존재하는 프로젝트 = 견적 진행
+  // → D그룹(입금) 도달 = 승인 / F1·G1 종료 = 거절
+
+  // 상태 이력에서 D1 진입 날짜 (미입금 경과일용)
+  const statusHistory = (statusHistoryRes.data ?? []) as any[];
+  const d1DateMap = new Map<string, string>();
+  for (const h of statusHistory) {
+    if (h.to_status === 'D1_payment_pending' && !d1DateMap.has(h.project_id)) {
+      d1DateMap.set(h.project_id, h.created_at);
+    }
+  }
+
+  let estApproved = 0;
+  let estRejected = 0;
+  let estPending = 0;
+
+  for (const p of projects) {
+    const stack: string[] = ((p as any).metadata as any)?.workflow_stack ?? [];
+    const status = (p as any).status as string;
+
+    // 스택을 순회하며 B→D 사이클 카운트
+    // B 세그먼트가 나오면 견적 1건, 이후 D가 나오면 승인, 다음 B 전에 D 없으면 미승인
+    let inB = false;
+    let bCount = 0; // 총 견적 플로우 수
+    let dAfterB = 0; // B 이후 D 도달 수
+
+    for (const s of stack) {
+      const key = s.charAt(0);
+      if (key === 'B') {
+        if (!inB) {
+          bCount++;
+          inB = true;
+        }
+      } else {
+        if (key === 'D' && inB) {
+          dAfterB++;
+        }
+        inB = false;
+      }
+    }
+
+    if (bCount === 0) continue; // 견적 플로우가 없는 프로젝트는 제외
+
+    estApproved += dAfterB;
+
+    // 마지막 B 세그먼트 이후 D가 없는 경우
+    const unresolvedB = bCount - dAfterB;
+    if (unresolvedB > 0) {
+      if (status === 'F1_refund' || status === 'G1_closed') {
+        estRejected += unresolvedB;
+      } else {
+        estPending += unresolvedB;
+      }
+    }
+  }
+
+  const estTotal = estApproved + estRejected + estPending;
   const estDecided = estApproved + estRejected;
   const approveRate = estDecided > 0 ? Math.round((estApproved / estDecided) * 100) : 0;
   const rejectRate = estDecided > 0 ? 100 - approveRate : 0;
 
   // ── 미입금 목록 (D1_payment_pending) ──
-  const d1History = (statusHistoryRes.data ?? []) as any[];
-  const d1DateMap = new Map<string, string>();
-  for (const h of d1History) {
-    if (!d1DateMap.has(h.project_id)) {
-      d1DateMap.set(h.project_id, h.created_at);
-    }
-  }
 
   const now = Date.now();
   const unpaidProjects = projects.filter((p: any) => p.status === 'D1_payment_pending');
@@ -98,17 +136,60 @@ export async function GET() {
       : 0,
   }));
 
-  // ── 갱신 (F 프로젝트 기반) ──
-  const fProjects = projects.filter((p: any) => p.status.startsWith('F'));
-  const renewed = fProjects.filter((p: any) => p.status === 'F2_closed').length;
-  const cancelled = fProjects.filter((p: any) => p.status === 'F1_refund').length;
-  const fTotal = renewed + cancelled;
-  const renewRate = fTotal > 0 ? Math.round((renewed / fTotal) * 100) : 0;
+  // ── 계약 갱신/해지 (workflow_stack 기반) ──
+  // C 세그먼트(계약 플로우) 이후 추가 C 세그먼트 → 갱신
+  // C 세그먼트 이후 G 세그먼트(종료 플로우) → 해지
+  let totalRenewed = 0;
+  let totalCancelled = 0;
+  let totalRenewPending = 0;
+
+  for (const p of projects) {
+    const stack: string[] = ((p as any).metadata as any)?.workflow_stack ?? [];
+    const status = (p as any).status as string;
+
+    let inC = false;
+    let cCount = 0;
+
+    for (const s of stack) {
+      const key = s.charAt(0);
+      if (key === 'C') {
+        if (!inC) { cCount++; inC = true; }
+      } else {
+        inC = false;
+      }
+    }
+
+    if (cCount === 0) continue;
+
+    // 마지막 C를 제외한 모든 C 세그먼트 = 갱신 (이후 다시 C 진입)
+    totalRenewed += (cCount - 1);
+
+    // 마지막 C 세그먼트: G 진입 여부로 해지/진행중 판별
+    let gAfterLastC = false;
+    let lastCIdx = -1;
+    for (let i = stack.length - 1; i >= 0; i--) {
+      if (stack[i].charAt(0) === 'C') { lastCIdx = i; break; }
+    }
+    if (lastCIdx >= 0) {
+      for (let i = lastCIdx + 1; i < stack.length; i++) {
+        if (stack[i].charAt(0) === 'G') { gAfterLastC = true; break; }
+      }
+    }
+
+    if (gAfterLastC || status.startsWith('G')) {
+      totalCancelled++;
+    } else {
+      totalRenewPending++;
+    }
+  }
+
+  const renewDecided = totalRenewed + totalCancelled;
+  const renewRate = renewDecided > 0 ? Math.round((totalRenewed / renewDecided) * 100) : 0;
 
   return NextResponse.json({
     pipeline,
     estimateStats: {
-      pending: estPending + estSent,
+      pending: estPending,
       approved: estApproved,
       rejected: estRejected,
       total: estTotal,
@@ -125,10 +206,10 @@ export async function GET() {
       items: execQueueItems.slice(0, 5),
     },
     renewal: {
-      total: fTotal,
-      renewed,
-      cancelled,
-      pending: 0,
+      total: renewDecided,
+      renewed: totalRenewed,
+      cancelled: totalCancelled,
+      pending: totalRenewPending,
       renewRate,
     },
   });

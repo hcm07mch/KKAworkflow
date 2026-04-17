@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { Suspense, useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { LuFileText, LuPlus, LuExternalLink } from 'react-icons/lu';
 import { StatusBadge, useFeedback } from '@/components/ui';
@@ -38,6 +38,14 @@ function formatCurrency(n: number) {
 // ── Page ─────────────────────────────────────────────────
 
 export default function EstimatesPage() {
+  return (
+    <Suspense>
+      <EstimatesContent />
+    </Suspense>
+  );
+}
+
+function EstimatesContent() {
   const searchParams = useSearchParams();
   const { toast, confirm } = useFeedback();
   const [estimates, setEstimates] = useState<EstimateListItem[]>([]);
@@ -140,9 +148,11 @@ export default function EstimatesPage() {
     const fakeId = `est_${Date.now()}`;
     const newItem: EstimateListItem = {
       id: fakeId,
+      projectId: '',
       projectTitle: data.project_name ?? '',
       clientId: '',
       clientName: data.recipient?.replace(' 귀하', '') ?? '',
+      ownerId: '',
       ownerName: '-',
       serviceType: 'viral',
       status: 'draft',
@@ -338,13 +348,6 @@ export default function EstimatesPage() {
           />
         </div>
         <div className={panel.itemList}>
-          <div
-            className={`${panel.addItem} ${panelMode === 'new' ? panel.itemActive : ''}`}
-            onClick={handleNew}
-          >
-            <LuPlus size={14} /> 새 견적서
-          </div>
-
           {loading
             ? Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className={panel.skeletonItem}>
@@ -361,7 +364,7 @@ export default function EstimatesPage() {
                   onClick={() => handleSelect(e)}
                 >
                   <span className={panel.itemNameRow}>
-                    <span className={panel.itemName}>{e.clientName || e.content?.recipient || '(미지정)'}{suffix}</span>
+                    <span className={panel.itemName}>{e.projectTitle || '(미지정)'}{suffix}</span>
                     {e.projectId && (
                       <a
                         href={`/projects?selected=${e.projectId}`}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { Suspense, useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { LuRocket, LuExternalLink } from 'react-icons/lu';
 import { StatusBadge, useFeedback } from '@/components/ui';
@@ -33,6 +33,14 @@ type RightPanelMode = 'empty' | 'edit';
 // ── Page ─────────────────────────────────────────────────
 
 export default function ExecutionsPage() {
+  return (
+    <Suspense>
+      <ExecutionsContent />
+    </Suspense>
+  );
+}
+
+function ExecutionsContent() {
   const searchParams = useSearchParams();
   const { toast, confirm } = useFeedback();
   const [executions, setExecutions] = useState<ExecItem[]>([]);

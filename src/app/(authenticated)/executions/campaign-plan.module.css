@@ -47,6 +47,19 @@
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
+.cpHeaderRight {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.cpHeaderDate {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.7);
+}
+
 /* ── Execution Period Bar ── */
 
 .cpPeriodBar {

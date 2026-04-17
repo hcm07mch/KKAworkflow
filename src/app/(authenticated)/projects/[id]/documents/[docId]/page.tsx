@@ -155,8 +155,7 @@ function DocumentContent({ doc }: { doc: ProjectDocument }) {
   switch (doc.type) {
     case 'estimate': return <EstimateContent content={content} />;
     case 'contract': return <ContractContent content={content} />;
-    case 'pre_report':
-    case 'report': return <ReportContent content={content} />;
+    case 'pre_report': return <ReportContent content={content} />;
     default: return <pre style={{ fontSize: 12 }}>{JSON.stringify(content, null, 2)}</pre>;
   }
 }

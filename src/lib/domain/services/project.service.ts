@@ -117,11 +117,11 @@ export class ProjectService {
       };
     }
 
-    // [단계 2] 집행/환불/종료 상태에서는 상태/메타데이터 변경 외 수정 불가
+    // [단계 2] 집행/환불/종료 상태에서는 상태/메타데이터/금액 변경 외 수정 불가
     const inputKeys = new Set(Object.keys(input));
-    const allowedKeys = new Set(['status', 'metadata']);
+    const allowedKeys = new Set(['status', 'metadata', 'total_amount']);
     const isAllowedUpdate = inputKeys.size > 0 && [...inputKeys].every((k) => allowedKeys.has(k));
-    if (['E4_execution', 'F1_refund', 'F2_closed'].includes(existing.status) && !isAllowedUpdate) {
+    if (['E4_execution', 'F1_refund', 'G1_closed'].includes(existing.status) && !isAllowedUpdate) {
       return {
         success: false,
         error: {
@@ -132,6 +132,17 @@ export class ProjectService {
     }
 
     const updated = await this.projectRepo.update(projectId, input);
+
+    // 상태가 변경된 경우 이력 기록
+    const newStatus = (input as Record<string, unknown>).status as ProjectStatus | undefined;
+    if (newStatus && newStatus !== existing.status) {
+      await this.projectRepo.recordStatusHistory({
+        project_id: projectId,
+        from_status: existing.status,
+        to_status: newStatus,
+        changed_by: ctx.userId,
+      });
+    }
 
     // [단계 3] 수정 활동 로그 기록
     await this.activityLog.log({
@@ -163,6 +174,7 @@ export class ProjectService {
   async transitionStatus(
     input: TransitionProjectInput,
     ctx: ProjectServiceContext,
+    options?: { systemInitiated?: boolean },
   ): Promise<ServiceResult<Project>> {
     // [단계 1] 프로젝트 존재 검증
     const project = await this.projectRepo.findById(input.project_id);
@@ -200,17 +212,30 @@ export class ProjectService {
       };
     }
 
+    const isSystem = options?.systemInitiated === true;
+
     // 상태 변경 실행
     const updated = await this.projectRepo.update(input.project_id, { status: toStatus });
 
-    // [단계 4] 상태 변경 활동 로그 기록
+    // [단계 4] 상태 이력 기록
+    await this.projectRepo.recordStatusHistory({
+      project_id: input.project_id,
+      from_status: fromStatus,
+      to_status: toStatus,
+      changed_by: isSystem ? null : ctx.userId,
+      note: input.reason ?? null,
+    });
+
+    // [단계 5] 상태 변경 활동 로그 기록
     await this.activityLog.log({
       entity_type: 'project',
       entity_id: input.project_id,
       project_id: input.project_id,
       action: 'status_changed',
-      actor_id: ctx.userId,
-      description: `상태 변경: ${PROJECT_STATUS_META[fromStatus].label} → ${PROJECT_STATUS_META[toStatus].label}`,
+      actor_id: isSystem ? undefined : ctx.userId,
+      description: isSystem
+        ? `시스템 상태 변경: ${PROJECT_STATUS_META[fromStatus].label} → ${PROJECT_STATUS_META[toStatus].label}`
+        : `상태 변경: ${PROJECT_STATUS_META[fromStatus].label} → ${PROJECT_STATUS_META[toStatus].label}`,
       old_data: { status: fromStatus },
       new_data: { status: toStatus },
       metadata: input.reason ? { reason: input.reason } : undefined,

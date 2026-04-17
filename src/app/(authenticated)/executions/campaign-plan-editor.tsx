@@ -7,7 +7,7 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { LuPlus, LuTrash2, LuChevronUp, LuSettings2, LuListOrdered, LuBookOpen, LuGripVertical, LuX, LuSend, LuRotateCcw, LuDownload } from 'react-icons/lu';
+import { LuPlus, LuTrash2, LuChevronUp, LuChevronDown, LuSettings2, LuListOrdered, LuBookOpen, LuGripVertical, LuX, LuSend, LuRotateCcw, LuDownload, LuLayers } from 'react-icons/lu';
 import { ActionButton, useFeedback } from '@/components/ui';
 import type { PreReportContent } from '@/lib/domain/types';
 import { CampaignPlanPreview } from './campaign-plan-preview';
@@ -83,6 +83,29 @@ function getServiceEmoji(iconId: string): string {
 
 const DEFAULT_COMPANY = '킹콩애드 주식회사';
 
+// ── IconPicker (collapsible) ─────────────────────────────
+
+function IconPicker({ value, readOnly, onChange }: { value: string; readOnly?: boolean; onChange: (id: string) => void }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className={`${s.iconPicker} ${expanded ? s.iconPickerExpanded : ''}`}>
+      <div className={s.iconPickerRow}>
+        {SERVICE_ICONS.map((ic) => (
+          <button
+            key={ic.id}
+            type="button"
+            className={`${s.iconBtn} ${value === ic.id ? s.iconBtnActive : ''}`}
+            onClick={() => !readOnly && onChange(ic.id)}
+          >{ic.emoji}</button>
+        ))}
+      </div>
+      <button type="button" className={s.iconExpandBtn} onClick={() => setExpanded((v) => !v)}>
+        <LuChevronUp size={12} className={`${s.sectionChevron} ${expanded ? s.chevronOpen : ''}`} />
+      </button>
+    </div>
+  );
+}
+
 // ── Service Catalog (집행 진행안용) ──────────────────────
 
 interface CampaignCatalogItem {
@@ -94,114 +117,7 @@ interface CampaignCatalogItem {
   subtotal: number;
 }
 
-const CAMPAIGN_CATALOG: CampaignCatalogItem[] = [
-  {
-    id: 'shopping-reward',
-    group: '퍼포먼스',
-    icon: 'shopping_reward',
-    name: '쇼핑 리워드',
-    fields: [
-      { label: '대상 상품', value: '4개 상품' },
-      { label: '슬롯 수', value: '상품당 3슬롯' },
-      { label: '슬롯 단가', value: '35,000원' },
-    ],
-    subtotal: 420000,
-  },
-  {
-    id: 'sa-naver',
-    group: '퍼포먼스',
-    icon: 'sa_ad',
-    name: '네이버 SA 광고',
-    fields: [
-      { label: '광고 유형', value: '검색광고' },
-      { label: '월 예산', value: '500,000원' },
-      { label: '운영 범위', value: '키워드 관리, 입찰 최적화' },
-    ],
-    subtotal: 500000,
-  },
-  {
-    id: 'meta-ad',
-    group: '퍼포먼스',
-    icon: 'meta_ad',
-    name: 'Meta 광고',
-    fields: [
-      { label: '광고 유형', value: 'Facebook/Instagram' },
-      { label: '월 예산', value: '600,000원' },
-      { label: '운영 범위', value: '타겟 설계, 소재 테스트' },
-    ],
-    subtotal: 600000,
-  },
-  {
-    id: 'google-ad',
-    group: '퍼포먼스',
-    icon: 'google_ad',
-    name: 'Google Ads',
-    fields: [
-      { label: '광고 유형', value: '검색 + GDN' },
-      { label: '월 예산', value: '500,000원' },
-      { label: '운영 범위', value: '캠페인 설계, 전환 추적' },
-    ],
-    subtotal: 500000,
-  },
-  {
-    id: 'cafe-viral',
-    group: '바이럴',
-    icon: 'cafe_viral',
-    name: '맘카페 바이럴',
-    fields: [
-      { label: '배포 유형', value: '맘카페 게시글' },
-      { label: '배포 건수', value: '80건' },
-      { label: '건당 단가', value: '26,000원' },
-    ],
-    subtotal: 2080000,
-  },
-  {
-    id: 'blog-viral',
-    group: '바이럴',
-    icon: 'blog_viral',
-    name: '블로그 바이럴',
-    fields: [
-      { label: '배포 유형', value: '네이버 블로그' },
-      { label: '배포 건수', value: '10건' },
-      { label: '건당 단가', value: '80,000원' },
-    ],
-    subtotal: 800000,
-  },
-  {
-    id: 'sns-operation',
-    group: '바이럴',
-    icon: 'sns',
-    name: 'SNS 운영',
-    fields: [
-      { label: '채널', value: 'Instagram / TikTok' },
-      { label: '콘텐츠 수', value: '월 12건' },
-      { label: '운영 범위', value: '기획, 제작, 커뮤니티 관리' },
-    ],
-    subtotal: 1000000,
-  },
-  {
-    id: 'design-branding',
-    group: '디자인',
-    icon: 'design',
-    name: '브랜딩 디자인',
-    fields: [
-      { label: '작업 범위', value: 'BI 가이드, 로고' },
-      { label: '산출물', value: '배너, 상세페이지 템플릿' },
-    ],
-    subtotal: 2000000,
-  },
-  {
-    id: 'video-production',
-    group: '디자인',
-    icon: 'video',
-    name: '영상 제작',
-    fields: [
-      { label: '영상 유형', value: '숏폼/리스' },
-      { label: '월 제작 수', value: '4건' },
-    ],
-    subtotal: 600000,
-  },
-];
+// Hardcoded fallback removed — catalog loaded from DB via API
 
 // ── CatalogCard ──────────────────────────────────────────
 
@@ -265,6 +181,24 @@ export function CampaignPlanEditor({
   const [openDrawer, setOpenDrawer] = useState<DrawerSection>(mode === 'new' ? 'info' : null);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [dragOverServices, setDragOverServices] = useState(false);
+  const [campaignCatalog, setCampaignCatalog] = useState<CampaignCatalogItem[]>([]);
+
+  // Fetch catalog from DB
+  useEffect(() => {
+    fetch('/api/settings/catalogs?type=execution')
+      .then((r) => r.ok ? r.json() : [])
+      .then((data: any[]) => {
+        setCampaignCatalog(data.map((item: any) => ({
+          id: item.id,
+          group: item.group_name,
+          icon: item.content?.icon ?? 'other',
+          name: item.name,
+          fields: (item.content?.fields ?? []).map((f: any) => ({ label: f.label ?? '', value: f.value ?? '' })),
+          subtotal: item.base_price ?? 0,
+        })));
+      })
+      .catch(() => {});
+  }, []);
 
   // ── Resizable panel ──
   const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT);
@@ -317,6 +251,7 @@ export function CampaignPlanEditor({
   const [recipient, setRecipient] = useState(initialData?.recipient || defaultClientName || '');
   const [projectName, setProjectName] = useState(initialData?.project_name || defaultProjectName || '');
   const [executionMonths, setExecutionMonths] = useState(initialData?.execution_months ?? 1);
+  const [executionPeriodUnit, setExecutionPeriodUnit] = useState<'month' | 'week'>(initialData?.execution_period_unit ?? 'month');
   const [executionNote, setExecutionNote] = useState(initialData?.execution_note || '');
   const [companyName] = useState(initialData?.company_name || DEFAULT_COMPANY);
   const [vatNote] = useState(initialData?.vat_note || 'VAT 별도');
@@ -331,7 +266,7 @@ export function CampaignPlanEditor({
         subtotal: svc.subtotal ?? 0,
       }));
     }
-    return [{ icon: 'shopping_reward', name: '', fields: [{ label: '', value: '' }], subtotal: 0 }];
+    return [];
   });
 
   // ── Service CRUD ──
@@ -372,12 +307,22 @@ export function CampaignPlanEditor({
     setDragOverServices(false);
     const catalogId = e.dataTransfer.getData('application/x-campaign-catalog-id');
     if (!catalogId) return;
-    const found = CAMPAIGN_CATALOG.find((c) => c.id === catalogId);
+    const found = campaignCatalog.find((c) => c.id === catalogId);
     if (found) addFromCatalog(found);
-  }, [addFromCatalog]);
+  }, [addFromCatalog, campaignCatalog]);
 
   const removeService = useCallback((idx: number) => {
     setServices((prev) => prev.filter((_, i) => i !== idx));
+  }, []);
+
+  const moveService = useCallback((idx: number, direction: 'up' | 'down') => {
+    setServices((prev) => {
+      const target = direction === 'up' ? idx - 1 : idx + 1;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[idx], next[target]] = [next[target], next[idx]];
+      return next;
+    });
   }, []);
 
   const updateService = useCallback((idx: number, field: keyof ServiceItem, value: unknown) => {
@@ -424,6 +369,7 @@ export function CampaignPlanEditor({
     project_name: projectName,
     issued_date: issuedDate,
     execution_months: executionMonths,
+    execution_period_unit: executionPeriodUnit,
     execution_note: executionNote,
     services: services.map((svc) => ({
       icon: svc.icon,
@@ -507,7 +453,7 @@ export function CampaignPlanEditor({
       <aside className={s.sidePanel} style={{ width: panelWidth }}>
         <div className={s.panelHeader}>
           <div className={s.panelAmountRow}>
-            <span className={s.panelAmountLabel}>월 총 집행 금액</span>
+            <span className={s.panelAmountLabel}>총 집행 금액</span>
             <span className={s.panelAmountValue}>{fmtKRW(totalMonthly)}</span>
           </div>
           {readOnly ? (
@@ -573,7 +519,10 @@ export function CampaignPlanEditor({
                       <td>
                         <div className={s.inputWithUnit}>
                           <input type="number" min={1} value={executionMonths} onChange={(e) => setExecutionMonths(Number(e.target.value) || 1)} className="form-input" readOnly={readOnly} />
-                          <span className={s.inputUnit}>개월</span>
+                          <select value={executionPeriodUnit} onChange={(e) => setExecutionPeriodUnit(e.target.value as 'month' | 'week')} className="form-input" disabled={readOnly} style={{ width: 60, flex: 'none' }}>
+                            <option value="month">월</option>
+                            <option value="week">주</option>
+                          </select>
                         </div>
                       </td>
                     </tr>
@@ -621,10 +570,22 @@ export function CampaignPlanEditor({
                 {services.map((svc, svcIdx) => (
                   <div key={svcIdx} className={s.itemCard}>
                     <div className={s.itemHeader}>
-                      <span className={s.itemNo}>{svcIdx + 1}</span>
-                      {!readOnly && services.length > 1 && (
+                      <span className={s.itemHeaderLeft}>
+                        <span className={s.itemNo}>{svcIdx + 1}</span>
+                        {!readOnly && services.length > 1 && (
+                          <span className={s.reorderBtns}>
+                            <button type="button" className={s.reorderBtn} onClick={() => moveService(svcIdx, 'up')} disabled={svcIdx === 0} title="위로 이동">
+                              <LuChevronUp size={13} />
+                            </button>
+                            <button type="button" className={s.reorderBtn} onClick={() => moveService(svcIdx, 'down')} disabled={svcIdx === services.length - 1} title="아래로 이동">
+                              <LuChevronDown size={13} />
+                            </button>
+                          </span>
+                        )}
+                      </span>
+                      {!readOnly && (
                         <button type="button" className={s.removeBtn} onClick={() => removeService(svcIdx)} title="서비스 삭제">
-                          <LuTrash2 size={14} />
+                          <LuTrash2 size={12} />
                         </button>
                       )}
                     </div>
@@ -632,13 +593,13 @@ export function CampaignPlanEditor({
                     <table className={s.formTable}>
                       <tbody>
                         <tr>
-                          <th>아이콘</th>
+                          <th style={{ verticalAlign: 'top', paddingTop: 7 }}>아이콘</th>
                           <td>
-                            <select value={svc.icon} onChange={(e) => updateService(svcIdx, 'icon', e.target.value)} className="form-input" disabled={readOnly}>
-                              {SERVICE_ICONS.map((ic) => (
-                                <option key={ic.id} value={ic.id}>{ic.emoji} {ic.label}</option>
-                              ))}
-                            </select>
+                            <IconPicker
+                              value={svc.icon}
+                              readOnly={readOnly}
+                              onChange={(id) => updateService(svcIdx, 'icon', id)}
+                            />
                           </td>
                         </tr>
                         <tr>
@@ -657,23 +618,41 @@ export function CampaignPlanEditor({
                       </tbody>
                     </table>
 
-                    {/* 필드 목록 */}
-                    <div style={{ padding: '4px 0 0' }}>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', padding: '0 4px' }}>상세 필드</span>
-                      {svc.fields.map((field, fIdx) => (
-                        <div key={fIdx} className={s.descriptionRow} style={{ margin: '4px 0' }}>
-                          <input type="text" value={field.label} onChange={(e) => updateField(svcIdx, fIdx, 'label', e.target.value)} className="form-input" style={{ flex: 1 }} placeholder="필드명" readOnly={readOnly} />
-                          <input type="text" value={field.value} onChange={(e) => updateField(svcIdx, fIdx, 'value', e.target.value)} className="form-input" style={{ flex: 1 }} placeholder="값" readOnly={readOnly} />
-                          {!readOnly && svc.fields.length > 1 && (
-                            <button type="button" className={s.smallBtn} onClick={() => removeField(svcIdx, fIdx)}>×</button>
-                          )}
-                        </div>
-                      ))}
-                      {!readOnly && (
-                        <button type="button" className={s.addDescBtn} onClick={() => addField(svcIdx)}>
-                          <LuPlus size={10} /> 필드 추가
-                        </button>
-                      )}
+                    {/* 상세 필드 */}
+                    <div className={s.subSectionArea}>
+                      <div className={s.subSectionTitle}>
+                        <LuLayers size={10} /> 상세
+                      </div>
+                      <div className={s.detailSection}>
+                        <table className={s.formTable}>
+                          <tbody>
+                            {svc.fields.map((field, fIdx) => (
+                              <tr key={fIdx}>
+                                <th>{fIdx === 0 ? '필드' : ''}</th>
+                                <td>
+                                  <div className={s.descriptionRow}>
+                                    <input type="text" value={field.label} onChange={(e) => updateField(svcIdx, fIdx, 'label', e.target.value)} className="form-input" style={{ flex: 1 }} placeholder="필드명" readOnly={readOnly} />
+                                    <input type="text" value={field.value} onChange={(e) => updateField(svcIdx, fIdx, 'value', e.target.value)} className="form-input" style={{ flex: 1 }} placeholder="값" readOnly={readOnly} />
+                                    {!readOnly && svc.fields.length > 1 && (
+                                      <button type="button" className={s.smallBtn} onClick={() => removeField(svcIdx, fIdx)}>×</button>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                            {!readOnly && (
+                              <tr>
+                                <th></th>
+                                <td>
+                                  <button type="button" className={s.addDescInlineBtn} onClick={() => addField(svcIdx)}>
+                                    <LuPlus size={10} />
+                                  </button>
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -722,10 +701,10 @@ export function CampaignPlanEditor({
           </div>
           <p className={s.catalogFlyoutHint}>드래그하여 서비스 구성에 추가하세요</p>
           <div className={s.catalogFlyoutBody}>
-            {Array.from(new Set(CAMPAIGN_CATALOG.map((c) => c.group))).map((group) => (
+            {Array.from(new Set(campaignCatalog.map((c) => c.group))).map((group) => (
               <div key={group} className={s.catalogGroup}>
                 <span className={s.catalogGroupLabel}>{group}</span>
-                {CAMPAIGN_CATALOG.filter((c) => c.group === group).map((ci) => (
+                {campaignCatalog.filter((c) => c.group === group).map((ci) => (
                   <CatalogCard key={ci.id} item={ci} onAdd={addFromCatalog} onDragStart={handleCatalogDragStart} />
                 ))}
               </div>

@@ -7,7 +7,7 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { LuPlus, LuTrash2, LuChevronUp, LuSettings2, LuFileText, LuListOrdered, LuBookOpen, LuGripVertical, LuX, LuSend, LuRotateCcw, LuDownload } from 'react-icons/lu';
+import { LuPlus, LuTrash2, LuChevronUp, LuChevronDown, LuSettings2, LuFileText, LuListOrdered, LuBookOpen, LuGripVertical, LuX, LuSend, LuRotateCcw, LuDownload, LuLayers, LuToggleRight } from 'react-icons/lu';
 import { ActionButton, useFeedback } from '@/components/ui';
 import type { EstimateContent } from '@/lib/domain/types';
 import { PAYMENT_TYPE_META, PAYMENT_TYPES } from '@/lib/domain/types';
@@ -100,101 +100,7 @@ interface ServiceCatalogItem {
   options: CatalogOption[];
 }
 
-const SERVICE_CATALOG: ServiceCatalogItem[] = [
-  {
-    id: 'sa-naver',
-    group: '퍼포먼스 광고',
-    category: '네이버 SA 광고',
-    details: [
-      { title: '네이버 검색광고 세팅 및 운영 관리', descriptions: ['키워드 발굴 & 그룹 세팅', '입찰가 최적화 & A/B 소재 관리', '주간 성과 리포트 제공'] },
-    ],
-    base_price: 500000,
-    note: '월 정기결제',
-    options: [
-      { name: '브랜드 검색 광고 세팅', price: 200000 },
-      { name: '쇼핑 검색 광고 추가', price: 300000 },
-    ],
-  },
-  {
-    id: 'meta-ad',
-    group: '퍼포먼스 광고',
-    category: 'Meta 광고 운영',
-    details: [
-      { title: 'Meta(Facebook/Instagram) 광고 운영', descriptions: ['타겟 오디언스 설계', '크리에이티브 소재 제작 & 테스트', '전환 최적화 & 리타겟팅'] },
-    ],
-    base_price: 600000,
-    note: '월 정기결제',
-    options: [
-      { name: '리스/릴스 소재 제작 (월 4건)', price: 400000 },
-    ],
-  },
-  {
-    id: 'google-ad',
-    group: '퍼포먼스 광고',
-    category: 'Google Ads 운영',
-    details: [
-      { title: 'Google 검색 및 디스플레이 광고 운영', descriptions: ['캠페인 구조 설계 및 키워드 리서치', 'GDN 배너 & 반응형 광고 관리', '전환 추적 세팅 & 성과 분석'] },
-    ],
-    base_price: 500000,
-    note: '월 정기결제',
-    options: [
-      { name: 'YouTube 영상 광고 추가', price: 300000 },
-    ],
-  },
-  {
-    id: 'viral-blog',
-    group: '바이럴 마케팅',
-    category: '블로그 바이럴',
-    details: [
-      { title: '네이버 블로그 체험단 / 기자단 운영', descriptions: ['인플루언서 섭외 & 가이드라인 제공', '콘텐츠 품질 검수 & 발행 관리', '월 10건 기준'] },
-    ],
-    base_price: 800000,
-    note: '월 정기결제',
-    options: [
-      { name: '추가 10건', price: 500000 },
-    ],
-  },
-  {
-    id: 'viral-sns',
-    group: '바이럴 마케팅',
-    category: 'SNS 콘텐츠 운영',
-    details: [
-      { title: 'Instagram / TikTok 채널 운영 대행', descriptions: ['콘텐츠 기획 & 제작 (월 12건)', '해시태그 전략 & 커뮤니티 관리', '주간 인사이트 리포트'] },
-    ],
-    base_price: 1000000,
-    note: '월 정기결제',
-    options: [
-      { name: '숏폼 영상 제작 추가 (월 4건)', price: 600000 },
-    ],
-  },
-  {
-    id: 'brand-design',
-    group: '브랜딩 / 디자인',
-    category: '브랜딩 패키지 디자인',
-    details: [
-      { title: '브랜딩 아이덴티티 & 마케팅 디자인', descriptions: ['로고 & BI 가이드 제작', '마케팅 디자인 주요 산출물', '배너/상세페이지 템플릿'] },
-    ],
-    base_price: 2000000,
-    note: '1회성',
-    options: [
-      { name: '상세페이지 제작 추가', price: 500000 },
-      { name: '촬영 프로덕션 포함', price: 800000 },
-    ],
-  },
-  {
-    id: 'landing-page',
-    group: '브랜딩 / 디자인',
-    category: '랜딩페이지 제작',
-    details: [
-      { title: '전환 최적화 랜딩페이지 기획 & 제작', descriptions: ['기획 & 와이어프레임', '반응형 웹 디자인 & 퍼블리싱', 'A/B 테스트용 변형 1종 포함'] },
-    ],
-    base_price: 1500000,
-    note: '1회성',
-    options: [
-      { name: '추가 변형 페이지', price: 500000 },
-    ],
-  },
-];
+// Hardcoded fallback removed — catalog loaded from DB via API
 
 // ── Drawer sections ──────────────────────────────────────
 
@@ -275,13 +181,32 @@ export function EstimateEditor({ mode, initialData, documentId, defaultClientId,
   const [pdfDownloading, setPdfDownloading] = useState(false);
   const [openDrawer, setOpenDrawer] = useState<DrawerSection>(mode === 'new' ? 'info' : null);
   const [clients, setClients] = useState<ClientOption[]>([]);
+  const [serviceCatalog, setServiceCatalog] = useState<ServiceCatalogItem[]>([]);
 
-  // Fetch real clients from API
+  // Fetch real clients and catalog from API
   useEffect(() => {
     fetch('/api/clients')
       .then((r) => r.ok ? r.json() : [])
       .then((data: any[]) => {
         setClients(data.map((c) => ({ id: c.id, name: c.name })));
+      })
+      .catch(() => {});
+
+    fetch('/api/settings/catalogs?type=estimate')
+      .then((r) => r.ok ? r.json() : [])
+      .then((data: any[]) => {
+        setServiceCatalog(data.map((item: any) => ({
+          id: item.id,
+          group: item.group_name,
+          category: item.name,
+          details: (item.content?.details ?? []).map((d: any) => ({
+            title: d.title ?? '',
+            descriptions: d.descriptions ?? [''],
+          })),
+          base_price: item.base_price ?? 0,
+          note: item.content?.note ?? '',
+          options: (item.content?.options ?? []).map((o: any) => ({ name: o.name ?? '', price: o.price ?? 0 })),
+        })));
       })
       .catch(() => {});
   }, []);
@@ -342,7 +267,7 @@ export function EstimateEditor({ mode, initialData, documentId, defaultClientId,
     return '';
   });
   const [recipient, setRecipient] = useState(initialData?.recipient || '');
-  const [projectName, setProjectName] = useState(initialData?.project_name || '');
+
 
   const [taxRate, setTaxRate] = useState(initialData?.tax_rate ?? 10);
   const [paymentType, setPaymentType] = useState(initialData?.payment_type || 'per_invoice');
@@ -363,7 +288,7 @@ export function EstimateEditor({ mode, initialData, documentId, defaultClientId,
         options: (item.options ?? []).map((o) => ({ name: o.name ?? '', price: o.price ?? 0 })),
       }));
     }
-    return [{ no: 1, category: '', details: [{ title: '', descriptions: [''] }], unit_price: 0, note: '월 정기결제', options: [] }];
+    return [];
   });
 
   // Notes
@@ -393,6 +318,16 @@ export function EstimateEditor({ mode, initialData, documentId, defaultClientId,
 
   const removeItem = useCallback((idx: number) => {
     setItems((prev) => prev.filter((_, i) => i !== idx).map((item, i) => ({ ...item, no: i + 1 })));
+  }, []);
+
+  const moveItem = useCallback((idx: number, direction: 'up' | 'down') => {
+    setItems((prev) => {
+      const target = direction === 'up' ? idx - 1 : idx + 1;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[idx], next[target]] = [next[target], next[idx]];
+      return next.map((item, i) => ({ ...item, no: i + 1 }));
+    });
   }, []);
 
   const updateItem = useCallback((idx: number, field: keyof EstimateItemData, value: unknown) => {
@@ -560,12 +495,12 @@ export function EstimateEditor({ mode, initialData, documentId, defaultClientId,
     e.preventDefault();
     setDragOverItems(false);
     const catalogId = e.dataTransfer.getData('application/x-catalog-id');
-    const catalogItem = SERVICE_CATALOG.find((c) => c.id === catalogId);
+    const catalogItem = serviceCatalog.find((c) => c.id === catalogId);
     if (catalogItem) {
       const allOpts = catalogItem.options.map((_, i) => i);
       addFromCatalog(catalogItem, allOpts);
     }
-  }, [addFromCatalog]);
+  }, [addFromCatalog, serviceCatalog]);
 
   // ── Computed ──
 
@@ -582,8 +517,6 @@ export function EstimateEditor({ mode, initialData, documentId, defaultClientId,
     document_number: docNumber,
     recipient,
     sender: companyName,
-    project_name: projectName,
-
     issued_date: issuedDate,
     items: items.map((item) => ({
       no: item.no,
@@ -609,13 +542,11 @@ export function EstimateEditor({ mode, initialData, documentId, defaultClientId,
 
   function handleSave() {
     if (!clientId) { toast({ title: '고객사를 선택하세요', variant: 'warning' }); return; }
-    if (!projectName) { toast({ title: '프로젝트명을 입력하세요', variant: 'warning' }); return; }
     onSave?.(previewData);
   }
 
   async function handleSubmit() {
     if (!clientId) { toast({ title: '고객사를 선택하세요', variant: 'warning' }); return; }
-    if (!projectName) { toast({ title: '프로젝트명을 입력하세요', variant: 'warning' }); return; }
     if (submitting) return;
 
     setSubmitting(true);
@@ -790,13 +721,6 @@ ${styleSheets}
                       </td>
                     </tr>
                     <tr>
-                      <th>프로젝트명 *</th>
-                      <td>
-                        <input type="text" value={projectName} onChange={(e) => setProjectName(e.target.value)} className="form-input" readOnly={readOnly} />
-                      </td>
-                    </tr>
-
-                    <tr>
                       <th>부가세율</th>
                       <td>
                         <div className={s.inputWithUnit}>
@@ -861,10 +785,22 @@ ${styleSheets}
                 {items.map((item, itemIdx) => (
                   <div key={itemIdx} className={s.itemCard}>
                     <div className={s.itemHeader}>
-                      <span className={s.itemNo}>{item.no}</span>
-                      {!readOnly && items.length > 1 && (
+                      <span className={s.itemHeaderLeft}>
+                        <span className={s.itemNo}>{item.no}</span>
+                        {!readOnly && items.length > 1 && (
+                          <span className={s.reorderBtns}>
+                            <button type="button" className={s.reorderBtn} onClick={() => moveItem(itemIdx, 'up')} disabled={itemIdx === 0} title="위로 이동">
+                              <LuChevronUp size={13} />
+                            </button>
+                            <button type="button" className={s.reorderBtn} onClick={() => moveItem(itemIdx, 'down')} disabled={itemIdx === items.length - 1} title="아래로 이동">
+                              <LuChevronDown size={13} />
+                            </button>
+                          </span>
+                        )}
+                      </span>
+                      {!readOnly && (
                         <button type="button" className={s.removeBtn} onClick={() => removeItem(itemIdx)} title="항목 삭제">
-                          <LuTrash2 size={14} />
+                          <LuTrash2 size={12} />
                         </button>
                       )}
                     </div>
@@ -895,89 +831,104 @@ ${styleSheets}
                       </tbody>
                     </table>
 
-                    {/* 세부 항목 */}
-                    {item.details.map((detail, detailIdx) => (
-                      <div key={detailIdx} className={s.detailSection}>
-                        <div className={s.detailHeaderRow}>
-                          <span className={s.detailLabel}>세부 항목 {detailIdx + 1}</span>
-                          {!readOnly && item.details.length > 1 && (
-                            <button type="button" className={s.smallBtn} onClick={() => removeDetail(itemIdx, detailIdx)} title="세부 삭제">
-                              <LuTrash2 size={12} />
-                            </button>
-                          )}
+                    {/* 세부 항목 영역 */}
+                    <div className={s.subSectionArea}>
+                      <div className={s.subSectionTitle}>
+                        <LuLayers size={10} /> 세부 항목
+                      </div>
+                      {item.details.map((detail, detailIdx) => (
+                        <div key={detailIdx} className={s.detailSection}>
+                          <div className={s.detailHeaderRow}>
+                            <span className={s.detailLabel}>{detailIdx + 1}</span>
+                            {!readOnly && item.details.length > 1 && (
+                              <button type="button" className={s.smallBtn} onClick={() => removeDetail(itemIdx, detailIdx)} title="세부 삭제">
+                                <LuTrash2 size={11} />
+                              </button>
+                            )}
+                          </div>
+                          <table className={s.formTable}>
+                            <tbody>
+                              <tr>
+                                <th>항목명</th>
+                                <td>
+                                  <input type="text" value={detail.title} onChange={(e) => updateDetailTitle(itemIdx, detailIdx, e.target.value)} className="form-input" readOnly={readOnly} />
+                                </td>
+                              </tr>
+                              {detail.descriptions.map((desc, descIdx) => (
+                                <tr key={descIdx}>
+                                  <th>{descIdx === 0 ? '설명' : ''}</th>
+                                  <td>
+                                    <div className={s.descriptionRow}>
+                                      <span className={s.descBullet}>·</span>
+                                      <input type="text" value={desc} onChange={(e) => updateDescription(itemIdx, detailIdx, descIdx, e.target.value)} className="form-input" readOnly={readOnly} />
+                                      {!readOnly && detail.descriptions.length > 1 && (
+                                        <button type="button" className={s.smallBtn} onClick={() => removeDescription(itemIdx, detailIdx, descIdx)}>×</button>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                              {!readOnly && (
+                                <tr>
+                                  <th></th>
+                                  <td>
+                                    <button type="button" className={s.addDescInlineBtn} onClick={() => addDescription(itemIdx, detailIdx)}>
+                                      <LuPlus size={10} />
+                                    </button>
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
                         </div>
-                        <table className={s.formTable}>
-                          <tbody>
-                            <tr>
-                              <th>항목명</th>
-                              <td>
-                                <input type="text" value={detail.title} onChange={(e) => updateDetailTitle(itemIdx, detailIdx, e.target.value)} className="form-input" readOnly={readOnly} />
-                              </td>
-                            </tr>
-                            {detail.descriptions.map((desc, descIdx) => (
-                              <tr key={descIdx}>
-                                <th>{descIdx === 0 ? '설명' : ''}</th>
-                                <td>
-                                  <div className={s.descriptionRow}>
-                                    <span className={s.descBullet}>·</span>
-                                    <input type="text" value={desc} onChange={(e) => updateDescription(itemIdx, detailIdx, descIdx, e.target.value)} className="form-input" readOnly={readOnly} />
-                                    {!readOnly && detail.descriptions.length > 1 && (
-                                      <button type="button" className={s.smallBtn} onClick={() => removeDescription(itemIdx, detailIdx, descIdx)}>×</button>
-                                    )}
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                        {!readOnly && (
-                          <button type="button" className={s.addDescBtn} onClick={() => addDescription(itemIdx, detailIdx)}>
-                            <LuPlus size={10} /> 설명 추가
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                    {!readOnly && (
-                      <button type="button" className={s.addDetailBtn} onClick={() => addDetail(itemIdx)} style={{ marginTop: 6 }}>
-                        <LuPlus size={11} /> 세부 항목 추가
-                      </button>
-                    )}
+                      ))}
+                      {!readOnly && (
+                        <button type="button" className={s.addInlineBtn} onClick={() => addDetail(itemIdx)}>
+                          <LuPlus size={10} /> 세부 항목 추가
+                        </button>
+                      )}
+                    </div>
 
-                    {/* 옵션 */}
-                    {item.options.length > 0 && (
-                      <div className={s.optionSection}>
-                        <table className={s.formTable}>
-                          <tbody>
-                            {item.options.map((opt, optIdx) => (
-                              <tr key={optIdx}>
-                                <th>{optIdx === 0 ? '옵션' : ''}</th>
-                                <td>
-                                  <div className={s.optionRow}>
-                                    <input type="text" value={opt.name} onChange={(e) => updateOption(itemIdx, optIdx, 'name', e.target.value)} className="form-input" style={{ flex: 2 }} readOnly={readOnly} />
-                                    <input type="number" value={opt.price || ''} onChange={(e) => updateOption(itemIdx, optIdx, 'price', Number(e.target.value))} className="form-input" style={{ flex: 1 }} readOnly={readOnly} />
-                                    {!readOnly && (
-                                      <button type="button" className={s.smallBtn} onClick={() => removeOption(itemIdx, optIdx)} title="옵션 삭제">
-                                        <LuTrash2 size={12} />
-                                      </button>
-                                    )}
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                    {/* 옵션 영역 */}
+                    <div className={s.subSectionArea}>
+                      <div className={s.subSectionTitle}>
+                        <LuToggleRight size={10} /> 옵션
                       </div>
-                    )}
-                    {!readOnly && (
-                      <button type="button" className={s.addDescBtn} onClick={() => addOption(itemIdx)} style={{ marginTop: 4 }}>
-                        <LuPlus size={10} /> 옵션 추가
-                      </button>
-                    )}
+                      {item.options.length > 0 && (
+                        <div className={s.optionSection}>
+                          <table className={s.formTable}>
+                            <tbody>
+                              {item.options.map((opt, optIdx) => (
+                                <tr key={optIdx}>
+                                  <th>{optIdx === 0 ? '이름' : ''}</th>
+                                  <td>
+                                    <div className={s.optionRow}>
+                                      <input type="text" value={opt.name} onChange={(e) => updateOption(itemIdx, optIdx, 'name', e.target.value)} className="form-input" style={{ flex: 2 }} readOnly={readOnly} />
+                                      <input type="number" value={opt.price || ''} onChange={(e) => updateOption(itemIdx, optIdx, 'price', Number(e.target.value))} className="form-input" style={{ flex: 1 }} readOnly={readOnly} />
+                                      {!readOnly && (
+                                        <button type="button" className={s.smallBtn} onClick={() => removeOption(itemIdx, optIdx)} title="옵션 삭제">
+                                          <LuTrash2 size={11} />
+                                        </button>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                      {!readOnly && (
+                        <button type="button" className={s.addInlineBtn} onClick={() => addOption(itemIdx)}>
+                          <LuPlus size={10} /> 옵션 추가
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
                 {!readOnly && (
                   <button type="button" className={s.addItemBtn} onClick={addItem}>
-                    <LuPlus size={14} /> 카테고리 추가
+                    <LuPlus size={14} /> 직접 입력 하기
                   </button>
                 )}
               </div>
@@ -1064,10 +1015,10 @@ ${styleSheets}
           </div>
           <p className={s.catalogFlyoutHint}>드래그하여 견적 항목에 추가하세요</p>
           <div className={s.catalogFlyoutBody}>
-            {Array.from(new Set(SERVICE_CATALOG.map((c) => c.group))).map((group) => (
+            {Array.from(new Set(serviceCatalog.map((c) => c.group))).map((group) => (
               <div key={group} className={s.catalogGroup}>
                 <span className={s.catalogGroupLabel}>{group}</span>
-                {SERVICE_CATALOG.filter((c) => c.group === group).map((ci) => (
+                {serviceCatalog.filter((c) => c.group === group).map((ci) => (
                   <CatalogCard key={ci.id} item={ci} onAdd={addFromCatalog} onDragStart={handleCatalogDragStart} />
                 ))}
               </div>

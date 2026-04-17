@@ -115,7 +115,7 @@ export function EstimatePreview({ data }: EstimatePreviewProps) {
       <table className={s.summaryTable}>
         <tbody>
           <tr>
-            <td className={s.summaryLabel}>월 대행 수수료 (공급가액)</td>
+            <td className={s.summaryLabel}>대행 수수료 (공급가액)</td>
             <td className={s.summaryValue}>{formatCurrency(subtotal)}</td>
           </tr>
           <tr>

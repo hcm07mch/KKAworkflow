@@ -86,17 +86,23 @@ export function ApprovalPanel({ documentId, documentStatus, onStatusChange }: Ap
       if (progressRes.ok) {
         const data = await progressRes.json();
         setProgress(data);
+      } else {
+        console.error('[ApprovalPanel] progress API failed:', progressRes.status, await progressRes.text().catch(() => ''));
       }
       if (historyRes.ok) {
         const data = await historyRes.json();
         setHistory(Array.isArray(data) ? data : []);
+      } else {
+        console.error('[ApprovalPanel] history API failed:', historyRes.status, await historyRes.text().catch(() => ''));
       }
       if (userRes.ok) {
         const data = await userRes.json();
         setUserInfo({ id: data.id, role: data.role });
+      } else {
+        console.error('[ApprovalPanel] auth/me API failed:', userRes.status);
       }
-    } catch {
-      // silently fail
+    } catch (err) {
+      console.error('[ApprovalPanel] fetchData error:', err);
     } finally {
       setLoading(false);
     }
@@ -116,6 +122,23 @@ export function ApprovalPanel({ documentId, documentStatus, onStatusChange }: Ap
     ? userInfo?.id === pendingStep.assigned_user_id
     : true; // 지정 담당자가 없으면 역할만 체크
   const canApproveOrReject = isRoleAllowed && isAssignedUser;
+
+  // DEBUG: 승인 버튼 표시 조건 확인 (문제 해결 후 제거)
+  useEffect(() => {
+    if (!loading && documentStatus !== 'draft') {
+      console.group('[ApprovalPanel DEBUG]');
+      console.log('documentStatus:', documentStatus);
+      console.log('userInfo:', userInfo);
+      console.log('progress:', progress);
+      console.log('history:', history);
+      console.log('pendingApproval:', pendingApproval);
+      console.log('pendingStep:', pendingStep);
+      console.log('isRoleAllowed:', isRoleAllowed);
+      console.log('isAssignedUser:', isAssignedUser);
+      console.log('canApproveOrReject:', canApproveOrReject);
+      console.groupEnd();
+    }
+  }, [loading, documentStatus, userInfo, progress, history, pendingApproval, pendingStep, isRoleAllowed, isAssignedUser, canApproveOrReject]);
 
   const handleApprove = async () => {
     if (!pendingApproval) return;
@@ -371,6 +394,20 @@ export function ApprovalPanel({ documentId, documentStatus, onStatusChange }: Ap
           </div>
           )}
 
+          {/* 디버그 진단 (문제 해결 후 제거) */}
+          {documentStatus === 'in_review' && !loading && (
+            <div style={{ fontSize: 10, color: '#94a3b8', padding: '8px 0', borderTop: '1px dashed #e2e8f0' }}>
+              {!progress && <div style={{ color: '#ef4444' }}>⚠ progress API 응답 없음</div>}
+              {progress && !progress.steps.length && <div style={{ color: '#ef4444' }}>⚠ 승인 단계 정보 없음</div>}
+              {progress && progress.steps.length > 0 && !pendingStep && <div>모든 단계가 처리되었습니다</div>}
+              {pendingStep && !pendingApproval && <div style={{ color: '#ef4444' }}>⚠ 대기중인 단계 exists but 승인기록에 action=null 레코드 없음 (history 길이: {history.length})</div>}
+              {pendingStep && pendingApproval && !isRoleAllowed && <div>현재 역할({userInfo?.role})은 승인 권한 없음</div>}
+              {pendingStep && pendingApproval && isRoleAllowed && !isAssignedUser && (
+                <div>지정 담당자 불일치: 내 ID={userInfo?.id?.slice(0,8)}... / 지정={pendingStep.assigned_user_id?.slice(0,8)}...</div>
+              )}
+              {pendingStep && pendingApproval && canApproveOrReject && <div style={{ color: '#16a34a' }}>✓ 승인 가능 상태</div>}
+            </div>
+          )}
 
         </div>
       )}

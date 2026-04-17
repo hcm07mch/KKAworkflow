@@ -98,6 +98,7 @@ export async function POST(
     const projectResult = await auth.services.projectService.transitionStatus(
       { project_id: projectId, to_status: flowInfo.toStatus, reason: flowInfo.reason },
       ctx,
+      { systemInitiated: true },
     );
 
     if (!projectResult.success) {

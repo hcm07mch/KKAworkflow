@@ -272,19 +272,15 @@ export default function NewDocumentPage() {
             )}
 
             {/* ── 보고서/사전보고서 내용 ── */}
-            {(docType === 'pre_report' || docType === 'report') && (
+            {docType === 'pre_report' && (
               <div className={styles.formSection}>
                 <label className={styles.formLabel}>
-                  {docType === 'pre_report' ? '집행 사전 보고서 내용' : '보고서 내용'}
+                  집행 사전 보고서 내용
                 </label>
                 <textarea
                   value={reportBody}
                   onChange={(e) => setReportBody(e.target.value)}
-                  placeholder={
-                    docType === 'pre_report'
-                      ? '집행 계획, 일정, 예상 성과 등을 작성하세요'
-                      : '집행 결과, 성과 분석, 인사이트 등을 작성하세요'
-                  }
+                  placeholder="집행 계획, 일정, 예상 성과 등을 작성하세요"
                   className="form-input"
                   rows={10}
                   style={{ resize: 'vertical' }}

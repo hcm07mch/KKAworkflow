@@ -26,7 +26,7 @@ interface EstimatePreviewProps {
 
 export function EstimatePreview({ data }: EstimatePreviewProps) {
   const {
-    document_number, recipient, sender, project_name, contract_period,
+    document_number, recipient, sender, contract_period,
     issued_date, items = [], subtotal = 0, tax_rate = 10, tax = 0, total = 0,
     notes = [], company_name, company_address, company_representative,
   } = data;
@@ -67,10 +67,6 @@ export function EstimatePreview({ data }: EstimatePreviewProps) {
             <td className={s.infoValue}>{document_number || '-'}</td>
             <td className={s.infoLabel}>작성일자</td>
             <td className={s.infoValue}>{fmtDateKR(issued_date) || '-'}</td>
-          </tr>
-          <tr>
-            <td className={s.infoLabel}>프로젝트</td>
-            <td className={s.infoValue} colSpan={3}>{project_name || '-'}</td>
           </tr>
 
         </tbody>
@@ -140,7 +136,7 @@ export function EstimatePreview({ data }: EstimatePreviewProps) {
       <table key="sum" className={s.summaryTable}>
         <tbody>
           <tr>
-            <td className={s.summaryLabel}>월 대행 수수료 (공급가액)</td>
+            <td className={s.summaryLabel}>대행 수수료 (공급가액)</td>
             <td className={s.summaryValue}>{fmtCurrency(subtotal)}</td>
           </tr>
           <tr>
@@ -181,7 +177,7 @@ export function EstimatePreview({ data }: EstimatePreviewProps) {
     }
 
     return b;
-  }, [document_number, recipient, sender, project_name, contract_period,
+  }, [document_number, recipient, sender, contract_period,
       issued_date, items, subtotal, tax_rate, tax, total, notes,
       company_name, company_address, company_representative]);
 

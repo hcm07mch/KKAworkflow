@@ -48,7 +48,7 @@ interface CampaignPlanPreviewProps {
 export function CampaignPlanPreview({ data }: CampaignPlanPreviewProps) {
   const {
     recipient, project_name, issued_date,
-    execution_months = 1, execution_note,
+    execution_months = 1, execution_period_unit = 'month', execution_note,
     services = [], total_monthly = 0,
     company_name, vat_note,
   } = data;
@@ -70,7 +70,10 @@ export function CampaignPlanPreview({ data }: CampaignPlanPreviewProps) {
           <span className={cp.cpHeaderClient}>{recipient || '고객사명'}</span>
           <span className={cp.cpHeaderSubtitle}>마케팅 캠페인 진행안</span>
         </div>
-        <span className={cp.cpHeaderBadge}>CAMPAIGN PLAN</span>
+        <div className={cp.cpHeaderRight}>
+          {issued_date && <span className={cp.cpHeaderDate}>작성일 : {fmtDateKR(issued_date)}</span>}
+          <span className={cp.cpHeaderBadge}>CAMPAIGN PLAN</span>
+        </div>
       </div>,
     );
 
@@ -79,7 +82,7 @@ export function CampaignPlanPreview({ data }: CampaignPlanPreviewProps) {
       <div key="period" className={cp.cpPeriodBar}>
         <span className={cp.cpPeriodLabel}>집행 기간</span>
         <span className={cp.cpPeriodValue}>
-          {execution_months}개월
+          {execution_months}{execution_period_unit === 'week' ? '주' : '개월'}
           {execution_note && <span className={cp.cpPeriodNote}>({execution_note})</span>}
         </span>
       </div>,
@@ -125,11 +128,18 @@ export function CampaignPlanPreview({ data }: CampaignPlanPreviewProps) {
       );
     }
 
-    // Block N-1: Total monthly
+    // Block N-1: Total
+    const unitLabel = execution_period_unit === 'week' ? '주' : '월';
+    const totalAmount = total_monthly * execution_months;
     b.push(
       <div key="total" className={cp.cpTotalBar}>
-        <span className={cp.cpTotalLabel}>월 총 집행 금액</span>
-        <span className={cp.cpTotalValue}>{fmtKRW(total_monthly)} 원/월</span>
+        <span className={cp.cpTotalLabel}>총 집행 금액</span>
+        <span className={cp.cpTotalValue}>
+          {execution_months > 1
+            ? `${fmtKRW(total_monthly)} 원/${unitLabel} x ${execution_months}${unitLabel} → ${fmtKRW(totalAmount)}원`
+            : `${fmtKRW(total_monthly)} 원/${unitLabel}`
+          }
+        </span>
       </div>,
     );
 
@@ -143,7 +153,7 @@ export function CampaignPlanPreview({ data }: CampaignPlanPreviewProps) {
     }
 
     return b;
-  }, [recipient, project_name, issued_date, execution_months, execution_note, services, total_monthly, company_name, vat_note]);
+  }, [recipient, project_name, issued_date, execution_months, execution_period_unit, execution_note, services, total_monthly, company_name, vat_note]);
 
   /* ── Measure blocks & paginate ── */
   useLayoutEffect(() => {

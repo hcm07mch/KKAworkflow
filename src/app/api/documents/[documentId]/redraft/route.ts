@@ -88,7 +88,7 @@ export async function POST(
       }
       const meta = { ...(existingDoc.metadata as Record<string, unknown>) };
       delete meta.pdf_path;
-      await auth.services.documentRepo.update(documentId, { metadata: meta });
+      await auth.services.documentRepo.update(documentId, { metadata: meta as Record<string, any> });
     }
 
     // 2) 프로젝트 상태를 draft 단계로 전환 (이미 해당 상태면 건너뜀)
@@ -99,6 +99,7 @@ export async function POST(
       const projectResult = await auth.services.projectService.transitionStatus(
         { project_id: projectId, to_status: flowInfo.toStatus, reason: flowInfo.reason },
         ctx,
+        { systemInitiated: true },
       );
 
       if (!projectResult.success) {

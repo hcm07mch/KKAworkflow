@@ -118,11 +118,88 @@
   color: var(--color-primary);
 }
 
+/* -- Legend Help Tooltip -- */
+
+.legendHelpWrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: help;
+}
+
+.legendHelpIcon {
+  color: var(--color-text-muted);
+  transition: color 0.15s;
+}
+
+.legendHelpWrap:hover .legendHelpIcon {
+  color: var(--color-primary, #3b82f6);
+}
+
+.legendHelpTooltip {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(-4px);
+  width: max-content;
+  padding: 10px 14px;
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  z-index: 100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.legendHelpTooltip::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 24px;
+  height: 12px;
+}
+
+.legendHelpWrap:hover .legendHelpTooltip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  pointer-events: auto;
+}
+
+.legendHelpTitle {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-bottom: 2px;
+}
+
+.legendRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--color-text-secondary, var(--color-text-primary));
+  white-space: nowrap;
+}
+
+.legendSwatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
 /* -- Pipeline Dot Grid -- */
 
 .pipelineCard {
   padding: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .dotGrid {
@@ -184,11 +261,18 @@
   gap: 5px;
   padding: 12px;
   min-height: 72px;
+  position: relative;
+  z-index: 1;
 }
 
 .dotCellEmpty {
   font-size: 12px;
   color: var(--color-text-muted);
+}
+
+.dotWrap {
+  position: relative;
+  display: inline-flex;
 }
 
 .dot {
@@ -201,10 +285,113 @@
   box-shadow: 0 0 0 1px rgba(255,255,255,0.6);
 }
 
-.dot:hover {
+.dotWrap:hover .dot {
   transform: scale(1.7);
   z-index: 2;
   box-shadow: 0 0 0 2px rgba(255,255,255,0.9), 0 2px 6px rgba(0,0,0,0.2);
+}
+
+/* -- Dot Tooltip -- */
+.dotTooltip {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%) translateY(-4px);
+  width: max-content;
+  min-width: 180px;
+  max-width: 280px;
+  padding: 10px 12px;
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  z-index: 100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+/* bridge the gap between dot and tooltip */
+.dotTooltip::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100px;
+  height: 14px;
+}
+
+.dotWrap:hover .dotTooltip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  pointer-events: auto;
+}
+
+.dotTooltipClient {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dotTooltipTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.dotTooltipTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.dotTooltipIconLink {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  transition: color 0.15s;
+}
+
+.dotTooltipIconLink:hover {
+  color: var(--color-primary, #3b82f6);
+}
+
+.dotTooltipStatus {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-bottom: 6px;
+}
+
+.dotTooltipAssignee {
+  display: block;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-bottom: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dotTooltipStatusDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 /* -- Two Column Layout -- */

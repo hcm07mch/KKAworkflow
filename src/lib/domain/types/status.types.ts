@@ -26,7 +26,7 @@ export const PROJECT_STATUSES = [
   'E3_prereport_sent',
   'E4_execution',
   'F1_refund',
-  'F2_closed',
+  'G1_closed',
 ] as const;
 
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
@@ -39,7 +39,7 @@ export const PROJECT_STATUS_GROUPS: { key: string; label: string; statuses: Proj
   { key: 'D', label: '입금', statuses: ['D1_payment_pending', 'D2_payment_confirmed'] },
   { key: 'E', label: '집행', statuses: ['E1_prereport_draft', 'E2_prereport_review', 'E3_prereport_sent', 'E4_execution'] },
   { key: 'F', label: '환불', statuses: ['F1_refund'] },
-  { key: 'G', label: '종료', statuses: ['F2_closed'] },
+  { key: 'G', label: '종료', statuses: ['G1_closed'] },
 ];
 
 export const PROJECT_STATUS_META: Record<
@@ -62,7 +62,7 @@ export const PROJECT_STATUS_META: Record<
   E3_prereport_sent:    { label: 'E-3. 집행 사전 보고서 전달',  shortLabel: '보고서 전달',   color: 'indigo',  description: '고객에게 사전 보고서 전달 완료' },
   E4_execution:         { label: 'E-4. 바이럴 및 광고 집행',    shortLabel: '집행',          color: 'green',   description: '바이럴 및 광고 마케팅 집행 중' },
   F1_refund:            { label: 'F-1. 환불 처리',              shortLabel: '환불',          color: 'red',     description: '고객 환불 처리 진행 중' },
-  F2_closed:            { label: 'F-2. 프로젝트 종료',           shortLabel: '종료',          color: 'gray',    description: '프로젝트 완료 또는 종결' },
+  G1_closed:            { label: 'G-1. 프로젝트 종료',           shortLabel: '종료',          color: 'gray',    description: '프로젝트 완료 또는 종결' },
 };
 
 /**
@@ -73,23 +73,23 @@ export const PROJECT_STATUS_META: Record<
  * (예: 바이럴은 C단계 생략, B4 → D1)
  */
 export const PROJECT_STATUS_TRANSITIONS: Record<ProjectStatus, ProjectStatus[]> = {
-  A_sales:              ['B1_estimate_draft', 'F2_closed'],
-  B1_estimate_draft:    ['B2_estimate_review', 'F1_refund', 'F2_closed'],
-  B2_estimate_review:   ['B3_estimate_sent', 'B1_estimate_draft', 'F1_refund', 'F2_closed'],
-  B3_estimate_sent:     ['B4_estimate_response', 'F1_refund', 'F2_closed'],
-  B4_estimate_response: ['C1_contract_draft', 'D1_payment_pending', 'A_sales', 'F1_refund', 'F2_closed'],
-  C1_contract_draft:    ['C2_contract_review', 'F1_refund', 'F2_closed'],
-  C2_contract_review:   ['C3_contract_sent', 'C1_contract_draft', 'F1_refund', 'F2_closed'],
-  C3_contract_sent:     ['C4_contract_signed', 'F1_refund', 'F2_closed'],
-  C4_contract_signed:   ['D1_payment_pending', 'F1_refund', 'F2_closed'],
-  D1_payment_pending:   ['D2_payment_confirmed', 'F1_refund', 'F2_closed'],
-  D2_payment_confirmed: ['E1_prereport_draft', 'E4_execution', 'F1_refund', 'F2_closed'],
-  E1_prereport_draft:   ['E2_prereport_review', 'F1_refund', 'F2_closed'],
-  E2_prereport_review:  ['E3_prereport_sent', 'E1_prereport_draft', 'F1_refund', 'F2_closed'],
-  E3_prereport_sent:    ['E4_execution', 'F1_refund', 'F2_closed'],
-  E4_execution:         ['E1_prereport_draft', 'F1_refund', 'F2_closed'],  // E1 루프, 환불, 또는 종료
-  F1_refund:            ['F2_closed'],                                     // 환불 → 종료
-  F2_closed:            [],                                                // 최종 상태 (전환 불가)
+  A_sales:              ['B1_estimate_draft', 'G1_closed'],
+  B1_estimate_draft:    ['B2_estimate_review', 'F1_refund', 'G1_closed'],
+  B2_estimate_review:   ['B3_estimate_sent', 'B1_estimate_draft', 'F1_refund', 'G1_closed'],
+  B3_estimate_sent:     ['B4_estimate_response', 'F1_refund', 'G1_closed'],
+  B4_estimate_response: ['C1_contract_draft', 'D1_payment_pending', 'A_sales', 'F1_refund', 'G1_closed'],
+  C1_contract_draft:    ['C2_contract_review', 'F1_refund', 'G1_closed'],
+  C2_contract_review:   ['C3_contract_sent', 'C1_contract_draft', 'F1_refund', 'G1_closed'],
+  C3_contract_sent:     ['C4_contract_signed', 'F1_refund', 'G1_closed'],
+  C4_contract_signed:   ['D1_payment_pending', 'F1_refund', 'G1_closed'],
+  D1_payment_pending:   ['D2_payment_confirmed', 'F1_refund', 'G1_closed'],
+  D2_payment_confirmed: ['E1_prereport_draft', 'E4_execution', 'F1_refund', 'G1_closed'],
+  E1_prereport_draft:   ['E2_prereport_review', 'F1_refund', 'G1_closed'],
+  E2_prereport_review:  ['E3_prereport_sent', 'E1_prereport_draft', 'F1_refund', 'G1_closed'],
+  E3_prereport_sent:    ['E4_execution', 'F1_refund', 'G1_closed'],
+  E4_execution:         ['E1_prereport_draft', 'F1_refund', 'G1_closed'],  // E1 루프, 환불, 또는 종료
+  F1_refund:            ['G1_closed'],                                     // 환불 → 종료
+  G1_closed:            [],                                                // 최종 상태 (전환 불가)
 };
 
 /**
@@ -102,7 +102,7 @@ export const PROJECT_TRANSITION_REQUIRED_ROLE: Partial<Record<ProjectStatus, Use
   D2_payment_confirmed: 'manager',
   E2_prereport_review:  'manager',
   F1_refund:            'manager',
-  F2_closed:            'manager',
+  G1_closed:            'manager',
 };
 
 // ============================================================================
@@ -149,7 +149,6 @@ export const DOCUMENT_TYPES = [
   'estimate',
   'contract',
   'pre_report',
-  'report',
   'payment',
 ] as const;
 
@@ -180,12 +179,6 @@ export const DOCUMENT_TYPE_META: Record<
     label: '사전 보고서',
     description: '작업 시작 전 사전 보고서',
     allowedProjectStatuses: ['E1_prereport_draft', 'E2_prereport_review', 'E3_prereport_sent'],
-    allowedServiceTypes: null,
-  },
-  report: {
-    label: '보고서',
-    description: '작업 완료 후 보고서',
-    allowedProjectStatuses: ['E4_execution'],
     allowedServiceTypes: null,
   },
   payment: {
