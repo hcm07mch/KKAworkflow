@@ -73,63 +73,109 @@ export function EstimatePreview({ data }: EstimatePreviewProps) {
       </table>,
     );
 
-    // Block 2: Detail Section (title + table)
-    b.push(
-      <div key="detail">
-        <div className={s.sectionTitle}>상세 견적 내역</div>
-        <table className={s.detailTable}>
-          <thead>
-            <tr>
-              <th className={s.colNo}>No.</th>
-              <th className={s.colCategory}>카테고리</th>
-              <th className={s.colDetails}>세부 항목</th>
-              <th className={s.colPrice}>단가 (월)</th>
-              <th className={s.colNote}>비고</th>
+    // Block 2+: Detail Section — split into per-item blocks for pagination
+    const detailColgroup = (
+      <colgroup>
+        <col style={{ width: 50 }} />
+        <col style={{ width: 120 }} />
+        <col />
+        <col style={{ width: 100 }} />
+        <col style={{ width: 90 }} />
+      </colgroup>
+    );
+
+    const renderItemRows = (item: typeof items[number], idx: number) => {
+      const hasOptions = item.options && item.options.length > 0;
+      return (
+        <React.Fragment key={idx}>
+          <tr>
+            <td className={s.colNo} rowSpan={hasOptions ? 1 + item.options!.length : 1}>{item.no}</td>
+            <td className={s.colCategory} rowSpan={hasOptions ? 1 + item.options!.length : 1}>{item.category || '-'}</td>
+            <td className={s.colDetails}>
+              {item.details.map((detail, di) => (
+                <div key={di} className={di < item.details.length - 1 ? s.detailGroupSeparated : undefined}>
+                  <div className={s.detailGroupTitle}>{detail.title}</div>
+                  {detail.descriptions.map((desc, ddi) => (
+                    <p key={ddi} className={s.detailGroupDesc}>{desc}</p>
+                  ))}
+                </div>
+              ))}
+            </td>
+            <td className={s.colPrice}>{fmtCurrency(item.unit_price)}</td>
+            <td className={s.colNote}>{item.note || ''}</td>
+          </tr>
+          {hasOptions && item.options!.map((opt, oi) => (
+            <tr key={`opt-${oi}`} className={s.optionPreviewRow}>
+              <td className={s.colDetails}>
+                <span className={s.optionTag}>옵션</span> {opt.name}
+              </td>
+              <td className={s.colPrice}>{fmtCurrency(opt.price)}</td>
+              <td className={s.colNote}></td>
             </tr>
-          </thead>
-          <tbody>
-            {items.length === 0 ? (
+          ))}
+        </React.Fragment>
+      );
+    };
+
+    if (items.length === 0) {
+      b.push(
+        <div key="detail">
+          <div className={s.sectionTitle}>상세 견적 내역</div>
+          <table className={s.detailTable}>
+            {detailColgroup}
+            <thead>
+              <tr>
+                <th className={s.colNo}>No.</th>
+                <th className={s.colCategory}>카테고리</th>
+                <th className={s.colDetails}>세부 항목</th>
+                <th className={s.colPrice}>단가 (월)</th>
+                <th className={s.colNote}>비고</th>
+              </tr>
+            </thead>
+            <tbody>
               <tr>
                 <td colSpan={5} style={{ textAlign: 'center', color: '#9ca3af', padding: 24 }}>
                   항목을 추가하세요
                 </td>
               </tr>
-            ) : items.map((item, idx) => {
-              const hasOptions = item.options && item.options.length > 0;
-              return (
-                <React.Fragment key={idx}>
-                  <tr>
-                    <td className={s.colNo} rowSpan={hasOptions ? 1 + item.options!.length : 1}>{item.no}</td>
-                    <td className={s.colCategory} rowSpan={hasOptions ? 1 + item.options!.length : 1}>{item.category || '-'}</td>
-                    <td className={s.colDetails}>
-                      {item.details.map((detail, di) => (
-                        <div key={di} className={di < item.details.length - 1 ? s.detailGroupSeparated : undefined}>
-                          <div className={s.detailGroupTitle}>{detail.title}</div>
-                          {detail.descriptions.map((desc, ddi) => (
-                            <p key={ddi} className={s.detailGroupDesc}>{desc}</p>
-                          ))}
-                        </div>
-                      ))}
-                    </td>
-                    <td className={s.colPrice}>{fmtCurrency(item.unit_price)}</td>
-                    <td className={s.colNote}>{item.note || ''}</td>
-                  </tr>
-                  {hasOptions && item.options!.map((opt, oi) => (
-                    <tr key={`opt-${oi}`} className={s.optionPreviewRow}>
-                      <td className={s.colDetails}>
-                        <span className={s.optionTag}>옵션</span> {opt.name}
-                      </td>
-                      <td className={s.colPrice}>{fmtCurrency(opt.price)}</td>
-                      <td className={s.colNote}></td>
-                    </tr>
-                  ))}
-                </React.Fragment>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>,
-    );
+            </tbody>
+          </table>
+        </div>,
+      );
+    } else {
+      // First item block: section title + table header + first item
+      b.push(
+        <div key="detail-0">
+          <div className={s.sectionTitle}>상세 견적 내역</div>
+          <table className={`${s.detailTable} ${items.length > 1 ? s.detailTableCont : ''}`}>
+            {detailColgroup}
+            <thead>
+              <tr>
+                <th className={s.colNo}>No.</th>
+                <th className={s.colCategory}>카테고리</th>
+                <th className={s.colDetails}>세부 항목</th>
+                <th className={s.colPrice}>단가 (월)</th>
+                <th className={s.colNote}>비고</th>
+              </tr>
+            </thead>
+            <tbody>{renderItemRows(items[0], 0)}</tbody>
+          </table>
+        </div>,
+      );
+
+      // Remaining items: each a separate block for independent pagination
+      for (let idx = 1; idx < items.length; idx++) {
+        const isLast = idx === items.length - 1;
+        b.push(
+          <div key={`detail-${idx}`}>
+            <table className={`${s.detailTable} ${s.detailTableNext} ${isLast ? '' : s.detailTableCont}`}>
+              {detailColgroup}
+              <tbody>{renderItemRows(items[idx], idx)}</tbody>
+            </table>
+          </div>,
+        );
+      }
+    }
 
     // Block 3: Summary Table
     b.push(

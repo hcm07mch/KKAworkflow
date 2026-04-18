@@ -671,6 +671,7 @@ ${styleSheets}
                   size="sm"
                   onClick={handleSubmit}
                   disabled={submitting}
+                  loading={submitting}
                   icon={<LuSend size={13} />}
                 />
               )}

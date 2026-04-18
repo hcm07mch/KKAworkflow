@@ -478,6 +478,7 @@ export function CampaignPlanEditor({
                   label={submitting ? '제출 중...' : '진행안 제출'}
                   variant="primary" size="sm"
                   onClick={handleSubmit} disabled={submitting}
+                  loading={submitting}
                   icon={<LuSend size={13} />}
                 />
               )}

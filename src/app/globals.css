@@ -166,6 +166,10 @@ body {
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+@keyframes btn-spin {
+  to { transform: rotate(360deg); }
+}
 .btn-sm { font-size: 12px; padding: 5px 12px; }
 .btn-md { font-size: 13px; padding: 7px 16px; }
 

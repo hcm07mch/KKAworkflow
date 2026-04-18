@@ -975,6 +975,22 @@
   border-collapse: collapse;
   margin-bottom: 28px;
   font-size: 12px;
+  table-layout: fixed;
+}
+
+/* Continued table (not the last item): remove bottom margin */
+.detailTableCont {
+  margin-bottom: 0;
+}
+
+/* Continuation table (not the first item): overlap top border */
+.detailTableNext {
+  margin-top: -1px;
+  margin-bottom: 28px;
+}
+
+.detailTableNext.detailTableCont {
+  margin-bottom: 0;
 }
 
 .detailTable th {
