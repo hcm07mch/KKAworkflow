@@ -5,6 +5,11 @@
  * Puppeteer로 견적서 인쇄 페이지를 렌더링하여 PDF를 생성하고
  * Supabase Storage에 업로드한 뒤 signed URL을 반환합니다.
  *
+ * 최적화:
+ *  - chromium-min: 배포 패키지 경량화, /tmp 바이너리 캐시
+ *  - 브라우저 인스턴스 재사용 (warm invocation)
+ *  - 이미지/미디어 리소스 차단으로 페이지 로드 가속
+ *
  * 환경 변수:
  *  - CHROMIUM_PATH: 로컬 개발용 Chrome/Chromium 경로 (Windows 등)
  *    예: C:\Program Files\Google\Chrome\Application\chrome.exe
@@ -13,8 +18,57 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthContext } from '@/lib/auth';
 import { createSupabaseServiceClient } from '@/lib/infrastructure/supabase';
+import type { Browser } from 'puppeteer-core';
 
 export const maxDuration = 60; // Vercel serverless timeout (초)
+
+/* ── 모듈-레벨 브라우저 캐시 (warm invocation 재사용) ── */
+let _browser: Browser | null = null;
+
+async function getBrowser(): Promise<Browser> {
+  // 기존 브라우저가 살아있으면 재사용
+  if (_browser && _browser.connected) {
+    return _browser;
+  }
+
+  const puppeteer = await import('puppeteer-core');
+
+  let executablePath: string;
+  let launchArgs: string[];
+
+  if (process.env.CHROMIUM_PATH) {
+    // 로컬 개발: 설치된 Chrome/Chromium 사용
+    executablePath = process.env.CHROMIUM_PATH;
+    launchArgs = [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--font-render-hinting=none',
+    ];
+  } else {
+    // 프로덕션/서버리스: @sparticuz/chromium-min 사용
+    const chromium = (await import('@sparticuz/chromium-min')).default;
+    chromium.setHeadlessMode = true;
+    chromium.setGraphicsMode = false;
+
+    executablePath = await chromium.executablePath(
+      'https://github.com/nicholasgasior/chromium-binaries/releases/download/v131.0.0/chromium-v131.0.0-pack.tar',
+    );
+    launchArgs = chromium.args;
+  }
+
+  console.log('[pdf/generate] Launching browser:', executablePath);
+
+  _browser = await puppeteer.default.launch({
+    args: launchArgs,
+    defaultViewport: { width: 794, height: 1123 },
+    executablePath,
+    headless: true,
+  });
+
+  return _browser;
+}
 
 export async function POST(
   request: NextRequest,
@@ -33,41 +87,21 @@ export async function POST(
     );
   }
 
-  let browser;
+  let page;
   try {
-    const puppeteer = await import('puppeteer-core');
+    const browser = await getBrowser();
+    page = await browser.newPage();
 
-    // ── 환경별 Chromium 실행 경로 결정 ──
-    let executablePath: string;
-    let launchArgs: string[];
-
-    if (process.env.CHROMIUM_PATH) {
-      // 로컬 개발: 설치된 Chrome/Chromium 사용
-      executablePath = process.env.CHROMIUM_PATH;
-      launchArgs = [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--font-render-hinting=none',
-      ];
-    } else {
-      // 프로덕션/서버리스: @sparticuz/chromium 사용
-      const chromium = await import('@sparticuz/chromium');
-      executablePath = await chromium.default.executablePath();
-      launchArgs = chromium.default.args;
-    }
-
-    console.log('[pdf/generate] Launching browser:', executablePath);
-
-    browser = await puppeteer.default.launch({
-      args: launchArgs,
-      defaultViewport: { width: 1200, height: 800 },
-      executablePath,
-      headless: true,
+    // ── 불필요한 리소스 차단 (이미지, 미디어, 폰트 외) ──
+    await page.setRequestInterception(true);
+    page.on('request', (req) => {
+      const type = req.resourceType();
+      if (type === 'image' || type === 'media') {
+        req.abort();
+      } else {
+        req.continue();
+      }
     });
-
-    const page = await browser.newPage();
 
     // 요청에서 origin을 추출하여 인쇄 페이지 URL 구성
     const origin = request.nextUrl.origin;
@@ -90,7 +124,7 @@ export async function POST(
 
     // 인쇄 페이지 방문 & 렌더링 대기
     console.log('[pdf/generate] Navigating to:', printUrl);
-    await page.goto(printUrl, { waitUntil: 'networkidle0', timeout: 30000 });
+    await page.goto(printUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
     await page.waitForSelector('#print-ready', { timeout: 15000 });
 
     // 웹폰트(Pretendard) 로드 대기
@@ -103,8 +137,8 @@ export async function POST(
       margin: { top: '0', right: '0', bottom: '0', left: '0' },
     });
 
-    await browser.close();
-    browser = null;
+    // 페이지만 닫고 브라우저는 재사용
+    await page.close();
 
     // Uint8Array → Buffer 변환 (Supabase Storage 업로드 호환성)
     const pdfBuffer = Buffer.from(pdfUint8);
@@ -157,13 +191,15 @@ export async function POST(
     return NextResponse.json({ url: data.signedUrl, path: filePath });
   } catch (err) {
     console.error('[pdf/generate] Unhandled error:', err);
+    // 에러 시 브라우저 연결이 끊어졌을 수 있으므로 캐시 초기화
+    _browser = null;
     return NextResponse.json(
       { error: { code: 'PDF_GENERATION_FAILED', message: err instanceof Error ? err.message : 'PDF 생성 실패' } },
       { status: 500 },
     );
   } finally {
-    if (browser) {
-      try { await browser.close(); } catch { /* ignore */ }
+    if (page && !page.isClosed()) {
+      try { await page.close(); } catch { /* ignore */ }
     }
   }
 }
