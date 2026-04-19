@@ -250,9 +250,6 @@ function EstimatesContent() {
           ),
         );
         toast({ title: '견적서가 제출되었습니다', message: '프로젝트가 견적 승인 단계로 이동합니다.', variant: 'success' });
-
-        // 서버 사이드 PDF 생성 (비동기 — UI 차단 없음)
-        fetch(`/api/documents/${selectedId}/pdf/generate`, { method: 'POST' }).catch(() => {});
       } catch {
         toast({ title: '견적서 제출 중 오류가 발생했습니다', variant: 'error' });
       }

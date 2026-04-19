@@ -6,12 +6,15 @@
  * 2. 문서 유형에 따라 프로젝트 상태를 전환
  *    - estimate   → B2_estimate_review
  *    - pre_report → E2_prereport_review
- * (PDF 생성은 별도 /api/documents/:documentId/pdf/generate 에서 처리)
+ * 3. 견적서의 경우 PDF를 생성하여 Storage에 저장
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthContext } from '@/lib/auth';
+import { generatePdf } from '@/lib/pdf/generate-pdf';
 import type { ProjectStatus } from '@/lib/domain/types';
+
+export const maxDuration = 60;
 
 /** 문서 유형 → 프로젝트 전환 상태 매핑 */
 const DOC_SUBMIT_STATUS_MAP: Record<string, { toStatus: ProjectStatus; reason: string; label: string }> = {
@@ -27,6 +30,10 @@ export async function POST(
   if (!auth.success) return auth.response;
 
   const { documentId } = await params;
+
+  // origin과 cookie를 추출 (PDF 생성 시 필요)
+  const origin = _request.nextUrl.origin;
+  const cookieHeader = _request.headers.get('cookie') ?? '';
   const ctx = {
     userId: auth.dbUser.id,
     userRole: auth.role,
@@ -104,6 +111,24 @@ export async function POST(
     if (!projectResult.success) {
       console.error('[submit] Project transition failed:', projectResult.error);
       return NextResponse.json({ error: projectResult.error }, { status: 400 });
+    }
+  }
+
+  // 4) 견적서인 경우 PDF 생성 (제출 시 자동 생성)
+  if (existingDoc.type === 'estimate') {
+    const latestDoc = (await auth.services.documentRepo.findById(documentId)) ?? finalDoc;
+    const pdfResult = await generatePdf(
+      {
+        documentId,
+        organizationId: auth.organizationId,
+        origin,
+        cookieHeader,
+        existingMetadata: (latestDoc.metadata as Record<string, unknown>) ?? {},
+      },
+      auth.services.documentRepo,
+    );
+    if (!pdfResult.success) {
+      console.warn('[submit] PDF generation failed (non-blocking):', pdfResult.message);
     }
   }
 

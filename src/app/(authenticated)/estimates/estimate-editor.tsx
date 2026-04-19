@@ -601,10 +601,7 @@ ${styleSheets}
     if (!documentId) return;
     setPdfDownloading(true);
     try {
-      let res = await fetch(`/api/documents/${documentId}/pdf`);
-      if (!res.ok) {
-        res = await fetch(`/api/documents/${documentId}/pdf/generate`, { method: 'POST' });
-      }
+      const res = await fetch(`/api/documents/${documentId}/pdf`);
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         toast({ title: err?.error?.message || 'PDF 다운로드에 실패했습니다', variant: 'error' });
