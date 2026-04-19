@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { LuFileText, LuPlus, LuExternalLink } from 'react-icons/lu';
-import { StatusBadge, useFeedback } from '@/components/ui';
+import { StatusBadge, useFeedback, FullScreenLoader } from '@/components/ui';
 import type { DocumentStatus, ServiceType, EstimateContent } from '@/lib/domain/types';
 import { SERVICE_TYPE_META } from '@/lib/domain/types';
 import { EstimateEditor } from './estimate-editor';
@@ -60,6 +60,7 @@ function EstimatesContent() {
   });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panelMode, setPanelMode] = useState<RightPanelMode>('empty');
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     fetch('/api/auth/me').then((r) => r.json()).then((u) => setCurrentUserId(u.id ?? null)).catch(() => {});
@@ -221,6 +222,8 @@ function EstimatesContent() {
       });
       if (!ok) return;
 
+      setSubmitting(true);
+
       // API: 견적서 내용 먼저 저장 (draft 상태에서만 가능)
       try {
         await fetch(`/api/documents/${selectedId}`, {
@@ -252,6 +255,8 @@ function EstimatesContent() {
         toast({ title: '견적서가 제출되었습니다', message: '프로젝트가 견적 승인 단계로 이동합니다.', variant: 'success' });
       } catch {
         toast({ title: '견적서 제출 중 오류가 발생했습니다', variant: 'error' });
+      } finally {
+        setSubmitting(false);
       }
     },
     [selectedId, confirm, toast],
@@ -317,6 +322,7 @@ function EstimatesContent() {
 
   return (
     <div className={panel.wrapper}>
+      <FullScreenLoader visible={submitting} message="견적서를 제출하고 있습니다..." />
       {/* ══════════ Left Panel ══════════ */}
       <div className={panel.leftPanel}>
         <div className={panel.leftHeader}>

@@ -8,3 +8,4 @@ export type { ConfirmOptions, ConfirmVariant } from './confirm-dialog';
 export { ToastContainer, useToastState } from './toast';
 export type { ToastOptions, ToastVariant } from './toast';
 export { FeedbackProvider, useFeedback } from './feedback-provider';
+export { FullScreenLoader } from './full-screen-loader';
