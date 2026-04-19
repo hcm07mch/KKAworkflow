@@ -93,6 +93,9 @@ export async function POST(
     await page.goto(printUrl, { waitUntil: 'networkidle0', timeout: 30000 });
     await page.waitForSelector('#print-ready', { timeout: 15000 });
 
+    // 웹폰트(Pretendard) 로드 대기
+    await page.evaluateHandle('document.fonts.ready');
+
     // A4 PDF 생성
     const pdfUint8 = await page.pdf({
       format: 'A4',
