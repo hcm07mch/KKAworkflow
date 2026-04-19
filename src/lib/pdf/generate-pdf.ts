@@ -36,7 +36,6 @@ async function getBrowser(): Promise<Browser> {
     ];
   } else {
     const chromium = (await import('@sparticuz/chromium')).default;
-    chromium.setHeadlessMode = true;
     chromium.setGraphicsMode = false;
     executablePath = await chromium.executablePath();
     launchArgs = chromium.args;
