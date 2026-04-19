@@ -601,14 +601,30 @@ ${styleSheets}
     if (!documentId) return;
     setPdfDownloading(true);
     try {
+      // 1) 기존 PDF 확인
       const res = await fetch(`/api/documents/${documentId}/pdf`);
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast({ title: err?.error?.message || 'PDF 다운로드에 실패했습니다', variant: 'error' });
+      if (res.ok) {
+        const { url } = await res.json();
+        window.open(url, '_blank');
         return;
       }
-      const { url } = await res.json();
-      window.open(url, '_blank');
+
+      // 2) PDF가 없으면 온디맨드 생성
+      if (res.status === 404) {
+        const genRes = await fetch(`/api/documents/${documentId}/pdf/generate`, { method: 'POST' });
+        if (!genRes.ok) {
+          const err = await genRes.json().catch(() => ({}));
+          toast({ title: err?.error?.message || 'PDF 생성에 실패했습니다', variant: 'error' });
+          return;
+        }
+        const { url } = await genRes.json();
+        window.open(url, '_blank');
+        return;
+      }
+
+      // 3) 기타 오류
+      const err = await res.json().catch(() => ({}));
+      toast({ title: err?.error?.message || 'PDF 다운로드에 실패했습니다', variant: 'error' });
     } catch {
       toast({ title: 'PDF 다운로드 중 오류가 발생했습니다', variant: 'error' });
     } finally {
