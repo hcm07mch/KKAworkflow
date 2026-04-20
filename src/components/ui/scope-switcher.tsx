@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LuBuilding2, LuChevronDown } from 'react-icons/lu';
 import styles from './scope-switcher.module.css';
+import { FullScreenLoader } from './full-screen-loader';
 
 interface OrgOption {
   id: string;
@@ -58,61 +59,70 @@ export function ScopeSwitcher() {
   async function switchTo(orgId: string | null) {
     if (switching) return;
     setSwitching(true);
+    setOpen(false);
     try {
       await fetch('/api/scope', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orgId }),
       });
-      setOpen(false);
       router.refresh();
       // 페이지 컴포넌트에서 fetch로 가져온 데이터를 재로드하도록 전체 새로고침
       window.location.reload();
     } catch {
-      // ignore
-    } finally {
+      // 실패 시에만 로딩 해제 (성공 시엔 reload되므로 해제 불필요)
       setSwitching(false);
     }
   }
 
+  const switchingLabel = (() => {
+    if (!switching) return '';
+    // 전환 대상 라벨은 사용자가 누른 버튼을 즉시 알 수 없으므로 일반 메시지 사용
+    return '업무 영역을 전환하는 중입니다...';
+  })();
+
   return (
-    <div className={styles.wrapper} ref={ref}>
-      <button
-        type="button"
-        className={styles.trigger}
-        onClick={() => setOpen((o) => !o)}
-      >
-        <LuBuilding2 size={14} />
-        <span>{activeLabel}</span>
-        <LuChevronDown size={14} />
-      </button>
-      {open && (
-        <div className={styles.dropdown}>
-          {rootOrg && (
-            <button
-              type="button"
-              className={`${styles.option} ${!info.activeScope ? styles.optionActive : ''}`}
-              onClick={() => switchTo(rootOrg.id)}
-              disabled={switching}
-            >
-              <span className={styles.optionLabel}>본사 업무</span>
-              <span className={styles.optionDesc}>{rootOrg.name}</span>
-            </button>
-          )}
-          {branchOrgs.map((org) => (
-            <button
-              key={org.id}
-              type="button"
-              className={`${styles.option} ${info.activeScope === org.id ? styles.optionActive : ''}`}
-              onClick={() => switchTo(org.id)}
-              disabled={switching}
-            >
-              <span className={styles.optionLabel}>{org.name} 업무</span>
-              <span className={styles.optionDesc}>지사</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+    <>
+      <FullScreenLoader visible={switching} message={switchingLabel} />
+      <div className={styles.wrapper} ref={ref}>
+        <button
+          type="button"
+          className={styles.trigger}
+          onClick={() => setOpen((o) => !o)}
+          disabled={switching}
+        >
+          <LuBuilding2 size={14} />
+          <span>{activeLabel}</span>
+          <LuChevronDown size={14} />
+        </button>
+        {open && (
+          <div className={styles.dropdown}>
+            {rootOrg && (
+              <button
+                type="button"
+                className={`${styles.option} ${!info.activeScope ? styles.optionActive : ''}`}
+                onClick={() => switchTo(rootOrg.id)}
+                disabled={switching}
+              >
+                <span className={styles.optionLabel}>본사 업무</span>
+                <span className={styles.optionDesc}>{rootOrg.name}</span>
+              </button>
+            )}
+            {branchOrgs.map((org) => (
+              <button
+                key={org.id}
+                type="button"
+                className={`${styles.option} ${info.activeScope === org.id ? styles.optionActive : ''}`}
+                onClick={() => switchTo(org.id)}
+                disabled={switching}
+              >
+                <span className={styles.optionLabel}>{org.name} 업무</span>
+                <span className={styles.optionDesc}>지사</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
   );
 }

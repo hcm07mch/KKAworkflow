@@ -26,7 +26,7 @@ export async function PATCH(
   }
 
   const { id } = await params;
-  const { organizationId } = auth;
+  const { userOrganizationId } = auth;
   const serviceClient = createSupabaseServiceClient();
   const body = await req.json();
 
@@ -34,14 +34,14 @@ export async function PATCH(
   if ('organization_id' in body) {
     const newOrgId = body.organization_id as string;
     // 루트 조직이거나 루트의 하위 조직인지 검증
-    if (newOrgId === organizationId) {
-      updates.organization_id = organizationId;
+    if (newOrgId === userOrganizationId) {
+      updates.organization_id = userOrganizationId;
     } else {
       const { data: subOrg } = await serviceClient
         .from('workflow_organizations')
         .select('id')
         .eq('id', newOrgId)
-        .eq('parent_id', organizationId)
+        .eq('parent_id', userOrganizationId)
         .single();
       if (subOrg) {
         updates.organization_id = newOrgId;
@@ -65,8 +65,8 @@ export async function PATCH(
   const { data: children } = await serviceClient
     .from('workflow_organizations')
     .select('id')
-    .eq('parent_id', organizationId);
-  const orgIds = [organizationId, ...(children ?? []).map((c: { id: string }) => c.id)];
+    .eq('parent_id', userOrganizationId);
+  const orgIds = [userOrganizationId, ...(children ?? []).map((c: { id: string }) => c.id)];
 
   const { data, error } = await serviceClient
     .from('workflow_users')
@@ -113,15 +113,15 @@ export async function DELETE(
     );
   }
 
-  const { organizationId } = auth;
+  const { userOrganizationId } = auth;
   const serviceClient = createSupabaseServiceClient();
 
   // 루트 + 하위 조직 범위에서 삭제
   const { data: children } = await serviceClient
     .from('workflow_organizations')
     .select('id')
-    .eq('parent_id', organizationId);
-  const orgIds = [organizationId, ...(children ?? []).map((c: { id: string }) => c.id)];
+    .eq('parent_id', userOrganizationId);
+  const orgIds = [userOrganizationId, ...(children ?? []).map((c: { id: string }) => c.id)];
 
   const { error } = await serviceClient
     .from('workflow_users')

@@ -12,13 +12,13 @@ export async function GET() {
   const auth = await getAuthContext();
   if (!auth.success) return auth.response;
 
-  const { organizationId } = auth;
+  const { userOrganizationId } = auth;
   const serviceClient = createSupabaseServiceClient();
 
   const { data, error } = await serviceClient
     .from('workflow_organizations')
     .select('*')
-    .eq('parent_id', organizationId)
+    .eq('parent_id', userOrganizationId)
     .order('created_at', { ascending: true });
 
   if (error) {

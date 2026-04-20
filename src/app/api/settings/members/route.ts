@@ -25,6 +25,8 @@ export async function GET(req: NextRequest) {
 
   // 본사(루트) 계정이 선택한 특정 조직의 멤버 조회 (승인 정책 편집 등에서 사용)
   const orgIdParam = req.nextUrl.searchParams.get('organization_id');
+  // all=1 → 스코프에 관계없이 caller가 조회 가능한 모든 조직의 멤버 (본사+지사 통합 뷰)
+  const allParam = req.nextUrl.searchParams.get('all');
   const scopeAllowed = auth.isRootOrg ? auth.fullAllowedOrgIds : auth.allowedOrgIds;
   let targetOrgIds = auth.allowedOrgIds;
   if (orgIdParam) {
@@ -35,6 +37,8 @@ export async function GET(req: NextRequest) {
       );
     }
     targetOrgIds = [orgIdParam];
+  } else if (allParam === '1') {
+    targetOrgIds = scopeAllowed;
   }
 
   const { data, error } = await serviceClient

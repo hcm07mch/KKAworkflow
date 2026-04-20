@@ -136,10 +136,17 @@ export default function SettingsPage() {
   const [policyMembers, setPolicyMembers] = useState<MemberItem[]>([]);
   const [policiesLoading, setPoliciesLoading] = useState(false);
 
+  // 현재 스코프 정보 (본사 계정 전용) — 본사 업무 여부 판별용
+  const [isRootAccount, setIsRootAccount] = useState(false);
+  const [rootOrgId, setRootOrgId] = useState<string | null>(null);
+  const [activeScope, setActiveScope] = useState<string | null>(null);
+  // 본사 업무 = 스코프가 본사(루트)이거나 아직 미설정 (미설정이면 서버는 본사로 해석)
+  const isHqScope = isRootAccount && (activeScope === null || activeScope === rootOrgId);
+
   useEffect(() => {
     Promise.all([
       fetch('/api/settings/org').then((r) => r.json()),
-      fetch('/api/settings/members').then((r) => r.json()),
+      fetch('/api/settings/members?all=1').then((r) => r.json()),
       fetch('/api/settings/approval-policies').then((r) => r.json()),
       fetch('/api/settings/catalogs?type=estimate').then((r) => r.json()),
       fetch('/api/settings/catalogs?type=execution').then((r) => r.json()),
@@ -165,8 +172,11 @@ export default function SettingsPage() {
 
       // 본사 계정이면 승인 정책 조직 선택기 초기화 (기본값: 본사)
       if (scopeData?.isRootOrg && Array.isArray(scopeData?.orgs)) {
+        setIsRootAccount(true);
+        setActiveScope(scopeData.activeScope ?? null);
         setPolicyOrgs(scopeData.orgs);
         const rootOrg = scopeData.orgs.find((o: { parent_id: string | null }) => !o.parent_id);
+        setRootOrgId(rootOrg?.id ?? null);
         setSelectedPolicyOrgId(rootOrg?.id ?? null);
       }
       setLoading(false);
@@ -235,8 +245,14 @@ export default function SettingsPage() {
 
       {/* ── Right Panel ── */}
       <div className={panel.rightPanel}>
+        {/* 본사 전용 섹션인데 지사 업무 상태인 경우 안내 */}
+        {(['org', 'members', 'approval'] as SettingsSection[]).includes(activeSection)
+          && isRootAccount && !isHqScope && (
+          <HqOnlyNotice sectionLabel={SECTIONS.find((s) => s.key === activeSection)?.label ?? ''} />
+        )}
+
         {/* 조직 관리 */}
-        {activeSection === 'org' && org && (
+        {activeSection === 'org' && isHqScope && org && (
           <>
             <div className={panel.detailHeader}>
               <div className={panel.detailTitle}>조직 관리</div>
@@ -295,7 +311,7 @@ export default function SettingsPage() {
         )}
 
         {/* 멤버 관리 */}
-        {activeSection === 'members' && (
+        {activeSection === 'members' && isHqScope && (
           <>
             <div className={panel.detailHeader}>
               <div>
@@ -387,7 +403,7 @@ export default function SettingsPage() {
         )}
 
         {/* 승인 정책 */}
-        {activeSection === 'approval' && (
+        {activeSection === 'approval' && isHqScope && (
           <ApprovalPolicySection
             policies={policies}
             setPolicies={setPolicies}
@@ -439,6 +455,35 @@ export default function SettingsPage() {
         {activeSection === 'doc-defaults' && org && (
           <DefaultNotesSection org={org} setOrg={setOrg} toast={toast} />
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── HQ-only Notice ──────────────────────────────────────
+function HqOnlyNotice({ sectionLabel }: { sectionLabel: string }) {
+  return (
+    <div className="card" style={{ padding: '32px 28px', textAlign: 'center', maxWidth: 560, margin: '24px auto' }}>
+      <div style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 48,
+        height: 48,
+        borderRadius: '50%',
+        background: 'var(--color-primary-soft, rgba(59,130,246,0.12))',
+        color: 'var(--color-primary)',
+        marginBottom: 16,
+      }}>
+        <LuBuilding2 size={24} />
+      </div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 8 }}>
+        본사 전용 업무입니다
+      </div>
+      <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.6 }}>
+        {sectionLabel ? `"${sectionLabel}" 페이지는 본사 업무에서만 이용할 수 있습니다.` : '이 페이지는 본사 업무에서만 이용할 수 있습니다.'}
+        <br />
+        상단 우측의 업무 전환 메뉴에서 <strong>본사 업무</strong>로 전환해주시길 바랍니다.
       </div>
     </div>
   );
@@ -2295,12 +2340,12 @@ function DepartmentSection({
   return (
     <div className="card" style={{ marginTop: 16 }}>
       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 12 }}>하위 조직</div>
-      <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 16 }}>
+      {/* <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 16 }}>
         부서·팀 등의 하위 조직을 관리합니다. 멤버 초대 시 조직을 지정할 수 있습니다. (최대 3개, 현재 {departments.length}개)
-      </div>
+      </div> */}
 
       {/* 추가 폼 */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+      {/* <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         <input
           type="text"
           value={newName}
@@ -2311,7 +2356,7 @@ function DepartmentSection({
           style={{ flex: 1, maxWidth: 280 }}
         />
         <ActionButton label={adding ? '추가 중...' : '+ 추가'} variant="primary" size="sm" onClick={handleAdd} disabled={!newName.trim() || adding || departments.length >= 3} />
-      </div>
+      </div> */}
 
       {/* 목록 */}
       {departments.length === 0 ? (
