@@ -45,7 +45,7 @@ export function EstimatePreview({ data }: EstimatePreviewProps) {
       </div>
 
       {/* ── Title ── */}
-      <h1 className={s.docTitle}>견 적 서</h1>
+      <h1 className={s.docTitle}>견적서</h1>
 
       {/* ── Info Table ── */}
       <table className={s.infoTable}>
