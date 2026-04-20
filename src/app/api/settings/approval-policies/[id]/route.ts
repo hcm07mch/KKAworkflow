@@ -7,6 +7,34 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthContext, requireRole, requireRootOrg } from '@/lib/auth';
 
+/** 본사 계정은 하위 지사 정책까지 관리 가능. 지사 계정은 자기 조직만. */
+function policyAllowedOrgIds(
+  auth: Extract<Awaited<ReturnType<typeof getAuthContext>>, { success: true }>,
+): string[] {
+  return auth.isRootOrg ? auth.fullAllowedOrgIds : auth.allowedOrgIds;
+}
+
+/** 정책 id가 caller가 관리할 수 있는 조직 범위에 속하는지 확인 */
+async function assertPolicyInScope(
+  auth: Extract<Awaited<ReturnType<typeof getAuthContext>>, { success: true }>,
+  policyId: string,
+): Promise<NextResponse | null> {
+  const existing = await auth.services.approvalPolicyRepo.findByIdWithSteps(policyId);
+  if (!existing) {
+    return NextResponse.json(
+      { error: { code: 'NOT_FOUND', message: '정책을 찾을 수 없습니다' } },
+      { status: 404 },
+    );
+  }
+  if (!policyAllowedOrgIds(auth).includes(existing.organization_id)) {
+    return NextResponse.json(
+      { error: { code: 'FORBIDDEN', message: '해당 조직의 정책을 수정할 권한이 없습니다' } },
+      { status: 403 },
+    );
+  }
+  return null;
+}
+
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -21,6 +49,9 @@ export async function PUT(
   if (roleCheck) return roleCheck;
 
   const { id } = await params;
+  const scopeErr = await assertPolicyInScope(auth, id);
+  if (scopeErr) return scopeErr;
+
   const body = await request.json();
 
   try {
@@ -93,6 +124,8 @@ export async function DELETE(
   if (roleCheck) return roleCheck;
 
   const { id } = await params;
+  const scopeErr = await assertPolicyInScope(auth, id);
+  if (scopeErr) return scopeErr;
 
   try {
     await auth.services.approvalPolicyRepo.delete(id);

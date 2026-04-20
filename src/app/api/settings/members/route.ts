@@ -17,16 +17,30 @@ async function getOrgIds(serviceClient: ReturnType<typeof createSupabaseServiceC
   return [rootOrgId, ...(children ?? []).map((c: { id: string }) => c.id)];
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const auth = await getAuthContext();
   if (!auth.success) return auth.response;
 
   const serviceClient = createSupabaseServiceClient();
 
+  // 본사(루트) 계정이 선택한 특정 조직의 멤버 조회 (승인 정책 편집 등에서 사용)
+  const orgIdParam = req.nextUrl.searchParams.get('organization_id');
+  const scopeAllowed = auth.isRootOrg ? auth.fullAllowedOrgIds : auth.allowedOrgIds;
+  let targetOrgIds = auth.allowedOrgIds;
+  if (orgIdParam) {
+    if (!scopeAllowed.includes(orgIdParam)) {
+      return NextResponse.json(
+        { error: { code: 'FORBIDDEN', message: '해당 조직의 멤버를 조회할 권한이 없습니다' } },
+        { status: 403 },
+      );
+    }
+    targetOrgIds = [orgIdParam];
+  }
+
   const { data, error } = await serviceClient
     .from('workflow_users')
     .select('*')
-    .in('organization_id', auth.allowedOrgIds)
+    .in('organization_id', targetOrgIds)
     .order('created_at', { ascending: true });
 
   if (error) {

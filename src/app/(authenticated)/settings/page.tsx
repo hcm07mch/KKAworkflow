@@ -130,6 +130,12 @@ export default function SettingsPage() {
   const [editingPolicy, setEditingPolicy] = useState<ApprovalPolicyItem | null>(null);
   const [isNewPolicy, setIsNewPolicy] = useState(false);
 
+  // Approval policy org selector (root 계정 전용)
+  const [policyOrgs, setPolicyOrgs] = useState<{ id: string; name: string; parent_id: string | null }[]>([]);
+  const [selectedPolicyOrgId, setSelectedPolicyOrgId] = useState<string | null>(null);
+  const [policyMembers, setPolicyMembers] = useState<MemberItem[]>([]);
+  const [policiesLoading, setPoliciesLoading] = useState(false);
+
   useEffect(() => {
     Promise.all([
       fetch('/api/settings/org').then((r) => r.json()),
@@ -140,7 +146,8 @@ export default function SettingsPage() {
       fetch('/api/settings/departments').then((r) => r.json()),
       fetch('/api/settings/catalog-categories?type=estimate').then((r) => r.json()),
       fetch('/api/settings/catalog-categories?type=execution').then((r) => r.json()),
-    ]).then(([orgData, membersData, policiesData, estCatalogs, execCatalogs, deptData, estCategories, execCategories]) => {
+      fetch('/api/scope').then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    ]).then(([orgData, membersData, policiesData, estCatalogs, execCatalogs, deptData, estCategories, execCategories, scopeData]) => {
       setOrg(orgData);
       setOrgName(orgData.name ?? '');
       // 지사 계정이면 기본 섹션을 '문서 기본값'으로 이동 (조직/멤버/승인은 비노출)
@@ -148,15 +155,38 @@ export default function SettingsPage() {
         setActiveSection('doc-defaults');
       }
       setMembers(membersData ?? []);
+      setPolicyMembers(membersData ?? []);
       setDepartments(Array.isArray(deptData) ? deptData : []);
       setPolicies(Array.isArray(policiesData) ? policiesData : []);
       setEstimateCatalogs(Array.isArray(estCatalogs) ? estCatalogs : []);
       setExecutionCatalogs(Array.isArray(execCatalogs) ? execCatalogs : []);
       setEstimateCategories(Array.isArray(estCategories) ? estCategories : []);
       setExecutionCategories(Array.isArray(execCategories) ? execCategories : []);
+
+      // 본사 계정이면 승인 정책 조직 선택기 초기화 (기본값: 본사)
+      if (scopeData?.isRootOrg && Array.isArray(scopeData?.orgs)) {
+        setPolicyOrgs(scopeData.orgs);
+        const rootOrg = scopeData.orgs.find((o: { parent_id: string | null }) => !o.parent_id);
+        setSelectedPolicyOrgId(rootOrg?.id ?? null);
+      }
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
+
+  // 선택된 정책 조직이 변경되면 해당 조직의 정책 / 멤버 재조회
+  useEffect(() => {
+    if (!selectedPolicyOrgId || !org || org.parent_id) return; // 지사 계정은 스킵
+    setPoliciesLoading(true);
+    Promise.all([
+      fetch(`/api/settings/approval-policies?organization_id=${selectedPolicyOrgId}`).then((r) => r.json()),
+      fetch(`/api/settings/members?organization_id=${selectedPolicyOrgId}`).then((r) => r.json()),
+    ]).then(([pol, mem]) => {
+      setPolicies(Array.isArray(pol) ? pol : []);
+      setPolicyMembers(Array.isArray(mem) ? mem : []);
+      setEditingPolicy(null);
+      setIsNewPolicy(false);
+    }).finally(() => setPoliciesLoading(false));
+  }, [selectedPolicyOrgId, org]);
 
   if (loading) {
     return (
@@ -361,13 +391,17 @@ export default function SettingsPage() {
           <ApprovalPolicySection
             policies={policies}
             setPolicies={setPolicies}
-            members={members}
+            members={policyMembers}
             editingPolicy={editingPolicy}
             setEditingPolicy={setEditingPolicy}
             isNewPolicy={isNewPolicy}
             setIsNewPolicy={setIsNewPolicy}
             toast={toast}
             confirm={confirm}
+            policyOrgs={policyOrgs}
+            selectedPolicyOrgId={selectedPolicyOrgId}
+            setSelectedPolicyOrgId={setSelectedPolicyOrgId}
+            policiesLoading={policiesLoading}
           />
         )}
 
@@ -439,6 +473,7 @@ function emptyPolicy(docType: DocumentType | null): ApprovalPolicyItem {
 
 function ApprovalPolicySection({
   policies, setPolicies, members, editingPolicy, setEditingPolicy, isNewPolicy, setIsNewPolicy, toast, confirm,
+  policyOrgs, selectedPolicyOrgId, setSelectedPolicyOrgId, policiesLoading,
 }: {
   policies: ApprovalPolicyItem[];
   setPolicies: React.Dispatch<React.SetStateAction<ApprovalPolicyItem[]>>;
@@ -449,6 +484,10 @@ function ApprovalPolicySection({
   setIsNewPolicy: (v: boolean) => void;
   toast: (opts: ToastOptions) => void;
   confirm: (opts: ConfirmOptions) => Promise<boolean>;
+  policyOrgs: { id: string; name: string; parent_id: string | null }[];
+  selectedPolicyOrgId: string | null;
+  setSelectedPolicyOrgId: (id: string) => void;
+  policiesLoading: boolean;
 }) {
   const [saving, setSaving] = useState(false);
   const [activatingId, setActivatingId] = useState<string | null>(null);
@@ -544,6 +583,7 @@ function ApprovalPolicySection({
           label: s.label || null,
           assigned_user_id: s.assigned_user_id || null,
         })),
+        ...(selectedPolicyOrgId ? { organization_id: selectedPolicyOrgId } : {}),
       };
 
       if (isNewPolicy) {
@@ -613,8 +653,33 @@ function ApprovalPolicySection({
       <div className={panel.detailHeader}>
         <div>
           <div className={panel.detailTitle}>승인 정책</div>
-          <div className={panel.detailSubtitle}>문서 유형별 승인 규칙을 설정합니다</div>
+          <div className={panel.detailSubtitle}>
+            {policyOrgs.length > 0
+              ? '본사 / 지사별로 승인 정책을 개별 관리합니다'
+              : '문서 유형별 승인 규칙을 설정합니다'}
+          </div>
         </div>
+        {policyOrgs.length > 0 && (
+          <div className={panel.detailActions} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 12, color: 'var(--color-text-secondary)', fontWeight: 500, whiteSpace: 'nowrap' }}>대상 조직</span>
+            <select
+              className="form-input"
+              value={selectedPolicyOrgId ?? ''}
+              onChange={(e) => setSelectedPolicyOrgId(e.target.value)}
+              style={{ minWidth: 180, fontSize: 13 }}
+              disabled={policiesLoading}
+            >
+              {policyOrgs
+                .slice()
+                .sort((a, b) => (a.parent_id ? 1 : 0) - (b.parent_id ? 1 : 0))
+                .map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.parent_id ? `${o.name} (지사)` : `${o.name} (본사)`}
+                  </option>
+                ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* 정책 편집 모달 */}
