@@ -47,6 +47,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
   const updateData: Record<string, unknown> = {};
   if (body.group_name !== undefined) updateData.group_name = body.group_name;
+  if (body.category_id !== undefined) updateData.category_id = body.category_id || null;
   if (body.name !== undefined) updateData.name = body.name;
   if (body.sort_order !== undefined) updateData.sort_order = body.sort_order;
   if (body.base_price !== undefined) updateData.base_price = body.base_price;

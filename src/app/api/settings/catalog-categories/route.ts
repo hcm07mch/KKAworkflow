@@ -1,8 +1,8 @@
 /**
- * API Route: Service Catalog CRUD
- * GET   /api/settings/catalogs               → 카탈로그 목록 (query: type=estimate|execution)
- * POST  /api/settings/catalogs               → 카탈로그 항목 생성
- * PATCH /api/settings/catalogs               → 일괄 정렬 (body: { orders: [{ id, sort_order }] })
+ * API Route: Catalog Categories
+ * GET   /api/settings/catalog-categories        → 카테고리 목록 (query: type=estimate|execution)
+ * POST  /api/settings/catalog-categories        → 카테고리 생성
+ * PATCH /api/settings/catalog-categories        → 카테고리 일괄 정렬 (body: { orders: [{ id, sort_order }] })
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -13,13 +13,14 @@ export async function GET(request: NextRequest) {
   if (!auth.success) return auth.response;
 
   const { searchParams } = new URL(request.url);
-  const catalogType = searchParams.get('type'); // 'estimate' | 'execution' | null (all)
+  const catalogType = searchParams.get('type');
 
   let query = auth.supabase
-    .from('workflow_service_catalog')
+    .from('workflow_catalog_categories')
     .select('*')
     .eq('organization_id', auth.organizationId)
-    .order('sort_order', { ascending: true });
+    .order('sort_order', { ascending: true })
+    .order('name', { ascending: true });
 
   if (catalogType) {
     query = query.eq('catalog_type', catalogType);
@@ -46,23 +47,31 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json();
 
+  if (!body.name?.trim()) {
+    return NextResponse.json(
+      { error: { code: 'VALIDATION', message: '카테고리명을 입력하세요' } },
+      { status: 400 },
+    );
+  }
+
   const { data, error } = await auth.supabase
-    .from('workflow_service_catalog')
+    .from('workflow_catalog_categories')
     .insert({
       organization_id: auth.organizationId,
       catalog_type: body.catalog_type,
-      group_name: body.group_name,
-      category_id: body.category_id || null,
-      name: body.name,
+      name: body.name.trim(),
       sort_order: body.sort_order ?? 0,
-      base_price: body.base_price ?? 0,
-      content: body.content ?? {},
-      is_active: body.is_active ?? true,
     })
     .select()
     .single();
 
   if (error) {
+    if (error.code === '23505') {
+      return NextResponse.json(
+        { error: { code: 'DUPLICATE', message: '이미 존재하는 카테고리명입니다' } },
+        { status: 409 },
+      );
+    }
     return NextResponse.json(
       { error: { code: 'CREATE_FAILED', message: error.message } },
       { status: 500 },
@@ -92,7 +101,7 @@ export async function PATCH(request: NextRequest) {
   const results = await Promise.all(
     orders.map(({ id, sort_order }) =>
       auth.supabase
-        .from('workflow_service_catalog')
+        .from('workflow_catalog_categories')
         .update({ sort_order })
         .eq('id', id)
         .eq('organization_id', auth.organizationId),

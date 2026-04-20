@@ -15,6 +15,7 @@ type Theme = 'light' | 'dark';
 interface UserInfo {
   email: string;
   name: string;
+  department: string | null;
 }
 
 export function UserNav() {
@@ -32,19 +33,29 @@ export function UserNav() {
         const email = authUser.email ?? '';
         let name = authUser.user_metadata?.full_name ?? email.split('@')[0] ?? '';
 
-        // workflow_users 테이블에서 실제 이름 조회
+        // workflow_users 테이블에서 실제 이름 + 조직 조회
         const { data: dbUser } = await supabase
           .from('workflow_users')
-          .select('name')
+          .select('name, organization_id')
           .eq('auth_id', authUser.id)
           .eq('is_active', true)
           .single();
 
+        let department: string | null = null;
         if (dbUser?.name) {
           name = dbUser.name;
         }
+        if (dbUser?.organization_id) {
+          const { data: org } = await supabase
+            .from('workflow_organizations')
+            .select('name, parent_id')
+            .eq('id', dbUser.organization_id)
+            .single();
+          // 하위 조직인 경우에만 조직명 표시
+          if (org?.parent_id) department = org.name;
+        }
 
-        setUser({ email, name });
+        setUser({ email, name, department });
       }
     });
   }, []);
@@ -101,6 +112,7 @@ export function UserNav() {
             <span className={styles.avatar}>{initials}</span>
             <div className={styles.accountInfo}>
               <span className={styles.name}>{user.name}</span>
+              {user.department && <span className={styles.department}>{user.department}</span>}
               <span className={styles.email}>{user.email}</span>
             </div>
           </div>

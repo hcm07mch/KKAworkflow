@@ -28,8 +28,10 @@ export interface AuthContext {
   dbUser: User;
   /** 사용자 역할 */
   role: UserRole;
-  /** 조직 ID */
+  /** 루트 조직 ID (데이터 스코핑용) */
   organizationId: string;
+  /** 사용자 소속 조직 ID (하위 조직일 수 있음) */
+  userOrganizationId: string;
   /** 서비스 인스턴스 모음 */
   services: ReturnType<typeof createServices>;
   /** Raw Supabase client (커스텀 쿼리용) */
@@ -97,9 +99,21 @@ export async function getAuthContext(): Promise<AuthResult> {
     };
   }
 
-  // 3) 서비스 인스턴스 생성
+  // 3) 루트 조직 ID 확인 (하위 조직이면 상위로 탐색)
+  let rootOrgId = dbUser.organization_id;
+  const { data: orgRow } = await serviceClient
+    .from('workflow_organizations')
+    .select('id, parent_id')
+    .eq('id', dbUser.organization_id)
+    .single();
+
+  if (orgRow?.parent_id) {
+    rootOrgId = orgRow.parent_id;
+  }
+
+  // 4) 서비스 인스턴스 생성 (루트 조직 기준)
   const services = createServices(supabase, {
-    organizationId: dbUser.organization_id,
+    organizationId: rootOrgId,
   });
 
   return {
@@ -107,7 +121,8 @@ export async function getAuthContext(): Promise<AuthResult> {
     authUser: { id: authUser.id, email: authUser.email },
     dbUser: dbUser as User,
     role: dbUser.role as UserRole,
-    organizationId: dbUser.organization_id,
+    organizationId: rootOrgId,
+    userOrganizationId: dbUser.organization_id,
     services,
     supabase,
   };

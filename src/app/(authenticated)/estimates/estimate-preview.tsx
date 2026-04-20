@@ -154,7 +154,7 @@ export function EstimatePreview({ data }: EstimatePreviewProps) {
                 <th className={s.colNo}>No.</th>
                 <th className={s.colCategory}>카테고리</th>
                 <th className={s.colDetails}>세부 항목</th>
-                <th className={s.colPrice}>단가 (월)</th>
+                <th className={s.colPrice}>단가</th>
                 <th className={s.colNote}>비고</th>
               </tr>
             </thead>
@@ -182,7 +182,7 @@ export function EstimatePreview({ data }: EstimatePreviewProps) {
       <table key="sum" className={s.summaryTable}>
         <tbody>
           <tr>
-            <td className={s.summaryLabel}>대행 수수료 (공급가액)</td>
+            <td className={s.summaryLabel}>공급가</td>
             <td className={s.summaryValue}>{fmtCurrency(subtotal)}</td>
           </tr>
           <tr>
@@ -215,7 +215,7 @@ export function EstimatePreview({ data }: EstimatePreviewProps) {
     if (company_name || company_address || company_representative) {
       b.push(
         <div key="foot" className={s.docFooter}>
-          {[company_name, company_address, company_representative ? `COO ${company_representative}` : '']
+          {[company_name, company_address, company_representative ? `${company_representative}` : '']
             .filter(Boolean)
             .join(' | ')}
         </div>,

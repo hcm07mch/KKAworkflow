@@ -6,16 +6,31 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthContext } from '@/lib/auth';
+import { createSupabaseServiceClient } from '@/lib/infrastructure/supabase/client';
 
 export async function GET(request: NextRequest) {
   const auth = await getAuthContext();
   if (!auth.success) return auth.response;
 
-  const clients = await auth.services.clientRepo.findByOrganizationId(
-    auth.organizationId,
-  );
+  // 루트 조직 + 하위 조직 전체 고객사 조회
+  const serviceClient = createSupabaseServiceClient();
+  const { data: children } = await serviceClient
+    .from('workflow_organizations')
+    .select('id')
+    .eq('parent_id', auth.organizationId);
+  const orgIds = [auth.organizationId, ...(children ?? []).map((c: { id: string }) => c.id)];
 
-  return NextResponse.json(clients);
+  const { data: clients, error } = await serviceClient
+    .from('workflow_clients')
+    .select('*')
+    .in('organization_id', orgIds)
+    .order('name');
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json(clients ?? []);
 }
 
 export async function POST(request: NextRequest) {
@@ -34,7 +49,7 @@ export async function POST(request: NextRequest) {
   // 1. 고객사 생성
   const client = await auth.services.clientRepo.create({
     ...clientData,
-    organization_id: auth.organizationId,
+    organization_id: auth.userOrganizationId,
   });
 
   // 2. '영업(A_sales)' 상태의 프로젝트 자동 생성

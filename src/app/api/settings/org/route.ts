@@ -40,18 +40,31 @@ export async function PATCH(req: NextRequest) {
   const { supabase, organizationId } = auth;
   const body = await req.json();
 
-  // Merge into existing settings
-  const { data: current } = await supabase
-    .from('workflow_organizations')
-    .select('settings')
-    .eq('id', organizationId)
-    .single();
+  const updatePayload: Record<string, unknown> = {};
 
-  const merged = { ...(current?.settings ?? {}), ...body.settings };
+  // 조직명 변경
+  if (body.name && typeof body.name === 'string' && body.name.trim()) {
+    updatePayload.name = body.name.trim();
+  }
+
+  // settings JSONB 병합
+  if (body.settings) {
+    const { data: current } = await supabase
+      .from('workflow_organizations')
+      .select('settings')
+      .eq('id', organizationId)
+      .single();
+
+    updatePayload.settings = { ...(current?.settings ?? {}), ...body.settings };
+  }
+
+  if (Object.keys(updatePayload).length === 0) {
+    return NextResponse.json({ error: { code: 'BAD_REQUEST', message: '변경할 항목이 없습니다' } }, { status: 400 });
+  }
 
   const { data, error } = await supabase
     .from('workflow_organizations')
-    .update({ settings: merged })
+    .update(updatePayload)
     .eq('id', organizationId)
     .select('*')
     .single();

@@ -221,6 +221,8 @@ export interface IApprovalRepository {
     actioned_at: string | null;
     comment: string | null;
   }>): Promise<DocumentApproval>;
+
+  delete(id: string): Promise<void>;
 }
 
 // ============================================================================

@@ -7,7 +7,7 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { LuPlus, LuTrash2, LuChevronUp, LuChevronDown, LuSettings2, LuListOrdered, LuBookOpen, LuGripVertical, LuX, LuSend, LuRotateCcw, LuDownload, LuLayers } from 'react-icons/lu';
+import { LuPlus, LuTrash2, LuChevronUp, LuChevronDown, LuChevronRight, LuSettings2, LuListOrdered, LuBookOpen, LuGripVertical, LuX, LuSend, LuRotateCcw, LuDownload, LuLayers, LuSearch } from 'react-icons/lu';
 import { ActionButton, useFeedback } from '@/components/ui';
 import type { PreReportContent } from '@/lib/domain/types';
 import { CampaignPlanPreview } from './campaign-plan-preview';
@@ -121,26 +121,37 @@ interface CampaignCatalogItem {
 
 // ── CatalogCard ──────────────────────────────────────────
 
-function CatalogCard({ item, onAdd, onDragStart }: {
+function CatalogRow({ item, expanded, onToggle, onAdd, onDragStart }: {
   item: CampaignCatalogItem;
+  expanded: boolean;
+  onToggle: () => void;
   onAdd: (item: CampaignCatalogItem) => void;
   onDragStart: (e: React.DragEvent, item: CampaignCatalogItem) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
   const icon = SERVICE_ICONS.find((i) => i.id === item.icon);
 
+  const handleAdd = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onAdd(item);
+  };
+
   return (
-    <div className={s.catalogCard} draggable={!expanded} onDragStart={(e) => { if (!expanded) onDragStart(e, item); }}>
-      <div className={s.catalogCardHeader} onClick={() => setExpanded(!expanded)}>
-        <span className={s.catalogDragHandle}><LuGripVertical size={12} /></span>
-        <div className={s.catalogCardInfo}>
-          <span className={s.catalogCardName}>{icon?.emoji} {item.name}</span>
-          <span className={s.catalogCardPrice}>{fmtKRW(item.subtotal)}</span>
-        </div>
-        <LuChevronUp size={12} className={`${s.sectionChevron} ${expanded ? s.chevronOpen : ''}`} />
+    <>
+      <div
+        className={`${s.catalogItemRow} ${expanded ? s.catalogItemRowActive : ''}`}
+        draggable
+        onDragStart={(e) => onDragStart(e, item)}
+        onClick={onToggle}
+        title={item.name}
+      >
+        <span className={s.catalogItemRowHandle}><LuGripVertical size={11} /></span>
+        <span className={s.catalogItemRowName}>{icon?.emoji} {item.name}</span>
+        <button type="button" className={s.catalogItemRowAdd} onClick={handleAdd} title="진행안에 추가">
+          <LuPlus size={13} />
+        </button>
       </div>
       {expanded && (
-        <div className={s.catalogCardBody}>
+        <div className={s.catalogItemExpand}>
           <div className={s.catalogDetails}>
             {item.fields.map((f, fi) => (
               <div key={fi} className={s.catalogDetailItem}>
@@ -149,12 +160,15 @@ function CatalogCard({ item, onAdd, onDragStart }: {
               </div>
             ))}
           </div>
-          <button type="button" className={s.catalogAddBtn} onClick={() => { onAdd(item); setExpanded(false); }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary)', marginBottom: 6 }}>
+            {fmtKRW(item.subtotal)}
+          </div>
+          <button type="button" className={s.catalogAddBtn} onClick={handleAdd}>
             <LuPlus size={12} /> 진행안에 추가
           </button>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
@@ -178,10 +192,14 @@ export function CampaignPlanEditor({
   const previewRef = useRef<HTMLDivElement>(null);
   const [submitting, setSubmitting] = useState(false);
   const [pdfDownloading, setPdfDownloading] = useState(false);
+  const [approvalRefreshKey, setApprovalRefreshKey] = useState(0);
   const [openDrawer, setOpenDrawer] = useState<DrawerSection>(mode === 'new' ? 'info' : null);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [dragOverServices, setDragOverServices] = useState(false);
   const [campaignCatalog, setCampaignCatalog] = useState<CampaignCatalogItem[]>([]);
+  const [catalogSearch, setCatalogSearch] = useState('');
+  const [catalogCollapsedGroups, setCatalogCollapsedGroups] = useState<Set<string>>(new Set());
+  const [catalogExpandedItem, setCatalogExpandedItem] = useState<string | null>(null);
 
   // Fetch catalog from DB
   useEffect(() => {
@@ -294,16 +312,34 @@ export function CampaignPlanEditor({
     setOpenDrawer('services');
   }, []);
 
+  const dragCounterRef = useRef(0);
+
   const handleServicesDragOver = useCallback((e: React.DragEvent) => {
     if (e.dataTransfer.types.includes('application/x-campaign-catalog-id')) {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'copy';
+    }
+  }, []);
+
+  const handleServicesDragEnter = useCallback((e: React.DragEvent) => {
+    if (e.dataTransfer.types.includes('application/x-campaign-catalog-id')) {
+      e.preventDefault();
+      dragCounterRef.current++;
       setDragOverServices(true);
+    }
+  }, []);
+
+  const handleServicesDragLeave = useCallback(() => {
+    dragCounterRef.current--;
+    if (dragCounterRef.current <= 0) {
+      dragCounterRef.current = 0;
+      setDragOverServices(false);
     }
   }, []);
 
   const handleServicesDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
+    dragCounterRef.current = 0;
     setDragOverServices(false);
     const catalogId = e.dataTransfer.getData('application/x-campaign-catalog-id');
     if (!catalogId) return;
@@ -560,7 +596,8 @@ export function CampaignPlanEditor({
               <div
                 className={`${s.sectionBody} ${dragOverServices ? s.sectionDropTarget : ''}`}
                 onDragOver={handleServicesDragOver}
-                onDragLeave={() => setDragOverServices(false)}
+                onDragEnter={handleServicesDragEnter}
+                onDragLeave={handleServicesDragLeave}
                 onDrop={handleServicesDrop}
               >
                 {dragOverServices && (
@@ -669,14 +706,14 @@ export function CampaignPlanEditor({
           {/* ── 승인 현황 ── */}
           {documentId && documentStatus && documentStatus !== 'draft' && (
             <div className={s.section}>
-              <ApprovalPanel documentId={documentId} documentStatus={documentStatus} onStatusChange={onStatusChange} />
+              <ApprovalPanel documentId={documentId} documentStatus={documentStatus} refreshKey={approvalRefreshKey} onStatusChange={onStatusChange} />
             </div>
           )}
 
           {/* ── 승인 이력 ── */}
           {documentId && documentStatus && documentStatus !== 'draft' && (
             <div className={s.section}>
-              <ApprovalHistoryPanel documentId={documentId} documentStatus={documentStatus} onRevert={() => onStatusChange?.('in_review')} />
+              <ApprovalHistoryPanel documentId={documentId} documentStatus={documentStatus} onRevert={() => { setApprovalRefreshKey(k => k + 1); onStatusChange?.('in_review'); }} />
             </div>
           )}
         </div>
@@ -700,16 +737,72 @@ export function CampaignPlanEditor({
               <LuX size={14} />
             </button>
           </div>
-          <p className={s.catalogFlyoutHint}>드래그하여 서비스 구성에 추가하세요</p>
+          <div className={s.catalogSearch}>
+            <LuSearch size={13} className={s.catalogSearchIcon} />
+            <input
+              type="text"
+              className={s.catalogSearchInput}
+              placeholder="서비스 검색..."
+              value={catalogSearch}
+              onChange={(e) => setCatalogSearch(e.target.value)}
+            />
+            {catalogSearch && (
+              <button type="button" className={s.catalogSearchClear} onClick={() => setCatalogSearch('')} title="지우기">
+                <LuX size={12} />
+              </button>
+            )}
+          </div>
           <div className={s.catalogFlyoutBody}>
-            {Array.from(new Set(campaignCatalog.map((c) => c.group))).map((group) => (
-              <div key={group} className={s.catalogGroup}>
-                <span className={s.catalogGroupLabel}>{group}</span>
-                {campaignCatalog.filter((c) => c.group === group).map((ci) => (
-                  <CatalogCard key={ci.id} item={ci} onAdd={addFromCatalog} onDragStart={handleCatalogDragStart} />
-                ))}
-              </div>
-            ))}
+            {(() => {
+              const query = catalogSearch.trim().toLowerCase();
+              const filtered = query
+                ? campaignCatalog.filter((c) => c.name.toLowerCase().includes(query) || (c.group || '').toLowerCase().includes(query))
+                : campaignCatalog;
+              const groups = Array.from(new Set(filtered.map((c) => c.group || '미분류')));
+              if (filtered.length === 0) {
+                return <div className={s.catalogEmpty}>{query ? '검색 결과가 없습니다' : '카탈로그가 비어있습니다'}</div>;
+              }
+              return groups.map((group) => {
+                const groupItems = filtered.filter((c) => (c.group || '미분류') === group);
+                const isCollapsed = query ? false : catalogCollapsedGroups.has(group);
+                return (
+                  <div key={group} className={s.catalogFoldGroup}>
+                    <div
+                      className={s.catalogFoldHeader}
+                      onClick={() => {
+                        setCatalogCollapsedGroups((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(group)) next.delete(group);
+                          else next.add(group);
+                          return next;
+                        });
+                      }}
+                    >
+                      <LuChevronRight
+                        size={12}
+                        className={`${s.catalogFoldChevron} ${!isCollapsed ? s.catalogFoldChevronOpen : ''}`}
+                      />
+                      <span className={s.catalogFoldLabel}>{group}</span>
+                      <span className={s.catalogFoldCount}>{groupItems.length}</span>
+                    </div>
+                    {!isCollapsed && (
+                      <div className={s.catalogFoldBody}>
+                        {groupItems.map((ci) => (
+                          <CatalogRow
+                            key={ci.id}
+                            item={ci}
+                            expanded={catalogExpandedItem === ci.id}
+                            onToggle={() => setCatalogExpandedItem((prev) => (prev === ci.id ? null : ci.id))}
+                            onAdd={addFromCatalog}
+                            onDragStart={handleCatalogDragStart}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              });
+            })()}
           </div>
         </div>
       )}

@@ -123,4 +123,11 @@ export class SupabaseApprovalRepository implements IApprovalRepository {
     if (error || !row) throw new Error(`approval ?? ?ㅽ? ${error?.message}`);
     return row as unknown as DocumentApproval;
   }
-}
+  async delete(id: string): Promise<void> {
+    const { error } = await this.db
+      .from('workflow_document_approvals')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw new Error(`approval 삭제 실패: ${error.message}`);
+  }}

@@ -92,6 +92,7 @@ export function ContractEditor({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [approvalRefreshKey, setApprovalRefreshKey] = useState(0);
   const [openDrawer, setOpenDrawer] = useState<DrawerSection>('info');
 
   // ── Resizable panel ──
@@ -456,6 +457,7 @@ export function ContractEditor({
               <ApprovalPanel
                 documentId={documentId}
                 documentStatus={documentStatus}
+                refreshKey={approvalRefreshKey}
                 onStatusChange={onStatusChange}
               />
             </div>
@@ -467,7 +469,7 @@ export function ContractEditor({
               <ApprovalHistoryPanel
                 documentId={documentId}
                 documentStatus={documentStatus}
-                onRevert={() => onStatusChange?.('in_review')}
+                onRevert={() => { setApprovalRefreshKey(k => k + 1); onStatusChange?.('in_review'); }}
               />
             </div>
           )}

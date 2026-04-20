@@ -84,6 +84,15 @@
   white-space: nowrap;
 }
 
+.department {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .email {
   font-size: 11px;
   color: var(--color-text-muted);

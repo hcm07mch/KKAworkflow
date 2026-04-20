@@ -436,6 +436,7 @@ function EstimatesContent() {
             }}
             defaultClientId={selected.clientId}
             documentId={selected.id}
+            projectOwnerName={selected.ownerName && selected.ownerName !== '-' ? selected.ownerName : undefined}
             readOnly={selected.status !== 'draft' || !currentUserId || selected.ownerId !== currentUserId}
             documentStatus={selected.status}
             onSave={currentUserId && selected.ownerId === currentUserId ? handleSaveEdit : undefined}

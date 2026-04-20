@@ -1,6 +1,6 @@
 /**
  * API Route: Settings / Members
- * GET  /api/settings/members → 조직 멤버 목록
+ * GET  /api/settings/members → 조직 멤버 목록 (루트 조직 + 하위 조직 전체)
  * POST /api/settings/members → 멤버 초대 (profiles → workflow_users)
  */
 
@@ -8,16 +8,27 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthContext } from '@/lib/auth';
 import { createSupabaseServiceClient } from '@/lib/infrastructure/supabase/client';
 
+/** 루트 조직 + 하위 조직 ID 목록 조회 */
+async function getOrgIds(serviceClient: ReturnType<typeof createSupabaseServiceClient>, rootOrgId: string) {
+  const { data: children } = await serviceClient
+    .from('workflow_organizations')
+    .select('id')
+    .eq('parent_id', rootOrgId);
+  return [rootOrgId, ...(children ?? []).map((c: { id: string }) => c.id)];
+}
+
 export async function GET() {
   const auth = await getAuthContext();
   if (!auth.success) return auth.response;
 
-  const { supabase, organizationId } = auth;
+  const { organizationId } = auth;
+  const serviceClient = createSupabaseServiceClient();
+  const orgIds = await getOrgIds(serviceClient, organizationId);
 
-  const { data, error } = await supabase
+  const { data, error } = await serviceClient
     .from('workflow_users')
     .select('*')
-    .eq('organization_id', organizationId)
+    .in('organization_id', orgIds)
     .order('created_at', { ascending: true });
 
   if (error) {
@@ -40,13 +51,25 @@ export async function POST(req: NextRequest) {
 
   const { organizationId } = auth;
   const body = await req.json();
-  const { authId, role } = body as { authId: string; role: string };
+  const { authId, role, subOrgId } = body as { authId: string; role: string; subOrgId?: string };
 
   if (!authId || !['admin', 'manager', 'member'].includes(role)) {
     return NextResponse.json({ error: { code: 'BAD_REQUEST', message: '잘못된 요청입니다' } }, { status: 400 });
   }
 
   const serviceClient = createSupabaseServiceClient();
+
+  // 하위 조직 ID 검증
+  let targetOrgId = organizationId;
+  if (subOrgId) {
+    const { data: subOrg } = await serviceClient
+      .from('workflow_organizations')
+      .select('id')
+      .eq('id', subOrgId)
+      .eq('parent_id', organizationId)
+      .single();
+    if (subOrg) targetOrgId = subOrg.id;
+  }
 
   // 1. profiles에서 유저 정보 조회
   const { data: profile, error: profileError } = await serviceClient
@@ -59,12 +82,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: { code: 'NOT_FOUND', message: '유저를 찾을 수 없습니다' } }, { status: 404 });
   }
 
-  // 2. 이미 등록 여부 확인
+  // 2. 이미 등록 여부 확인 (전체 조직 범위)
+  const orgIds = await getOrgIds(serviceClient, organizationId);
   const { data: existing } = await serviceClient
     .from('workflow_users')
     .select('id')
     .eq('auth_id', authId)
-    .eq('organization_id', organizationId)
+    .in('organization_id', orgIds)
     .maybeSingle();
 
   if (existing) {
@@ -78,7 +102,7 @@ export async function POST(req: NextRequest) {
     .from('workflow_users')
     .insert({
       auth_id: authId,
-      organization_id: organizationId,
+      organization_id: targetOrgId,
       email: profile.email || '',
       name,
       role,

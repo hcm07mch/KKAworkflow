@@ -558,14 +558,9 @@ export class ApprovalService {
     const allApprovals = await this.approvalRepo.findByDocumentId(approval.document_id);
     for (const a of allApprovals) {
       if (a.step > approval.step && a.id !== approval.id) {
-        // 이후 단계 레코드를 취소 처리
+        // 이후 단계의 미처리 레코드를 완전 삭제 (cancel 처리하면 라운드 감지에 영향)
         if (a.action === null) {
-          await this.approvalRepo.update(a.id, {
-            approver_id: ctx.userId,
-            action: 'cancel',
-            actioned_at: new Date().toISOString(),
-            comment: '이전 단계 번복으로 인한 자동 취소',
-          });
+          await this.approvalRepo.delete(a.id);
         }
       }
     }
@@ -657,25 +652,27 @@ export class ApprovalService {
     const currentRoundApprovals = approvals.slice(roundStart);
 
     const completedSteps = currentRoundApprovals.filter(a => a.action === 'approve').length;
-    const pendingApproval = currentRoundApprovals.find(a => a.action === null);
-    const currentStep = pendingApproval?.step ?? null;
     const isFullyApproved = completedSteps >= policy.required_steps;
 
-    // 단계별 상태 빌드
+    // 단계별 상태 빌드 (순차적: 이전 단계 미승인 시 이후는 waiting)
     const steps = [];
+    let allPreviousApproved = true;
     for (let s = 1; s <= policy.required_steps; s++) {
       const stepConfig = policy.steps.find(ps => ps.step === s);
       const approval = currentRoundApprovals.find(a => a.step === s);
       let status: 'approved' | 'pending' | 'waiting';
       if (approval?.action === 'approve') {
         status = 'approved';
-      } else if (approval?.action === null) {
+      } else if (allPreviousApproved) {
         status = 'pending';
+        allPreviousApproved = false;
       } else {
         status = 'waiting';
       }
       steps.push({ step: s, label: stepConfig?.label ?? null, status, assigned_user_id: stepConfig?.assigned_user_id ?? null });
     }
+
+    const currentStep = steps.find(st => st.status === 'pending')?.step ?? null;
 
     return { requiredSteps: policy.required_steps, completedSteps, currentStep, isFullyApproved, steps };
   }

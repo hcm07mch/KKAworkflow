@@ -49,6 +49,7 @@ interface UserInfo {
 interface ApprovalPanelProps {
   documentId: string;
   documentStatus: string;
+  refreshKey?: number;
   onStatusChange?: (newStatus: string) => void;
 }
 
@@ -62,7 +63,7 @@ function fmtDateTime(iso: string) {
 
 // ── Component ────────────────────────────────────────────
 
-export function ApprovalPanel({ documentId, documentStatus, onStatusChange }: ApprovalPanelProps) {
+export function ApprovalPanel({ documentId, documentStatus, refreshKey, onStatusChange }: ApprovalPanelProps) {
   const { toast, confirm } = useFeedback();
   const [progress, setProgress] = useState<ApprovalProgress | null>(null);
   const [history, setHistory] = useState<ApprovalHistoryItem[]>([]);
@@ -72,6 +73,7 @@ export function ApprovalPanel({ documentId, documentStatus, onStatusChange }: Ap
   const [rejectComment, setRejectComment] = useState('');
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [approvalOpen, setApprovalOpen] = useState(true);
+  const [revertingStep, setRevertingStep] = useState<number | null>(null);
 
   // Fetch user info, approval progress, and history
   const fetchData = useCallback(async () => {
@@ -112,11 +114,13 @@ export function ApprovalPanel({ documentId, documentStatus, onStatusChange }: Ap
     if (documentStatus !== 'draft') {
       fetchData();
     }
-  }, [documentStatus, fetchData]);
+  }, [documentStatus, refreshKey, fetchData]);
 
-  // Find the pending approval in history
-  const pendingApproval = history.find((h) => h.action === null);
+  // Find the pending approval in history (현재 pending 단계에 해당하는 것만)
   const pendingStep = progress?.steps.find((s) => s.status === 'pending');
+  const pendingApproval = pendingStep
+    ? history.find((h) => h.action === null && h.step === pendingStep.step)
+    : null;
   const isRoleAllowed = userInfo && (userInfo.role === 'manager' || userInfo.role === 'admin');
   const isAssignedUser = pendingStep?.assigned_user_id
     ? userInfo?.id === pendingStep.assigned_user_id
@@ -164,14 +168,13 @@ export function ApprovalPanel({ documentId, documentStatus, onStatusChange }: Ap
 
       if (res.ok) {
         toast({ title: '승인 처리되었습니다', variant: 'success' });
+        await fetchData();
         // Check if fully approved
         const updatedProgress = progress
           ? { ...progress, completedSteps: progress.completedSteps + 1 }
           : null;
         if (updatedProgress && updatedProgress.completedSteps >= updatedProgress.requiredSteps) {
           onStatusChange?.('approved');
-        } else {
-          await fetchData(); // refresh for next step
         }
       } else {
         const err = await res.json().catch(() => ({}));
@@ -201,6 +204,7 @@ export function ApprovalPanel({ documentId, documentStatus, onStatusChange }: Ap
 
       if (res.ok) {
         toast({ title: '반려 처리되었습니다', variant: 'success' });
+        await fetchData();
         onStatusChange?.('rejected');
         setShowRejectForm(false);
         setRejectComment('');
@@ -251,7 +255,10 @@ export function ApprovalPanel({ documentId, documentStatus, onStatusChange }: Ap
           {/* Step-by-step vertical timeline */}
           {progress && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 0, marginBottom: 14 }}>
-            {progress.steps.map((step, i) => {
+            {(() => {
+              // 마지막 승인 단계만 번복 가능
+              const lastApprovedStep = [...progress.steps].reverse().find(s => s.status === 'approved')?.step ?? null;
+              return progress.steps.map((step, i) => {
               const c = stepColors[step.status];
               const isLast = i === progress.steps.length - 1;
               const isPending = step.status === 'pending';
@@ -305,14 +312,64 @@ export function ApprovalPanel({ documentId, documentStatus, onStatusChange }: Ap
                       </span>
                     </div>
 
-                    {/* Approved: show timestamp */}
+                    {/* Approved: show timestamp + revert button */}
                     {step.status === 'approved' && (() => {
                       const h = history.find((h) => h.step === step.step && h.action === 'approve');
-                      return h?.actioned_at ? (
-                        <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>
-                          {fmtDateTime(h.actioned_at)}
+                      return (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                          {h?.actioned_at && (
+                            <span style={{ fontSize: 10, color: '#94a3b8' }}>
+                              {fmtDateTime(h.actioned_at)}
+                            </span>
+                          )}
+                          {h && isRoleAllowed && step.step === lastApprovedStep && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const ok = await confirm({
+                                  title: '승인을 번복하시겠습니까?',
+                                  description: '해당 단계의 승인이 취소되고 문서가 검토 중 상태로 돌아갑니다.',
+                                  variant: 'warning',
+                                  confirmLabel: '번복',
+                                  cancelLabel: '취소',
+                                });
+                                if (!ok) return;
+                                setRevertingStep(step.step);
+                                try {
+                                  const res = await fetch(`/api/approvals/${h.id}`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ action: 'revert' }),
+                                  });
+                                  if (res.ok) {
+                                    toast({ title: '승인이 번복되었습니다', variant: 'success' });
+                                    await fetchData();
+                                    onStatusChange?.('in_review');
+                                  } else {
+                                    const err = await res.json().catch(() => ({}));
+                                    toast({ title: err?.error?.message || '번복 처리에 실패했습니다', variant: 'error' });
+                                  }
+                                } catch {
+                                  toast({ title: '번복 처리 중 오류가 발생했습니다', variant: 'error' });
+                                } finally {
+                                  setRevertingStep(null);
+                                }
+                              }}
+                              disabled={revertingStep === step.step}
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 3,
+                                fontSize: 10, color: '#64748b', background: 'none',
+                                border: '1px solid #e2e8f0', borderRadius: 4,
+                                padding: '1px 6px', cursor: 'pointer',
+                                opacity: revertingStep === step.step ? 0.5 : 1,
+                              }}
+                            >
+                              <LuRotateCcw size={9} />
+                              {revertingStep === step.step ? '처리 중...' : '번복'}
+                            </button>
+                          )}
                         </div>
-                      ) : null;
+                      );
                     })()}
 
                     {/* Pending: inline action buttons for manager/admin */}
@@ -390,7 +447,8 @@ export function ApprovalPanel({ documentId, documentStatus, onStatusChange }: Ap
                   </div>
                 </div>
               );
-            })}
+            });
+            })()}
           </div>
           )}
 
@@ -468,7 +526,12 @@ export function ApprovalHistoryPanel({ documentId, documentStatus, onRevert }: A
       });
       if (res.ok) {
         toast({ title: '승인이 번복되었습니다', variant: 'success' });
-        setHistory((prev) => prev.filter((h) => h.id !== approvalId));
+        // 서버에서 최신 이력 다시 가져오기
+        const historyRes = await fetch(`/api/documents/${documentId}/approvals`);
+        if (historyRes.ok) {
+          const data = await historyRes.json();
+          setHistory(Array.isArray(data) ? data : []);
+        }
         onRevert?.();
       } else {
         const err = await res.json().catch(() => ({}));
