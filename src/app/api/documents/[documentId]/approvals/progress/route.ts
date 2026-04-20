@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthContext } from '@/lib/auth';
+import { getAuthContext, verifyDocumentInOrg } from '@/lib/auth';
 
 export async function GET(
   _request: NextRequest,
@@ -14,6 +14,9 @@ export async function GET(
   if (!auth.success) return auth.response;
 
   const { documentId } = await params;
+
+  const orgError = await verifyDocumentInOrg(auth, documentId);
+  if (orgError) return orgError;
 
   const progress = await auth.services.approvalService.getApprovalProgress(
     documentId,

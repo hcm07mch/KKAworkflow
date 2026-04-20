@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthContext } from '@/lib/auth';
+import { getAuthContext, verifyProjectInOrg } from '@/lib/auth';
 
 export async function POST(
   request: NextRequest,
@@ -17,6 +17,9 @@ export async function POST(
 
   const { id } = await params;
   const { status, reason } = await request.json();
+
+  const orgError = await verifyProjectInOrg(auth, id);
+  if (orgError) return orgError;
 
   const result = await auth.services.projectService.transitionStatus(
     { project_id: id, to_status: status, reason },

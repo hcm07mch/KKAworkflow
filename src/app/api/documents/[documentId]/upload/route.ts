@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthContext } from '@/lib/auth';
+import { getAuthContext, verifyDocumentInOrg } from '@/lib/auth';
 import { createSupabaseServiceClient } from '@/lib/infrastructure/supabase';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
@@ -29,6 +29,9 @@ export async function POST(
   if (!auth.success) return auth.response;
 
   const { documentId } = await params;
+
+  const orgError = await verifyDocumentInOrg(auth, documentId);
+  if (orgError) return orgError;
 
   // 1) 문서 존재 확인 + 권한 검증
   const doc = await auth.services.documentRepo.findById(documentId);

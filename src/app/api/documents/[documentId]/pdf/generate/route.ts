@@ -7,7 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthContext } from '@/lib/auth';
+import { getAuthContext, verifyDocumentInOrg } from '@/lib/auth';
 import { generatePdf } from '@/lib/pdf/generate-pdf';
 
 export const maxDuration = 60;
@@ -20,6 +20,9 @@ export async function POST(
   if (!auth.success) return auth.response;
 
   const { documentId } = await params;
+
+  const orgError = await verifyDocumentInOrg(auth, documentId);
+  if (orgError) return orgError;
 
   const doc = await auth.services.documentRepo.findById(documentId);
   if (!doc) {

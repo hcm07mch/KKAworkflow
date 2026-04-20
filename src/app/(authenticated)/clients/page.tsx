@@ -21,6 +21,8 @@ interface ClientItem {
   contactEmail: string | null;
   contactPhone: string | null;
   address: string | null;
+  organizationId: string | null;
+  organizationName: string | null;
   serviceType: ServiceType;
   paymentType: PaymentType;
   tier: ClientTier;
@@ -54,6 +56,8 @@ export default function ClientsPage() {
   const [clients, setClients] = useState<ClientItem[]>([]);
   const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [members, setMembers] = useState<MemberItem[]>([]);
+  const [orgInfo, setOrgInfo] = useState<{ id: string; name: string; parent_id: string | null } | null>(null);
+  const [childOrgs, setChildOrgs] = useState<Array<{ id: string; name: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<ClientItem | null>(null);
@@ -95,6 +99,8 @@ export default function ClientsPage() {
         contactEmail: c.contact_email,
         contactPhone: c.contact_phone,
         address: c.address,
+        organizationId: c.organization_id ?? null,
+        organizationName: c.organization?.name ?? null,
         serviceType: c.service_type,
         paymentType: c.payment_type,
         tier: c.tier,
@@ -114,6 +120,22 @@ export default function ClientsPage() {
 
   useEffect(() => { loadClients(); }, [loadClients]);
 
+  // 본사(루트) 계정은 고객의 소속 조직을 변경 가능하도록 조직 정보 로드
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/settings/org').then((r) => r.ok ? r.json() : null),
+      fetch('/api/settings/departments').then((r) => r.ok ? r.json() : []),
+    ]).then(([org, depts]) => {
+      if (org) setOrgInfo({ id: org.id, name: org.name, parent_id: org.parent_id ?? null });
+      setChildOrgs((depts ?? []).map((d: any) => ({ id: d.id, name: d.name })));
+    }).catch(() => {});
+  }, []);
+
+  const isRootOrg = !!orgInfo && !orgInfo.parent_id;
+  const allowedOrgOptions = orgInfo
+    ? [{ id: orgInfo.id, name: orgInfo.name }, ...childOrgs]
+    : [];
+
   // ── New client form state ──
 
   const emptyForm = {
@@ -126,6 +148,7 @@ export default function ClientsPage() {
     service_type: 'viral' as ServiceType,
     payment_type: 'deposit' as PaymentType,
     tier: 'regular' as ClientTier,
+    organization_id: '',
     // 프로젝트 필드
     project_title: '',
     project_description: '',
@@ -219,6 +242,7 @@ export default function ClientsPage() {
       service_type: selected.serviceType,
       payment_type: selected.paymentType,
       tier: selected.tier,
+      organization_id: selected.organizationId ?? '',
       project_title: '',
       project_description: '',
       project_owner_id: '',
@@ -238,6 +262,20 @@ export default function ClientsPage() {
       setFormError('올바른 이메일 형식을 입력하세요.');
       return;
     }
+
+    // 조직 변경 시 프로젝트 이관 여부 확인
+    const orgChanged = isRootOrg && !!form.organization_id && form.organization_id !== selected.organizationId;
+    let migrateProjects = false;
+    if (orgChanged) {
+      const clientProjectCount = projects.filter((p) => p.clientId === selected.id).length;
+      if (clientProjectCount > 0) {
+        const newOrgName = allowedOrgOptions.find((o) => o.id === form.organization_id)?.name ?? '선택한 조직';
+        migrateProjects = confirm(
+          `"${selected.name}" 고객의 프로젝트 ${clientProjectCount}건도 "${newOrgName}"(으)로 함께 이관하시겠습니까?\n\n[확인] 프로젝트 함께 이관\n[취소] 고객만 이관 (프로젝트는 현재 조직에 유지)`,
+        );
+      }
+    }
+
     setSaving(true);
     setFormError('');
     try {
@@ -251,6 +289,7 @@ export default function ClientsPage() {
           contact_phone: form.contact_phone || null,
           address: form.address || null,
           tier: form.tier,
+          ...(orgChanged ? { organization_id: form.organization_id, migrate_projects: migrateProjects } : {}),
         }),
       });
       if (!res.ok) {
@@ -258,6 +297,9 @@ export default function ClientsPage() {
         throw new Error(err.error || '수정에 실패했습니다.');
       }
       const updated = await res.json();
+      const newOrgName = updated.organization_id
+        ? (allowedOrgOptions.find((o) => o.id === updated.organization_id)?.name ?? selected.organizationName)
+        : selected.organizationName;
       const updatedClient: ClientItem = {
         id: updated.id,
         name: updated.name,
@@ -265,6 +307,8 @@ export default function ClientsPage() {
         contactEmail: updated.contact_email,
         contactPhone: updated.contact_phone,
         address: updated.address,
+        organizationId: updated.organization_id ?? null,
+        organizationName: newOrgName,
         serviceType: updated.service_type,
         paymentType: updated.payment_type,
         tier: updated.tier,
@@ -345,6 +389,8 @@ export default function ClientsPage() {
         contactEmail: created.contact_email,
         contactPhone: created.contact_phone,
         address: created.address,
+        organizationId: created.organization_id ?? null,
+        organizationName: created.organization?.name ?? null,
         serviceType: created.service_type,
         paymentType: created.payment_type,
         tier: created.tier,
@@ -583,6 +629,21 @@ export default function ClientsPage() {
             <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
               <table className={panel.formTable}>
                 <tbody>
+                  {mode === 'edit' && isRootOrg && allowedOrgOptions.length > 1 && (
+                    <tr>
+                      <th>소속 조직</th>
+                      <td>
+                        <select
+                          value={form.organization_id}
+                          onChange={(e) => updateForm('organization_id', e.target.value)}
+                        >
+                          {allowedOrgOptions.map((o) => (
+                            <option key={o.id} value={o.id}>{o.name}</option>
+                          ))}
+                        </select>
+                      </td>
+                    </tr>
+                  )}
                   <tr className={panel.requiredRow}>
                     <th>고객사명</th>
                     <td>
@@ -760,6 +821,10 @@ export default function ClientsPage() {
             <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
               <table className={panel.formTable}>
                 <tbody>
+                  <tr>
+                    <th>소속 조직</th>
+                    <td><span className={panel.fieldValue}>{selected.organizationName ?? '-'}</span></td>
+                  </tr>
                   <tr>
                     <th>담당자</th>
                     <td><span className={panel.fieldValue}>{selected.contactName ?? '-'}</span></td>

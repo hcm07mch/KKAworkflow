@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthContext } from '@/lib/auth';
+import { getAuthContext, verifyDocumentInOrg } from '@/lib/auth';
 import { createSupabaseServiceClient } from '@/lib/infrastructure/supabase';
 
 export async function GET(
@@ -15,6 +15,9 @@ export async function GET(
   if (!auth.success) return auth.response;
 
   const { documentId } = await params;
+
+  const orgError = await verifyDocumentInOrg(auth, documentId);
+  if (orgError) return orgError;
 
   // 1) 문서 조회 → metadata.pdf_path 확인
   const doc = await auth.services.documentRepo.findById(documentId);

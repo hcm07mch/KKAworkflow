@@ -10,7 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthContext } from '@/lib/auth';
+import { getAuthContext, verifyDocumentInOrg } from '@/lib/auth';
 import { generatePdf } from '@/lib/pdf/generate-pdf';
 import type { ProjectStatus } from '@/lib/domain/types';
 
@@ -30,6 +30,9 @@ export async function POST(
   if (!auth.success) return auth.response;
 
   const { documentId } = await params;
+
+  const orgError = await verifyDocumentInOrg(auth, documentId);
+  if (orgError) return orgError;
 
   // origin과 cookie를 추출 (PDF 생성 시 필요)
   const origin = _request.nextUrl.origin;

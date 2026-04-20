@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthContext } from '@/lib/auth';
+import { getAuthContext, requireRootOrg } from '@/lib/auth';
 import { createSupabaseServiceClient } from '@/lib/infrastructure/supabase/client';
 
 export async function PATCH(
@@ -14,6 +14,9 @@ export async function PATCH(
 ) {
   const auth = await getAuthContext();
   if (!auth.success) return auth.response;
+
+  const rootErr = requireRootOrg(auth);
+  if (rootErr) return rootErr;
 
   if (auth.role !== 'admin' && auth.role !== 'manager') {
     return NextResponse.json(
@@ -89,6 +92,9 @@ export async function DELETE(
 ) {
   const auth = await getAuthContext();
   if (!auth.success) return auth.response;
+
+  const rootErr = requireRootOrg(auth);
+  if (rootErr) return rootErr;
 
   if (auth.role !== 'admin' && auth.role !== 'manager') {
     return NextResponse.json(

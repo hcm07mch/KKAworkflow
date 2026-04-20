@@ -77,6 +77,7 @@ export interface IClientRepository {
     tier: string;
     metadata: JsonObject;
     is_active: boolean;
+    organization_id: string;
   }>): Promise<Client>;
 }
 

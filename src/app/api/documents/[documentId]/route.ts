@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthContext } from '@/lib/auth';
+import { getAuthContext, verifyDocumentInOrg } from '@/lib/auth';
 import { createSupabaseServiceClient } from '@/lib/infrastructure/supabase';
 
 export async function GET(
@@ -38,6 +38,9 @@ export async function PUT(
 
   const { documentId } = await params;
   const body = await request.json();
+
+  const orgError = await verifyDocumentInOrg(auth, documentId);
+  if (orgError) return orgError;
 
   const existing = await auth.services.documentRepo.findById(documentId);
   if (!existing) {
@@ -79,6 +82,10 @@ export async function DELETE(
   if (!auth.success) return auth.response;
 
   const { documentId } = await params;
+
+  const orgError = await verifyDocumentInOrg(auth, documentId);
+  if (orgError) return orgError;
+
   const doc = await auth.services.documentRepo.findById(documentId);
   if (!doc) {
     return NextResponse.json(

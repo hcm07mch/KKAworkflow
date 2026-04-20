@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthContext, requireRole } from '@/lib/auth';
+import { getAuthContext, requireRole, requireRootOrg } from '@/lib/auth';
 
 export async function GET() {
   const auth = await getAuthContext();
@@ -21,6 +21,9 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const auth = await getAuthContext();
   if (!auth.success) return auth.response;
+
+  const rootErr = requireRootOrg(auth);
+  if (rootErr) return rootErr;
 
   const roleCheck = requireRole(auth.role, 'admin');
   if (roleCheck) return roleCheck;

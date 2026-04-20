@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthContext } from '@/lib/auth';
+import { getAuthContext, verifyDocumentInOrg } from '@/lib/auth';
 
 export async function GET(
   request: NextRequest,
@@ -15,6 +15,10 @@ export async function GET(
   if (!auth.success) return auth.response;
 
   const { documentId } = await params;
+
+  const orgError = await verifyDocumentInOrg(auth, documentId);
+  if (orgError) return orgError;
+
   const history = await auth.services.approvalService.getApprovalHistory(documentId);
 
   return NextResponse.json(history);
@@ -29,6 +33,9 @@ export async function POST(
 
   const { documentId } = await params;
   const body = await request.json().catch(() => ({}));
+
+  const orgError = await verifyDocumentInOrg(auth, documentId);
+  if (orgError) return orgError;
 
   const result = await auth.services.approvalService.requestDocumentApproval(
     { document_id: documentId, comment: body.comment },

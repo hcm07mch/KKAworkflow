@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthContext } from '@/lib/auth';
+import { getAuthContext, verifyProjectInOrg } from '@/lib/auth';
 
 export async function GET(
   request: NextRequest,
@@ -15,6 +15,10 @@ export async function GET(
   if (!auth.success) return auth.response;
 
   const { id } = await params;
+
+  const orgError = await verifyProjectInOrg(auth, id);
+  if (orgError) return orgError;
+
   const project = await auth.services.projectRepo.findByIdWithRelations(id);
 
   if (!project) {
@@ -35,6 +39,9 @@ export async function PATCH(
 
   const { id } = await params;
   const body = await request.json();
+
+  const orgError2 = await verifyProjectInOrg(auth, id);
+  if (orgError2) return orgError2;
 
   const result = await auth.services.projectService.updateProject(
     id,

@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthContext } from '@/lib/auth';
+import { getAuthContext, verifyDocumentInOrg } from '@/lib/auth';
 
 export async function POST(
   request: NextRequest,
@@ -15,6 +15,9 @@ export async function POST(
 
   const { documentId } = await params;
   const body = await request.json().catch(() => ({}));
+
+  const orgError = await verifyDocumentInOrg(auth, documentId);
+  if (orgError) return orgError;
 
   const result = await auth.services.documentService.sendDocumentToClient(
     { document_id: documentId, sent_to: body.sent_to },

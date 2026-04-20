@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthContext } from '@/lib/auth';
+import { getAuthContext, verifyProjectInOrg } from '@/lib/auth';
 import { createSupabaseServiceClient } from '@/lib/infrastructure/supabase/client';
 
 export async function GET(
@@ -16,6 +16,9 @@ export async function GET(
   if (!auth.success) return auth.response;
 
   const { id } = await params;
+
+  const orgError = await verifyProjectInOrg(auth, id);
+  if (orgError) return orgError;
 
   // 프로젝트 존재 + 권한 확인
   const project = await auth.services.projectRepo.findById(id);
@@ -52,6 +55,9 @@ export async function POST(
 
   const { id } = await params;
   const body = await request.json();
+
+  const orgError = await verifyProjectInOrg(auth, id);
+  if (orgError) return orgError;
 
   // 입력 검증
   const amount = Number(body.amount);

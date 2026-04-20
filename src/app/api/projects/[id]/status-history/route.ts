@@ -7,7 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthContext } from '@/lib/auth';
+import { getAuthContext, verifyProjectInOrg } from '@/lib/auth';
 
 const MAX_LIMIT = 50;
 const DEFAULT_LIMIT = 20;
@@ -21,6 +21,9 @@ export async function GET(
 
   const { id: projectId } = await params;
   const { searchParams } = request.nextUrl;
+
+  const orgError = await verifyProjectInOrg(auth, projectId);
+  if (orgError) return orgError;
 
   const limit = Math.min(
     Math.max(parseInt(searchParams.get('limit') ?? '', 10) || DEFAULT_LIMIT, 1),

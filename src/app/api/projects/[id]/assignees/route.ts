@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthContext } from '@/lib/auth';
+import { getAuthContext, verifyProjectInOrg } from '@/lib/auth';
 
 export async function GET(
   _request: NextRequest,
@@ -16,6 +16,10 @@ export async function GET(
   if (!auth.success) return auth.response;
 
   const { id } = await params;
+
+  const orgError = await verifyProjectInOrg(auth, id);
+  if (orgError) return orgError;
+
   const assignees = await auth.services.assigneeRepo.findByProjectId(id);
   return NextResponse.json(assignees);
 }
@@ -29,6 +33,9 @@ export async function POST(
 
   const { id: projectId } = await params;
   const body = await request.json();
+
+  const orgError = await verifyProjectInOrg(auth, projectId);
+  if (orgError) return orgError;
 
   if (!body.user_id) {
     return NextResponse.json({ error: 'user_id is required' }, { status: 400 });
@@ -65,6 +72,9 @@ export async function DELETE(
 
   const { id: projectId } = await params;
   const body = await request.json();
+
+  const orgError = await verifyProjectInOrg(auth, projectId);
+  if (orgError) return orgError;
 
   if (!body.user_id) {
     return NextResponse.json({ error: 'user_id is required' }, { status: 400 });

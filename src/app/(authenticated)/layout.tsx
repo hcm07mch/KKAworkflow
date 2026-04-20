@@ -1,6 +1,6 @@
 'use client';
 
-import { UserNav, Sidebar } from '@/components/ui';
+import { UserNav, Sidebar, ScopeSwitcher } from '@/components/ui';
 import styles from './layout.module.css';
 
 /**
@@ -21,6 +21,7 @@ export default function AuthenticatedLayout({
           <span className={styles.topBarBrand}>KKA Workflow</span>
         </div>
         <div className={styles.topBarRight}>
+          <ScopeSwitcher />
           <UserNav />
         </div>
       </header>

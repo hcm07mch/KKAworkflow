@@ -5,18 +5,18 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthContext } from '@/lib/auth';
+import { getAuthContext, requireRootOrg } from '@/lib/auth';
 
 export async function GET() {
   const auth = await getAuthContext();
   if (!auth.success) return auth.response;
 
-  const { supabase, organizationId } = auth;
+  const { supabase, userOrganizationId } = auth;
 
   const { data, error } = await supabase
     .from('workflow_organizations')
     .select('*')
-    .eq('id', organizationId)
+    .eq('id', userOrganizationId)
     .single();
 
   if (error || !data) {
@@ -33,11 +33,14 @@ export async function PATCH(req: NextRequest) {
   const auth = await getAuthContext();
   if (!auth.success) return auth.response;
 
+  const rootErr = requireRootOrg(auth);
+  if (rootErr) return rootErr;
+
   if (auth.role !== 'admin' && auth.role !== 'manager') {
     return NextResponse.json({ error: { code: 'FORBIDDEN', message: '권한이 없습니다' } }, { status: 403 });
   }
 
-  const { supabase, organizationId } = auth;
+  const { supabase, userOrganizationId } = auth;
   const body = await req.json();
 
   const updatePayload: Record<string, unknown> = {};
@@ -52,7 +55,7 @@ export async function PATCH(req: NextRequest) {
     const { data: current } = await supabase
       .from('workflow_organizations')
       .select('settings')
-      .eq('id', organizationId)
+      .eq('id', userOrganizationId)
       .single();
 
     updatePayload.settings = { ...(current?.settings ?? {}), ...body.settings };
@@ -65,7 +68,7 @@ export async function PATCH(req: NextRequest) {
   const { data, error } = await supabase
     .from('workflow_organizations')
     .update(updatePayload)
-    .eq('id', organizationId)
+    .eq('id', userOrganizationId)
     .select('*')
     .single();
 

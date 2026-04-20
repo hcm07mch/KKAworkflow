@@ -10,7 +10,7 @@ export async function GET() {
   const auth = await getAuthContext();
   if (!auth.success) return auth.response;
 
-  const { supabase, organizationId } = auth;
+  const { supabase, allowedOrgIds } = auth;
 
   // ── 병렬로 필요한 데이터 조회 ──
 
@@ -19,7 +19,7 @@ export async function GET() {
     supabase
       .from('workflow_projects')
       .select('id, title, status, total_amount, start_date, metadata, client:workflow_clients(name), owner:workflow_users!workflow_projects_owner_id_fkey(name)')
-      .eq('organization_id', organizationId)
+      .in('organization_id', allowedOrgIds)
       .order('created_at', { ascending: false }),
 
     // 2) D1 진입 이력 (미입금 경과일 계산용)

@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthContext } from '@/lib/auth';
+import { getAuthContext, verifyProjectInOrg } from '@/lib/auth';
 import { createSupabaseServiceClient } from '@/lib/infrastructure/supabase/client';
 
 export async function GET(
@@ -17,6 +17,9 @@ export async function GET(
   if (!auth.success) return auth.response;
 
   const { id } = await params;
+
+  const orgError = await verifyProjectInOrg(auth, id);
+  if (orgError) return orgError;
 
   const documents = await auth.services.documentRepo.findByProjectId(id);
 
@@ -32,6 +35,9 @@ export async function POST(
 
   const { id } = await params;
   const body = await request.json();
+
+  const orgError = await verifyProjectInOrg(auth, id);
+  if (orgError) return orgError;
 
   const result = await auth.services.documentService.createProjectDocument(
     {
@@ -57,6 +63,9 @@ export async function DELETE(
 
   const { id } = await params;
   const type = request.nextUrl.searchParams.get('type');
+
+  const orgError = await verifyProjectInOrg(auth, id);
+  if (orgError) return orgError;
 
   if (!type || !['estimate', 'contract', 'pre_report', 'report', 'payment'].includes(type)) {
     return NextResponse.json(

@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthContext } from '@/lib/auth';
+import { getAuthContext, requireRootOrg } from '@/lib/auth';
 import { createSupabaseServiceClient } from '@/lib/infrastructure/supabase/client';
 
 export async function PUT(
@@ -14,6 +14,9 @@ export async function PUT(
 ) {
   const auth = await getAuthContext();
   if (!auth.success) return auth.response;
+
+  const rootErr = requireRootOrg(auth);
+  if (rootErr) return rootErr;
 
   if (auth.role !== 'admin' && auth.role !== 'manager') {
     return NextResponse.json({ error: { code: 'FORBIDDEN', message: '권한이 없습니다' } }, { status: 403 });
@@ -57,6 +60,9 @@ export async function DELETE(
 ) {
   const auth = await getAuthContext();
   if (!auth.success) return auth.response;
+
+  const rootErr = requireRootOrg(auth);
+  if (rootErr) return rootErr;
 
   if (auth.role !== 'admin' && auth.role !== 'manager') {
     return NextResponse.json({ error: { code: 'FORBIDDEN', message: '권한이 없습니다' } }, { status: 403 });

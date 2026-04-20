@@ -3,6 +3,7 @@ export { ActionButton } from './action-button';
 export { UserNav } from './user-nav';
 export { Sidebar } from './sidebar';
 export { NotificationBell } from './notification-bell';
+export { ScopeSwitcher } from './scope-switcher';
 export { ConfirmDialog } from './confirm-dialog';
 export type { ConfirmOptions, ConfirmVariant } from './confirm-dialog';
 export { ToastContainer, useToastState } from './toast';

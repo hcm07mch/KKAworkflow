@@ -5,13 +5,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthContext } from '@/lib/auth';
+import { getAuthContext, verifyClientInOrg } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   const auth = await getAuthContext();
   if (!auth.success) return auth.response;
 
-  const { supabase, organizationId } = auth;
+  const { supabase, allowedOrgIds } = auth;
   const { searchParams } = request.nextUrl;
 
   const page = Number(searchParams.get('page') ?? 1);
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
       '*, client:workflow_clients(id, name), owner:workflow_users!workflow_projects_owner_id_fkey(id, name)',
       { count: 'exact' },
     )
-    .eq('organization_id', organizationId);
+    .in('organization_id', allowedOrgIds);
 
   if (status) {
     query = query.in('status', status.split(','));
@@ -60,6 +60,13 @@ export async function POST(request: NextRequest) {
   if (!auth.success) return auth.response;
 
   const body = await request.json();
+
+  // client_id가 내 조직 범위에 속하는지 검증
+  if (body.client_id) {
+    const clientOrgError = await verifyClientInOrg(auth, body.client_id);
+    if (clientOrgError) return clientOrgError;
+  }
+
   const result = await auth.services.projectService.createProject(
     {
       ...body,

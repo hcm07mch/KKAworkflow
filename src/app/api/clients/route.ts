@@ -14,16 +14,11 @@ export async function GET(request: NextRequest) {
 
   // 루트 조직 + 하위 조직 전체 고객사 조회
   const serviceClient = createSupabaseServiceClient();
-  const { data: children } = await serviceClient
-    .from('workflow_organizations')
-    .select('id')
-    .eq('parent_id', auth.organizationId);
-  const orgIds = [auth.organizationId, ...(children ?? []).map((c: { id: string }) => c.id)];
 
   const { data: clients, error } = await serviceClient
     .from('workflow_clients')
-    .select('*')
-    .in('organization_id', orgIds)
+    .select('*, organization:workflow_organizations(id, name)')
+    .in('organization_id', auth.allowedOrgIds)
     .order('name');
 
   if (error) {

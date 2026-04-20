@@ -16,6 +16,7 @@ interface OrgInfo {
   name: string;
   slug: string;
   created_at: string;
+  parent_id: string | null;
   settings?: {
     default_estimate_notes?: string[];
     [key: string]: unknown;
@@ -142,6 +143,10 @@ export default function SettingsPage() {
     ]).then(([orgData, membersData, policiesData, estCatalogs, execCatalogs, deptData, estCategories, execCategories]) => {
       setOrg(orgData);
       setOrgName(orgData.name ?? '');
+      // 지사 계정이면 기본 섹션을 '문서 기본값'으로 이동 (조직/멤버/승인은 비노출)
+      if (orgData?.parent_id) {
+        setActiveSection('doc-defaults');
+      }
       setMembers(membersData ?? []);
       setDepartments(Array.isArray(deptData) ? deptData : []);
       setPolicies(Array.isArray(policiesData) ? policiesData : []);
@@ -181,7 +186,12 @@ export default function SettingsPage() {
           <span className={panel.leftTitle}>설정</span>
         </div>
         <div className={panel.itemList}>
-          {SECTIONS.map((s) => (
+          {SECTIONS.filter((s) => {
+            // 조직/멤버/승인정책은 본사(루트) 계정만 접근
+            const rootOnly: SettingsSection[] = ['org', 'members', 'approval'];
+            if (rootOnly.includes(s.key) && org && org.parent_id) return false;
+            return true;
+          }).map((s) => (
             <div
               key={s.key}
               className={`${panel.item} ${activeSection === s.key ? panel.itemActive : ''}`}

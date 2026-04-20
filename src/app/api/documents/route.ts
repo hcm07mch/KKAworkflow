@@ -5,14 +5,14 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthContext } from '@/lib/auth';
+import { getAuthContext, verifyProjectInOrg } from '@/lib/auth';
 import { DOCUMENT_TYPES } from '@/lib/domain/types';
 
 export async function GET(request: NextRequest) {
   const auth = await getAuthContext();
   if (!auth.success) return auth.response;
 
-  const { supabase, organizationId } = auth;
+  const { supabase, allowedOrgIds } = auth;
   const { searchParams } = request.nextUrl;
   const type = searchParams.get('type');
 
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     .select(
       '*, project:workflow_projects!inner(id, title, organization_id, service_type, total_amount, start_date, end_date, status, client:workflow_clients(id, name), owner:workflow_users!workflow_projects_owner_id_fkey(id, name))',
     )
-    .eq('project.organization_id', organizationId);
+    .in('project.organization_id', allowedOrgIds);
 
   if (type) {
     query = query.eq('type', type);
@@ -63,6 +63,10 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     );
   }
+
+  // 프로젝트가 내 조직 범위 안에 속하는지 검증
+  const orgError = await verifyProjectInOrg(auth, project_id);
+  if (orgError) return orgError;
 
   const ctx = { userId: auth.dbUser.id, userRole: auth.role, organizationId: auth.organizationId };
 

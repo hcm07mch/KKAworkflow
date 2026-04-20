@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthContext } from '@/lib/auth';
+import { getAuthContext, requireRootOrg } from '@/lib/auth';
 import { createSupabaseServiceClient } from '@/lib/infrastructure/supabase/client';
 
 /** 루트 조직 + 하위 조직 ID 목록 조회 */
@@ -21,14 +21,12 @@ export async function GET() {
   const auth = await getAuthContext();
   if (!auth.success) return auth.response;
 
-  const { organizationId } = auth;
   const serviceClient = createSupabaseServiceClient();
-  const orgIds = await getOrgIds(serviceClient, organizationId);
 
   const { data, error } = await serviceClient
     .from('workflow_users')
     .select('*')
-    .in('organization_id', orgIds)
+    .in('organization_id', auth.allowedOrgIds)
     .order('created_at', { ascending: true });
 
   if (error) {
@@ -45,11 +43,14 @@ export async function POST(req: NextRequest) {
   const auth = await getAuthContext();
   if (!auth.success) return auth.response;
 
+  const rootErr = requireRootOrg(auth);
+  if (rootErr) return rootErr;
+
   if (auth.role !== 'admin' && auth.role !== 'manager') {
     return NextResponse.json({ error: { code: 'FORBIDDEN', message: '권한이 없습니다' } }, { status: 403 });
   }
 
-  const { organizationId } = auth;
+  const { userOrganizationId } = auth;
   const body = await req.json();
   const { authId, role, subOrgId } = body as { authId: string; role: string; subOrgId?: string };
 
@@ -60,13 +61,13 @@ export async function POST(req: NextRequest) {
   const serviceClient = createSupabaseServiceClient();
 
   // 하위 조직 ID 검증
-  let targetOrgId = organizationId;
+  let targetOrgId = userOrganizationId;
   if (subOrgId) {
     const { data: subOrg } = await serviceClient
       .from('workflow_organizations')
       .select('id')
       .eq('id', subOrgId)
-      .eq('parent_id', organizationId)
+      .eq('parent_id', userOrganizationId)
       .single();
     if (subOrg) targetOrgId = subOrg.id;
   }
@@ -83,7 +84,7 @@ export async function POST(req: NextRequest) {
   }
 
   // 2. 이미 등록 여부 확인 (전체 조직 범위)
-  const orgIds = await getOrgIds(serviceClient, organizationId);
+  const orgIds = await getOrgIds(serviceClient, userOrganizationId);
   const { data: existing } = await serviceClient
     .from('workflow_users')
     .select('id')
