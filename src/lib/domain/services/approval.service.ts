@@ -48,7 +48,7 @@ export class ApprovalService {
   ) {}
 
   // --------------------------------------------------------------------------
-  // getRequiredSteps (내부 헬퍼)
+  // getPolicy (내부 헬퍼)
   // --------------------------------------------------------------------------
   /**
    * 문서 타입에 맞는 승인 정책 조회
@@ -64,11 +64,26 @@ export class ApprovalService {
   ): Promise<ApprovalPolicyWithSteps> {
     // 타입 전용 정책 우선
     const specific = await this.policyRepo.findByOrgAndType(organizationId, documentType);
-    if (specific) return specific;
+    if (specific) {
+      // 방어적 검증: 조회된 정책의 조직이 요청 조직과 일치하는지 확인
+      if (specific.organization_id !== organizationId) {
+        throw new Error(
+          `approval policy organization mismatch: expected ${organizationId}, got ${specific.organization_id}`,
+        );
+      }
+      return specific;
+    }
 
     // 조직 기본 정책
     const fallback = await this.policyRepo.findByOrgAndType(organizationId, null);
-    if (fallback) return fallback;
+    if (fallback) {
+      if (fallback.organization_id !== organizationId) {
+        throw new Error(
+          `approval policy organization mismatch: expected ${organizationId}, got ${fallback.organization_id}`,
+        );
+      }
+      return fallback;
+    }
 
     // 하드코딩 기본값 (DB에 정책이 없는 경우)
     return {
@@ -82,6 +97,34 @@ export class ApprovalService {
       updated_at: '',
       steps: [{ id: 'default-step', policy_id: 'default', step: 1, required_role: 'manager', label: '매니저 승인', assigned_user_id: null, created_at: '' }],
     };
+  }
+
+  // --------------------------------------------------------------------------
+  // verifyDocumentOrgScope (내부 헬퍼)
+  // --------------------------------------------------------------------------
+  /**
+   * 문서가 속한 프로젝트의 조직이 요청 컨텍스트의 조직과 일치하는지 검증.
+   *
+   * RLS 외 애플리케이션 계층의 2차 방어선.
+   * 견적서/계약서/진행안 등 모든 문서 승인 처리 시 반드시 호출해야 한다.
+   *
+   * @returns 일치하면 null, 불일치/누락이면 실패 ServiceResult
+   */
+  private async verifyDocumentOrgScope(
+    documentProjectId: string,
+    ctx: ApprovalServiceContext,
+  ): Promise<{ code: string; message: string } | null> {
+    const project = await this.projectRepo.findById(documentProjectId);
+    if (!project) {
+      return { code: 'PROJECT_NOT_FOUND', message: '문서의 프로젝트를 찾을 수 없습니다' };
+    }
+    if (project.organization_id !== ctx.organizationId) {
+      return {
+        code: 'ORGANIZATION_MISMATCH',
+        message: '다른 조직의 문서에 대한 승인 처리는 허용되지 않습니다',
+      };
+    }
+    return null;
   }
 
   // --------------------------------------------------------------------------
@@ -109,6 +152,12 @@ export class ApprovalService {
         success: false,
         error: { code: 'DOCUMENT_NOT_FOUND', message: '문서를 찾을 수 없습니다' },
       };
+    }
+
+    // [단계 1-1] 조직 일치성 검증 (RLS 외 애플리케이션 방어선)
+    const orgError = await this.verifyDocumentOrgScope(document.project_id, ctx);
+    if (orgError) {
+      return { success: false, error: orgError };
     }
 
     // [단계 2] draft 또는 rejected 상태에서만 승인 요청 가능
@@ -217,6 +266,12 @@ export class ApprovalService {
         success: false,
         error: { code: 'DOCUMENT_NOT_FOUND', message: '문서를 찾을 수 없습니다' },
       };
+    }
+
+    // 조직 일치성 검증
+    const orgError = await this.verifyDocumentOrgScope(document.project_id, ctx);
+    if (orgError) {
+      return { success: false, error: orgError };
     }
 
     const policy = await this.getPolicy(ctx.organizationId, document.type);
@@ -341,6 +396,12 @@ export class ApprovalService {
       };
     }
 
+    // 조직 일치성 검증
+    const orgError = await this.verifyDocumentOrgScope(document.project_id, ctx);
+    if (orgError) {
+      return { success: false, error: orgError };
+    }
+
     const policy = await this.getPolicy(ctx.organizationId, document.type);
     const stepConfig = policy.steps.find(s => s.step === approval.step);
     const requiredRole = stepConfig?.required_role ?? 'manager';
@@ -436,6 +497,19 @@ export class ApprovalService {
       };
     }
 
+    // 조직 일치성 검증 (업데이트 전 확인)
+    const docForOrgCheck = await this.documentRepo.findById(approval.document_id);
+    if (!docForOrgCheck) {
+      return {
+        success: false,
+        error: { code: 'DOCUMENT_NOT_FOUND', message: '문서를 찾을 수 없습니다' },
+      };
+    }
+    const orgError = await this.verifyDocumentOrgScope(docForOrgCheck.project_id, ctx);
+    if (orgError) {
+      return { success: false, error: orgError };
+    }
+
     const updated = await this.approvalRepo.update(input.approval_id, {
       approver_id: ctx.userId,
       action: 'cancel',
@@ -521,6 +595,12 @@ export class ApprovalService {
         success: false,
         error: { code: 'DOCUMENT_NOT_FOUND', message: '문서를 찾을 수 없습니다' },
       };
+    }
+
+    // 조직 일치성 검증
+    const orgError = await this.verifyDocumentOrgScope(document.project_id, ctx);
+    if (orgError) {
+      return { success: false, error: orgError };
     }
 
     // ── 프로젝트 플로우 그룹 검증 ──
