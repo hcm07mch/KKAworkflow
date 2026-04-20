@@ -76,16 +76,20 @@ export function EstimatePreview({ data }: EstimatePreviewProps) {
     // Block 2+: Detail Section — split into per-item blocks for pagination
     const detailColgroup = (
       <colgroup>
-        <col style={{ width: 50 }} />
-        <col style={{ width: 120 }} />
+        <col style={{ width: 40 }} />
+        <col style={{ width: 110 }} />
         <col />
-        <col style={{ width: 100 }} />
         <col style={{ width: 90 }} />
+        <col style={{ width: 50 }} />
+        <col style={{ width: 100 }} />
+        <col style={{ width: 80 }} />
       </colgroup>
     );
 
     const renderItemRows = (item: typeof items[number], idx: number) => {
       const hasOptions = item.options && item.options.length > 0;
+      const qty = item.quantity ?? 1;
+      const amount = (item.unit_price || 0) * qty;
       return (
         <React.Fragment key={idx}>
           <tr>
@@ -102,6 +106,8 @@ export function EstimatePreview({ data }: EstimatePreviewProps) {
               ))}
             </td>
             <td className={s.colPrice}>{fmtCurrency(item.unit_price)}</td>
+            <td className={s.colPrice}>{qty}</td>
+            <td className={s.colPrice}>{fmtCurrency(amount)}</td>
             <td className={s.colNote}>{item.note || ''}</td>
           </tr>
           {hasOptions && item.options!.map((opt, oi) => (
@@ -109,6 +115,8 @@ export function EstimatePreview({ data }: EstimatePreviewProps) {
               <td className={s.colDetails}>
                 <span className={s.optionTag}>옵션</span> {opt.name}
               </td>
+              <td className={s.colPrice}>{fmtCurrency(opt.price)}</td>
+              <td className={s.colPrice}></td>
               <td className={s.colPrice}>{fmtCurrency(opt.price)}</td>
               <td className={s.colNote}></td>
             </tr>
@@ -128,13 +136,15 @@ export function EstimatePreview({ data }: EstimatePreviewProps) {
                 <th className={s.colNo}>No.</th>
                 <th className={s.colCategory}>카테고리</th>
                 <th className={s.colDetails}>세부 항목</th>
-                <th className={s.colPrice}>단가 (월)</th>
+                <th className={s.colPrice}>단가</th>
+                <th className={s.colPrice}>수량</th>
+                <th className={s.colPrice}>공급가</th>
                 <th className={s.colNote}>비고</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td colSpan={5} style={{ textAlign: 'center', color: '#9ca3af', padding: 24 }}>
+                <td colSpan={7} style={{ textAlign: 'center', color: '#9ca3af', padding: 24 }}>
                   항목을 추가하세요
                 </td>
               </tr>
@@ -155,6 +165,8 @@ export function EstimatePreview({ data }: EstimatePreviewProps) {
                 <th className={s.colCategory}>카테고리</th>
                 <th className={s.colDetails}>세부 항목</th>
                 <th className={s.colPrice}>단가</th>
+                <th className={s.colPrice}>수량</th>
+                <th className={s.colPrice}>공급가</th>
                 <th className={s.colNote}>비고</th>
               </tr>
             </thead>

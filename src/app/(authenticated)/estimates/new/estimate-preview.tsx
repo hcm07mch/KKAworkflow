@@ -78,36 +78,44 @@ export function EstimatePreview({ data }: EstimatePreviewProps) {
             <th className={s.colNo}>No.</th>
             <th className={s.colCategory}>카테고리</th>
             <th className={s.colDetails}>세부 항목</th>
-            <th className={s.colPrice}>단가 (월)</th>
+            <th className={s.colPrice}>단가</th>
+            <th className={s.colPrice}>수량</th>
+            <th className={s.colPrice}>공급가</th>
             <th className={s.colNote}>비고</th>
           </tr>
         </thead>
         <tbody>
           {items.length === 0 && (
             <tr>
-              <td colSpan={5} style={{ textAlign: 'center', color: '#9ca3af', padding: 24 }}>
+              <td colSpan={7} style={{ textAlign: 'center', color: '#9ca3af', padding: 24 }}>
                 항목을 추가하세요
               </td>
             </tr>
           )}
-          {items.map((item, idx) => (
-            <tr key={idx}>
-              <td className={s.colNo}>{item.no}</td>
-              <td className={s.colCategory}>{item.category || '-'}</td>
-              <td className={s.colDetails}>
-                {item.details.map((detail, di) => (
-                  <div key={di} style={{ marginBottom: di < item.details.length - 1 ? 8 : 0 }}>
-                    <div className={s.detailGroupTitle}>{detail.title}</div>
-                    {detail.descriptions.map((desc, ddi) => (
-                      <p key={ddi} className={s.detailGroupDesc}>{desc}</p>
-                    ))}
-                  </div>
-                ))}
-              </td>
-              <td className={s.colPrice}>{formatCurrency(item.unit_price)}</td>
-              <td className={s.colNote}>{item.note || ''}</td>
-            </tr>
-          ))}
+          {items.map((item, idx) => {
+            const qty = item.quantity ?? 1;
+            const amount = (item.unit_price || 0) * qty;
+            return (
+              <tr key={idx}>
+                <td className={s.colNo}>{item.no}</td>
+                <td className={s.colCategory}>{item.category || '-'}</td>
+                <td className={s.colDetails}>
+                  {item.details.map((detail, di) => (
+                    <div key={di} style={{ marginBottom: di < item.details.length - 1 ? 8 : 0 }}>
+                      <div className={s.detailGroupTitle}>{detail.title}</div>
+                      {detail.descriptions.map((desc, ddi) => (
+                        <p key={ddi} className={s.detailGroupDesc}>{desc}</p>
+                      ))}
+                    </div>
+                  ))}
+                </td>
+                <td className={s.colPrice}>{formatCurrency(item.unit_price)}</td>
+                <td className={s.colPrice}>{qty}</td>
+                <td className={s.colPrice}>{formatCurrency(amount)}</td>
+                <td className={s.colNote}>{item.note || ''}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
 
@@ -115,7 +123,7 @@ export function EstimatePreview({ data }: EstimatePreviewProps) {
       <table className={s.summaryTable}>
         <tbody>
           <tr>
-            <td className={s.summaryLabel}>공급가</td>
+            <td className={s.summaryLabel}>총 공급가</td>
             <td className={s.summaryValue}>{formatCurrency(subtotal)}</td>
           </tr>
           <tr>

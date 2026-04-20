@@ -25,7 +25,8 @@ interface ServiceItem {
   icon: string;
   name: string;
   fields: ServiceField[];
-  subtotal: number;
+  unit_price: number;
+  quantity: number;
 }
 
 export interface CampaignPlanEditorProps {
@@ -114,7 +115,7 @@ interface CampaignCatalogItem {
   icon: string;
   name: string;
   fields: ServiceField[];
-  subtotal: number;
+  unit_price: number;
 }
 
 // Hardcoded fallback removed — catalog loaded from DB via API
@@ -125,14 +126,16 @@ function CatalogRow({ item, expanded, onToggle, onAdd, onDragStart }: {
   item: CampaignCatalogItem;
   expanded: boolean;
   onToggle: () => void;
-  onAdd: (item: CampaignCatalogItem) => void;
+  onAdd: (item: CampaignCatalogItem, quantity: number) => void;
   onDragStart: (e: React.DragEvent, item: CampaignCatalogItem) => void;
 }) {
   const icon = SERVICE_ICONS.find((i) => i.id === item.icon);
+  const [quantity, setQuantity] = useState<number>(1);
 
   const handleAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
-    onAdd(item);
+    onAdd(item, quantity);
+    setQuantity(1);
   };
 
   return (
@@ -146,7 +149,7 @@ function CatalogRow({ item, expanded, onToggle, onAdd, onDragStart }: {
       >
         <span className={s.catalogItemRowHandle}><LuGripVertical size={11} /></span>
         <span className={s.catalogItemRowName}>{icon?.emoji} {item.name}</span>
-        <button type="button" className={s.catalogItemRowAdd} onClick={handleAdd} title="진행안에 추가">
+        <button type="button" className={s.catalogItemRowAdd} onClick={handleAdd} title="진행안에 추가 (수량 1)">
           <LuPlus size={13} />
         </button>
       </div>
@@ -161,7 +164,25 @@ function CatalogRow({ item, expanded, onToggle, onAdd, onDragStart }: {
             ))}
           </div>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary)', marginBottom: 6 }}>
-            {fmtKRW(item.subtotal)}
+            {fmtKRW(item.unit_price)} / 개
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <label style={{ fontSize: 11, color: 'var(--color-text-secondary)', fontWeight: 600 }}>수량</label>
+            <input
+              type="number"
+              min={1}
+              value={quantity}
+              onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: 60, padding: '3px 6px', fontSize: 12,
+                border: '1px solid var(--color-border)', borderRadius: 4,
+                background: 'var(--color-surface)', color: 'var(--color-text-primary)',
+              }}
+            />
+            <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+              공급가 {fmtKRW(item.unit_price * quantity)}
+            </span>
           </div>
           <button type="button" className={s.catalogAddBtn} onClick={handleAdd}>
             <LuPlus size={12} /> 진행안에 추가
@@ -212,7 +233,7 @@ export function CampaignPlanEditor({
           icon: item.content?.icon ?? 'other',
           name: item.name,
           fields: (item.content?.fields ?? []).map((f: any) => ({ label: f.label ?? '', value: f.value ?? '' })),
-          subtotal: item.base_price ?? 0,
+          unit_price: item.base_price ?? 0,
         })));
       })
       .catch(() => {});
@@ -277,12 +298,17 @@ export function CampaignPlanEditor({
   // ── Services ──
   const [services, setServices] = useState<ServiceItem[]>(() => {
     if (initialData?.services && initialData.services.length > 0) {
-      return initialData.services.map((svc) => ({
-        icon: svc.icon || 'other',
-        name: svc.name || '',
-        fields: (svc.fields ?? []).map((f) => ({ label: f.label, value: f.value })),
-        subtotal: svc.subtotal ?? 0,
-      }));
+      return initialData.services.map((svc) => {
+        const quantity = svc.quantity ?? 1;
+        const unit_price = svc.unit_price ?? (svc.subtotal != null && quantity > 0 ? Math.round((svc.subtotal ?? 0) / quantity) : (svc.subtotal ?? 0));
+        return {
+          icon: svc.icon || 'other',
+          name: svc.name || '',
+          fields: (svc.fields ?? []).map((f) => ({ label: f.label, value: f.value })),
+          unit_price,
+          quantity,
+        };
+      });
     }
     return [];
   });
@@ -290,17 +316,18 @@ export function CampaignPlanEditor({
   // ── Service CRUD ──
 
   const addService = useCallback(() => {
-    setServices((prev) => [...prev, { icon: 'other', name: '', fields: [{ label: '', value: '' }], subtotal: 0 }]);
+    setServices((prev) => [...prev, { icon: 'other', name: '', fields: [{ label: '', value: '' }], unit_price: 0, quantity: 1 }]);
   }, []);
 
-  const addFromCatalog = useCallback((catalogItem: CampaignCatalogItem) => {
+  const addFromCatalog = useCallback((catalogItem: CampaignCatalogItem, quantity: number = 1) => {
     setServices((prev) => [
       ...prev,
       {
         icon: catalogItem.icon,
         name: catalogItem.name,
         fields: catalogItem.fields.map((f) => ({ ...f })),
-        subtotal: catalogItem.subtotal,
+        unit_price: catalogItem.unit_price,
+        quantity: Math.max(1, quantity || 1),
       },
     ]);
     setOpenDrawer('services');
@@ -395,7 +422,7 @@ export function CampaignPlanEditor({
 
   // ── Computed ──
 
-  const totalMonthly = services.reduce((sum, svc) => sum + (svc.subtotal || 0), 0);
+  const totalMonthly = services.reduce((sum, svc) => sum + (svc.unit_price || 0) * (svc.quantity || 1), 0);
 
   // ── Build preview data ──
 
@@ -411,7 +438,9 @@ export function CampaignPlanEditor({
       icon: svc.icon,
       name: svc.name,
       fields: svc.fields.filter((f) => f.label || f.value),
-      subtotal: svc.subtotal,
+      unit_price: svc.unit_price,
+      quantity: svc.quantity || 1,
+      subtotal: (svc.unit_price || 0) * (svc.quantity || 1),
     })),
     total_monthly: totalMonthly,
     company_name: companyName,
@@ -645,11 +674,20 @@ export function CampaignPlanEditor({
                           <td><input type="text" value={svc.name} onChange={(e) => updateService(svcIdx, 'name', e.target.value)} className="form-input" readOnly={readOnly} /></td>
                         </tr>
                         <tr>
-                          <th>소계</th>
+                          <th>단가</th>
                           <td>
                             <div className={s.inputWithUnit}>
-                              <input type="number" value={svc.subtotal || ''} onChange={(e) => updateService(svcIdx, 'subtotal', Number(e.target.value))} className="form-input" readOnly={readOnly} />
-                              <span className={s.inputUnit}>원</span>
+                              <input type="number" value={svc.unit_price || ''} onChange={(e) => updateService(svcIdx, 'unit_price', Number(e.target.value))} className="form-input" readOnly={readOnly} />
+                              <span className={s.inputUnit}>원/개</span>
+                            </div>
+                          </td>
+                        </tr>
+                        <tr>
+                          <th>수량</th>
+                          <td>
+                            <div className={s.inputWithUnit}>
+                              <input type="number" min={1} value={svc.quantity || 1} onChange={(e) => updateService(svcIdx, 'quantity', Math.max(1, Number(e.target.value) || 1))} className="form-input" readOnly={readOnly} />
+                              <span className={s.inputUnit}>공급가 {fmtKRW((svc.unit_price || 0) * (svc.quantity || 1))}</span>
                             </div>
                           </td>
                         </tr>

@@ -27,6 +27,7 @@ interface EstimateItemData {
   category: string;
   details: EstimateDetail[];
   unit_price: number;
+  quantity: number;
   note: string;
   options: Array<{ name: string; price: number }>;
 }
@@ -118,10 +119,11 @@ function CatalogRow({ item, expanded, onToggle, onAdd, onDragStart }: {
   item: ServiceCatalogItem;
   expanded: boolean;
   onToggle: () => void;
-  onAdd: (item: ServiceCatalogItem, opts: number[]) => void;
+  onAdd: (item: ServiceCatalogItem, opts: number[], quantity: number) => void;
   onDragStart: (e: React.DragEvent, item: ServiceCatalogItem) => void;
 }) {
   const [checkedOpts, setCheckedOpts] = useState<number[]>([]);
+  const [quantity, setQuantity] = useState<number>(1);
 
   const toggleOpt = (idx: number) => {
     setCheckedOpts((prev) => (prev.includes(idx) ? prev.filter((i) => i !== idx) : [...prev, idx]));
@@ -129,8 +131,9 @@ function CatalogRow({ item, expanded, onToggle, onAdd, onDragStart }: {
 
   const handleAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
-    onAdd(item, checkedOpts);
+    onAdd(item, checkedOpts, quantity);
     setCheckedOpts([]);
+    setQuantity(1);
   };
 
   return (
@@ -144,7 +147,7 @@ function CatalogRow({ item, expanded, onToggle, onAdd, onDragStart }: {
       >
         <span className={s.catalogItemRowHandle}><LuGripVertical size={11} /></span>
         <span className={s.catalogItemRowName}>{item.category}</span>
-        <button type="button" className={s.catalogItemRowAdd} onClick={handleAdd} title="견적에 추가">
+        <button type="button" className={s.catalogItemRowAdd} onClick={handleAdd} title="견적에 추가 (수량 1)">
           <LuPlus size={13} />
         </button>
       </div>
@@ -161,7 +164,7 @@ function CatalogRow({ item, expanded, onToggle, onAdd, onDragStart }: {
             ))}
           </div>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary)', marginBottom: 6 }}>
-            {fmtKRW(item.base_price)}
+            {fmtKRW(item.base_price)} / 개
           </div>
           {item.options.length > 0 && (
             <div className={s.catalogOptions}>
@@ -175,6 +178,24 @@ function CatalogRow({ item, expanded, onToggle, onAdd, onDragStart }: {
               ))}
             </div>
           )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <label style={{ fontSize: 11, color: 'var(--color-text-secondary)', fontWeight: 600 }}>수량</label>
+            <input
+              type="number"
+              min={1}
+              value={quantity}
+              onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: 60, padding: '3px 6px', fontSize: 12,
+                border: '1px solid var(--color-border)', borderRadius: 4,
+                background: 'var(--color-surface)', color: 'var(--color-text-primary)',
+              }}
+            />
+            <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+              공급가 {fmtKRW(item.base_price * quantity)}
+            </span>
+          </div>
           <button type="button" className={s.catalogAddBtn} onClick={handleAdd}>
             <LuPlus size={12} /> 견적에 추가
           </button>
@@ -298,6 +319,7 @@ export function EstimateEditor({ mode, initialData, documentId, defaultClientId,
           descriptions: d.descriptions?.length ? d.descriptions : [''],
         })),
         unit_price: item.unit_price ?? 0,
+        quantity: item.quantity ?? 1,
         note: item.note ?? '',
         options: (item.options ?? []).map((o) => ({ name: o.name ?? '', price: o.price ?? 0 })),
       }));
@@ -326,7 +348,7 @@ export function EstimateEditor({ mode, initialData, documentId, defaultClientId,
   const addItem = useCallback(() => {
     setItems((prev) => [
       ...prev,
-      { no: prev.length + 1, category: '', details: [{ title: '', descriptions: [''] }], unit_price: 0, note: '', options: [] },
+      { no: prev.length + 1, category: '', details: [{ title: '', descriptions: [''] }], unit_price: 0, quantity: 1, note: '', options: [] },
     ]);
   }, []);
 
@@ -464,7 +486,7 @@ export function EstimateEditor({ mode, initialData, documentId, defaultClientId,
 
   // ── Catalog → Add to items ──
 
-  const addFromCatalog = useCallback((catalogItem: ServiceCatalogItem, selectedOptions: number[]) => {
+  const addFromCatalog = useCallback((catalogItem: ServiceCatalogItem, selectedOptions: number[], quantity: number = 1) => {
     setItems((prev) => {
       const nextNo = prev.length > 0 ? Math.max(...prev.map((it) => it.no)) + 1 : 1;
       const newItem: EstimateItemData = {
@@ -472,6 +494,7 @@ export function EstimateEditor({ mode, initialData, documentId, defaultClientId,
         category: catalogItem.category,
         details: catalogItem.details.map((d) => ({ title: d.title, descriptions: [...d.descriptions] })),
         unit_price: catalogItem.base_price,
+        quantity: Math.max(1, quantity || 1),
         note: catalogItem.note,
         options: selectedOptions.map((oi) => ({ ...catalogItem.options[oi] })),
       };
@@ -519,8 +542,9 @@ export function EstimateEditor({ mode, initialData, documentId, defaultClientId,
   // ── Computed ──
 
   const subtotal = items.reduce((sum, item) => {
+    const qty = item.quantity || 1;
     const optionsTotal = item.options.reduce((os, o) => os + (o.price || 0), 0);
-    return sum + (item.unit_price || 0) + optionsTotal;
+    return sum + (item.unit_price || 0) * qty + optionsTotal;
   }, 0);
   const tax = Math.round(subtotal * (taxRate / 100));
   const total = subtotal + tax;
@@ -537,6 +561,7 @@ export function EstimateEditor({ mode, initialData, documentId, defaultClientId,
       category: item.category,
       details: item.details,
       unit_price: item.unit_price,
+      quantity: item.quantity || 1,
       note: item.note,
       options: item.options.filter((o) => o.name || o.price),
     })),
@@ -847,6 +872,15 @@ ${styleSheets}
                             <div className={s.inputWithUnit}>
                               <input type="number" value={item.unit_price || ''} onChange={(e) => updateItem(itemIdx, 'unit_price', Number(e.target.value))} className="form-input" readOnly={readOnly} />
                               <span className={s.inputUnit}>원/월</span>
+                            </div>
+                          </td>
+                        </tr>
+                        <tr>
+                          <th>수량</th>
+                          <td>
+                            <div className={s.inputWithUnit}>
+                              <input type="number" min={1} value={item.quantity || 1} onChange={(e) => updateItem(itemIdx, 'quantity', Math.max(1, Number(e.target.value) || 1))} className="form-input" readOnly={readOnly} />
+                              <span className={s.inputUnit}>공급가 {fmtKRW((item.unit_price || 0) * (item.quantity || 1))}</span>
                             </div>
                           </td>
                         </tr>

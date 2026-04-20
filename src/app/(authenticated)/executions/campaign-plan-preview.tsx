@@ -96,6 +96,9 @@ export function CampaignPlanPreview({ data }: CampaignPlanPreviewProps) {
     // Block 3+: Service cards
     services.forEach((svc, idx) => {
       const icon = ICON_MAP[svc.icon || 'other'] || '📋';
+      const quantity = svc.quantity ?? 1;
+      const unitPrice = svc.unit_price ?? (svc.subtotal != null && quantity > 0 ? Math.round((svc.subtotal ?? 0) / quantity) : 0);
+      const supply = unitPrice * quantity;
       b.push(
         <div key={`svc-${idx}`} className={cp.cpServiceCard}>
           <div className={cp.cpServiceHeader}>
@@ -109,10 +112,22 @@ export function CampaignPlanPreview({ data }: CampaignPlanPreviewProps) {
                 <span className={cp.cpFieldValue}>{field.value}</span>
               </div>
             ))}
-            {svc.subtotal != null && svc.subtotal > 0 && (
+            {unitPrice > 0 && (
+              <div className={cp.cpFieldRow}>
+                <span className={cp.cpFieldLabel}>단가</span>
+                <span className={cp.cpFieldValue}>{fmtKRW(unitPrice)}원</span>
+              </div>
+            )}
+            {quantity > 0 && (
+              <div className={cp.cpFieldRow}>
+                <span className={cp.cpFieldLabel}>수량</span>
+                <span className={cp.cpFieldValue}>{quantity}</span>
+              </div>
+            )}
+            {supply > 0 && (
               <div className={`${cp.cpFieldRow} ${cp.cpFieldSubtotal}`}>
-                <span className={cp.cpFieldLabel}>소계</span>
-                <span className={cp.cpFieldValue}>{fmtKRW(svc.subtotal)}원</span>
+                <span className={cp.cpFieldLabel}>공급가</span>
+                <span className={cp.cpFieldValue}>{fmtKRW(supply)}원</span>
               </div>
             )}
           </div>

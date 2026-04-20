@@ -271,6 +271,7 @@ export interface EstimateContent {
       descriptions: string[];     // 세부 설명 (bullet)
     }>;
     unit_price: number;           // 단가 (월)
+    quantity?: number;            // 수량 (기본 1)
     note?: string;                // 비고
     options?: Array<{
       name: string;               // 옵션명 (예: 리포트 추가 제공)
@@ -346,7 +347,9 @@ export interface PreReportContent {
       label: string;              // 필드명 (대상 상품, 슬롯 수, 건당 단가 등)
       value: string;              // 필드 값 (텍스트로 표시)
     }>;
-    subtotal?: number;            // 소계
+    unit_price?: number;          // 단가
+    quantity?: number;            // 수량 (기본 1)
+    subtotal?: number;            // 공급가 (= unit_price × quantity)
   }>;
 
   /** 금액 */
