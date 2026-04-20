@@ -55,6 +55,9 @@ export class SupabaseClientRepository implements IClientRepository {
     service_type?: string;
     payment_type?: string;
     tier?: string;
+    business_number?: string | null;
+    business_registration_file_path?: string | null;
+    business_registration_file_name?: string | null;
     metadata?: JsonObject;
   }): Promise<Client> {
     const { data: row, error } = await this.db
@@ -77,8 +80,12 @@ export class SupabaseClientRepository implements IClientRepository {
     service_type: string;
     payment_type: string;
     tier: string;
+    business_number: string | null;
+    business_registration_file_path: string | null;
+    business_registration_file_name: string | null;
     metadata: JsonObject;
     is_active: boolean;
+    organization_id: string;
   }>): Promise<Client> {
     const { data: row, error } = await this.db
       .from('workflow_clients')

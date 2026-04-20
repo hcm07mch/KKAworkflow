@@ -22,10 +22,10 @@ export async function PATCH(
   const orgError = await verifyClientInOrg(auth, id);
   if (orgError) return orgError;
 
-  // organization_id 변경 요청 시: 사용자 허용 조직 범위 내에서만 허용
+  // organization_id 변경 요청 시: 사용자 허용 조직 범위(본사 계정은 fullAllowedOrgIds) 내에서만 허용
   let organizationIdUpdate: string | undefined;
   if (body.organization_id !== undefined) {
-    if (typeof body.organization_id !== 'string' || !auth.allowedOrgIds.includes(body.organization_id)) {
+    if (typeof body.organization_id !== 'string' || !auth.fullAllowedOrgIds.includes(body.organization_id)) {
       return NextResponse.json(
         { error: { code: 'ORGANIZATION_NOT_ALLOWED', message: '허용되지 않는 조직입니다' } },
         { status: 403 },
@@ -46,6 +46,7 @@ export async function PATCH(
     ...(body.service_type !== undefined && { service_type: body.service_type }),
     ...(body.payment_type !== undefined && { payment_type: body.payment_type }),
     ...(body.tier !== undefined && { tier: body.tier }),
+    ...(body.business_number !== undefined && { business_number: body.business_number }),
     ...(body.is_active !== undefined && { is_active: body.is_active }),
     ...(organizationIdUpdate !== undefined && { organization_id: organizationIdUpdate }),
   };

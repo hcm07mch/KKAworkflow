@@ -49,7 +49,9 @@ function inferStackFromStatus(currentStatus: ProjectStatus): string[] {
   return result;
 }
 
-/** 레거시/불완전한 스택을 정규화: 모든 세부 상태를 개별 엔트리로 확장 */
+/** 레거시/불완전한 스택을 정규화: 모든 세부 상태를 개별 엔트리로 확장.
+ *  동일 그룹 연속 엔트리에서 인덱스가 역행(예: B3 → B1)하면 해당 지점에서
+ *  새 세그먼트로 돌입(같은 그룹을 다시 추가한 경우 별개의 플로우로 취급). */
 function normalizeStack(stack: string[], currentStatus: ProjectStatus): string[] {
   const expanded: string[] = [];
   for (const entry of stack) {
@@ -69,18 +71,18 @@ function normalizeStack(stack: string[], currentStatus: ProjectStatus): string[]
     const group = PROJECT_STATUS_GROUPS.find((g) => g.key === key);
     if (!group) { result.push(expanded[i]); i++; continue; }
 
-    const segEntries: string[] = [];
+    // 하나의 세그먼트: 인덱스 역행 정지 지점까지
+    let maxIdx = -1;
+    let prevIdx = -1;
     while (i < expanded.length && statusToGroupKey(expanded[i]) === key) {
-      segEntries.push(expanded[i]);
+      const idx = group.statuses.indexOf(expanded[i] as ProjectStatus);
+      if (idx < prevIdx) break; // 역행 → 세그먼트 끝
+      if (idx > maxIdx) maxIdx = idx;
+      prevIdx = idx;
       i++;
     }
 
-    let maxIdx = -1;
-    for (const e of segEntries) {
-      const idx = group.statuses.indexOf(e as ProjectStatus);
-      if (idx > maxIdx) maxIdx = idx;
-    }
-
+    // 세그먼트 내 최대 도달 인덱스까지 개별 상태 확장
     for (let j = 0; j <= maxIdx; j++) {
       result.push(group.statuses[j]);
     }
@@ -104,13 +106,24 @@ function normalizeStack(stack: string[], currentStatus: ProjectStatus): string[]
   return result;
 }
 
-/** 스택에서 그룹 세그먼트(연속된 동일 그룹 엔트리) 경계 계산 */
+/** 스택에서 그룹 세그먼트(연속된 동일 그룹 엔트리) 경계 계산.
+ *  동일 그룹 엔트리의 인덱스가 역행(예: B3 → B1)하면 새 세그먼트로 분리 —
+ *  같은 그룹이 연속해서 두 번 이상 추가된 경우 별개의 플로우로 표시하기 위함. */
 function getGroupSegments(stack: string[]): { key: string; startIdx: number; endIdx: number }[] {
   const segments: { key: string; startIdx: number; endIdx: number }[] = [];
   for (let i = 0; i < stack.length; i++) {
     const key = statusToGroupKey(stack[i]);
-    if (segments.length > 0 && segments[segments.length - 1].key === key) {
-      segments[segments.length - 1].endIdx = i;
+    const group = PROJECT_STATUS_GROUPS.find((g) => g.key === key);
+    const curIdx = group ? group.statuses.indexOf(stack[i] as ProjectStatus) : -1;
+    const last = segments[segments.length - 1];
+    if (last && last.key === key) {
+      const prevIdx = group ? group.statuses.indexOf(stack[last.endIdx] as ProjectStatus) : -1;
+      if (curIdx >= 0 && prevIdx >= 0 && curIdx < prevIdx) {
+        // 인덱스 역행 → 별도 세그먼트
+        segments.push({ key, startIdx: i, endIdx: i });
+      } else {
+        last.endIdx = i;
+      }
     } else {
       segments.push({ key, startIdx: i, endIdx: i });
     }

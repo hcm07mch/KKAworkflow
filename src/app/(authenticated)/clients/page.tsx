@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { LuBuilding2, LuLoader, LuPlus } from 'react-icons/lu';
+import { LuBuilding2, LuLoader, LuPlus, LuUpload, LuFileText, LuX } from 'react-icons/lu';
 import { ActionButton } from '@/components/ui';
 import {
   SERVICE_TYPE_META, PAYMENT_TYPE_META, CLIENT_TIER_META,
@@ -29,6 +29,9 @@ interface ClientItem {
   projectCount: number;
   isActive: boolean;
   createdAt: string;
+  businessNumber: string | null;
+  businessRegFilePath: string | null;
+  businessRegFileName: string | null;
 }
 
 interface ProjectItem {
@@ -107,6 +110,9 @@ export default function ClientsPage() {
         projectCount: projectCounts.get(c.id) ?? 0,
         isActive: c.is_active,
         createdAt: c.created_at,
+        businessNumber: c.business_number ?? null,
+        businessRegFilePath: c.business_registration_file_path ?? null,
+        businessRegFileName: c.business_registration_file_name ?? null,
       }));
       setClients(items);
       setLoading(false);
@@ -149,6 +155,7 @@ export default function ClientsPage() {
     payment_type: 'deposit' as PaymentType,
     tier: 'regular' as ClientTier,
     organization_id: '',
+    business_number: '',
     // 프로젝트 필드
     project_title: '',
     project_description: '',
@@ -157,6 +164,7 @@ export default function ClientsPage() {
 
   const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState('');
+  const [businessRegFile, setBusinessRegFile] = useState<File | null>(null);
 
   const emptyProjectForm = {
     title: '',
@@ -179,7 +187,8 @@ export default function ClientsPage() {
   function startNew() {
     setMode('new');
     setSelected(null);
-    setForm(emptyForm);
+    setForm({ ...emptyForm, organization_id: orgInfo?.id ?? '' });
+    setBusinessRegFile(null);
     setFormError('');
   }
 
@@ -243,10 +252,12 @@ export default function ClientsPage() {
       payment_type: selected.paymentType,
       tier: selected.tier,
       organization_id: selected.organizationId ?? '',
+      business_number: selected.businessNumber ?? '',
       project_title: '',
       project_description: '',
       project_owner_id: '',
     });
+    setBusinessRegFile(null);
     setFormError('');
     setMode('edit');
   }
@@ -289,14 +300,29 @@ export default function ClientsPage() {
           contact_phone: form.contact_phone || null,
           address: form.address || null,
           tier: form.tier,
+          business_number: form.business_number.trim() || null,
           ...(orgChanged ? { organization_id: form.organization_id, migrate_projects: migrateProjects } : {}),
         }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || '수정에 실패했습니다.');
+        throw new Error(err.error?.message || (typeof err.error === 'string' ? err.error : null) || '수정에 실패했습니다.');
       }
       const updated = await res.json();
+
+      // 사업자 등록증 파일 업로드 (선택된 경우)
+      if (businessRegFile) {
+        const fd = new FormData();
+        fd.append('file', businessRegFile);
+        const up = await fetch(`/api/clients/${selected.id}/business-registration`, {
+          method: 'POST',
+          body: fd,
+        });
+        if (!up.ok) {
+          const err = await up.json().catch(() => ({}));
+          throw new Error(err.error?.message || '사업자 등록증 파일 업로드에 실패했습니다.');
+        }
+      }
       const newOrgName = updated.organization_id
         ? (allowedOrgOptions.find((o) => o.id === updated.organization_id)?.name ?? selected.organizationName)
         : selected.organizationName;
@@ -315,6 +341,11 @@ export default function ClientsPage() {
         projectCount: selected.projectCount,
         isActive: updated.is_active,
         createdAt: updated.created_at,
+        businessNumber: updated.business_number ?? null,
+        businessRegFilePath: businessRegFile
+          ? (businessRegFile.name ? 'pending' : selected.businessRegFilePath)
+          : selected.businessRegFilePath,
+        businessRegFileName: businessRegFile ? businessRegFile.name : selected.businessRegFileName,
       };
       setSelected(updatedClient);
       setMode('view');
@@ -334,7 +365,7 @@ export default function ClientsPage() {
       const res = await fetch(`/api/clients/${selected.id}`, { method: 'DELETE' });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || '삭제에 실패했습니다.');
+        throw new Error(err.error?.message || (typeof err.error === 'string' ? err.error : null) || '삭제에 실패했습니다.');
       }
       setSelected(null);
       setMode('view');
@@ -372,6 +403,8 @@ export default function ClientsPage() {
           service_type: form.service_type,
           payment_type: form.payment_type,
           tier: form.tier,
+          business_number: form.business_number.trim() || null,
+          ...(form.organization_id ? { organization_id: form.organization_id } : {}),
           project_title: form.project_title.trim() || null,
           project_description: form.project_description.trim() || null,
           project_owner_id: form.project_owner_id || null,
@@ -379,9 +412,26 @@ export default function ClientsPage() {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || '등록에 실패했습니다.');
+        throw new Error(err.error?.message || (typeof err.error === 'string' ? err.error : null) || '등록에 실패했습니다.');
       }
       const created = await res.json();
+
+      // 사업자 등록증 파일 업로드
+      let uploadedFileName: string | null = null;
+      if (businessRegFile) {
+        const fd = new FormData();
+        fd.append('file', businessRegFile);
+        const up = await fetch(`/api/clients/${created.id}/business-registration`, {
+          method: 'POST',
+          body: fd,
+        });
+        if (!up.ok) {
+          const err = await up.json().catch(() => ({}));
+          throw new Error(err.error?.message || '사업자 등록증 파일 업로드에 실패했습니다.');
+        }
+        const uploaded = await up.json();
+        uploadedFileName = uploaded.file_name ?? businessRegFile.name;
+      }
       const newClient: ClientItem = {
         id: created.id,
         name: created.name,
@@ -397,6 +447,9 @@ export default function ClientsPage() {
         projectCount: created.project ? 1 : 0,
         isActive: created.is_active,
         createdAt: created.created_at,
+        businessNumber: created.business_number ?? null,
+        businessRegFilePath: uploadedFileName ? 'pending' : null,
+        businessRegFileName: uploadedFileName,
       };
       setSelected(newClient);
       setMode('view');
@@ -629,7 +682,7 @@ export default function ClientsPage() {
             <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
               <table className={panel.formTable}>
                 <tbody>
-                  {mode === 'edit' && isRootOrg && allowedOrgOptions.length > 1 && (
+                  {((mode === 'edit' && isRootOrg) || (mode === 'new' && isRootOrg)) && allowedOrgOptions.length > 1 && (
                     <tr>
                       <th>소속 조직</th>
                       <td>
@@ -637,6 +690,7 @@ export default function ClientsPage() {
                           value={form.organization_id}
                           onChange={(e) => updateForm('organization_id', e.target.value)}
                         >
+                          {mode === 'new' && <option value="">선택 안 함 (본사)</option>}
                           {allowedOrgOptions.map((o) => (
                             <option key={o.id} value={o.id}>{o.name}</option>
                           ))}
@@ -653,6 +707,71 @@ export default function ClientsPage() {
                         onChange={(e) => updateForm('name', e.target.value)}
                         autoFocus
                       />
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>사업자 번호</th>
+                    <td>
+                      <input
+                        type="text"
+                        value={form.business_number}
+                        onChange={(e) => updateForm('business_number', e.target.value)}
+                        placeholder="예: 123-45-67890"
+                      />
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>사업자 등록증</th>
+                    <td>
+                      {mode === 'edit' && selected?.businessRegFileName && !businessRegFile && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, fontSize: 13 }}>
+                          <LuFileText size={14} />
+                          <span>{selected.businessRegFileName}</span>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (!confirm('사업자 등록증 파일을 삭제하시겠습니까?')) return;
+                              const res = await fetch(`/api/clients/${selected.id}/business-registration`, { method: 'DELETE' });
+                              if (res.ok) loadClients();
+                            }}
+                            style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', display: 'inline-flex', alignItems: 'center' }}
+                            title="파일 삭제"
+                          >
+                            <LuX size={14} />
+                          </button>
+                        </div>
+                      )}
+                      {businessRegFile ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                          <LuFileText size={14} />
+                          <span>{businessRegFile.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => setBusinessRegFile(null)}
+                            style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', display: 'inline-flex', alignItems: 'center' }}
+                            title="선택 해제"
+                          >
+                            <LuX size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: 'var(--color-surface-alt, #f3f4f6)', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>
+                          <LuUpload size={14} />
+                          <span>{selected?.businessRegFileName ? '파일 변경' : '파일 선택'}</span>
+                          <input
+                            type="file"
+                            accept="application/pdf,image/png,image/jpeg,image/webp"
+                            onChange={(e) => {
+                              const f = e.target.files?.[0];
+                              if (f) setBusinessRegFile(f);
+                            }}
+                            style={{ display: 'none' }}
+                          />
+                        </label>
+                      )}
+                      <div style={{ marginTop: 4, fontSize: 11, color: 'var(--color-text-muted)' }}>
+                        PDF, PNG, JPG, WEBP · 최대 20MB
+                      </div>
                     </td>
                   </tr>
                   <tr>
@@ -824,6 +943,35 @@ export default function ClientsPage() {
                   <tr>
                     <th>소속 조직</th>
                     <td><span className={panel.fieldValue}>{selected.organizationName ?? '-'}</span></td>
+                  </tr>
+                  <tr>
+                    <th>사업자 번호</th>
+                    <td><span className={panel.fieldValue}>{selected.businessNumber ?? '-'}</span></td>
+                  </tr>
+                  <tr>
+                    <th>사업자 등록증</th>
+                    <td>
+                      {selected.businessRegFileName ? (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const res = await fetch(`/api/clients/${selected.id}/business-registration`);
+                            if (!res.ok) {
+                              alert('파일을 열 수 없습니다.');
+                              return;
+                            }
+                            const { url } = await res.json();
+                            window.open(url, '_blank', 'noopener,noreferrer');
+                          }}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-primary, #2563eb)', padding: 0, fontSize: 13, textDecoration: 'underline' }}
+                        >
+                          <LuFileText size={14} />
+                          {selected.businessRegFileName}
+                        </button>
+                      ) : (
+                        <span className={panel.fieldValue}>-</span>
+                      )}
+                    </td>
                   </tr>
                   <tr>
                     <th>담당자</th>

@@ -194,7 +194,7 @@ export function EstimatePreview({ data }: EstimatePreviewProps) {
       <table key="sum" className={s.summaryTable}>
         <tbody>
           <tr>
-            <td className={s.summaryLabel}>공급가</td>
+            <td className={s.summaryLabel}>총 공급가</td>
             <td className={s.summaryValue}>{fmtCurrency(subtotal)}</td>
           </tr>
           <tr>

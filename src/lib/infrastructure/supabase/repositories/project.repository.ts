@@ -203,4 +203,13 @@ export class SupabaseProjectRepository implements IProjectRepository {
         changed_by: data.changed_by,
         note: data.note ?? null,
       });
-  }}
+  }
+
+  async delete(id: string): Promise<void> {
+    const { error } = await this.db
+      .from('workflow_projects')
+      .delete()
+      .eq('id', id);
+    if (error) throw new Error(`project 삭제 실패: ${error.message}`);
+  }
+}

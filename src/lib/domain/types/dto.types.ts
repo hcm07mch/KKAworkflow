@@ -32,6 +32,7 @@ export interface CreateClientInput {
   service_type: ServiceType;
   payment_type: PaymentType;
   tier?: ClientTier;
+  business_number?: string | null;
   metadata?: JsonObject;
 }
 
@@ -45,6 +46,7 @@ export interface UpdateClientInput {
   service_type?: ServiceType;
   payment_type?: PaymentType;
   tier?: ClientTier;
+  business_number?: string | null;
   metadata?: JsonObject;
   is_active?: boolean;
 }

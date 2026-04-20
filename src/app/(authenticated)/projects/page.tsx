@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 
-import { LuFolderOpen, LuPanelLeftOpen, LuPanelLeftClose, LuDownload, LuPencil, LuX, LuCheck, LuExternalLink, LuChevronDown, LuChevronUp, LuRefreshCw } from 'react-icons/lu';
+import { LuFolderOpen, LuPanelLeftOpen, LuPanelLeftClose, LuDownload, LuPencil, LuX, LuCheck, LuExternalLink, LuChevronDown, LuChevronUp, LuRefreshCw, LuTrash2 } from 'react-icons/lu';
 import { StatusBadge, ActionButton } from '@/components/ui';
 import type { ProjectStatus, ServiceType, PaymentType, DocumentStatus, DocumentType } from '@/lib/domain/types';
 import {
@@ -37,6 +37,7 @@ function normalizeStack(stack: string[], currentStatus: ProjectStatus): string[]
   }
 
   // Step 2: 각 그룹 세그먼트에서 선행 상태 보충
+  //   — 동일 그룹 연속 엔트리의 인덱스가 역행(예: B3 → B1)하면 새 세그먼트로 분리.
   const result: string[] = [];
   let i = 0;
   while (i < expanded.length) {
@@ -44,18 +45,15 @@ function normalizeStack(stack: string[], currentStatus: ProjectStatus): string[]
     const group = PROJECT_STATUS_GROUPS.find((g) => g.key === key);
     if (!group) { result.push(expanded[i]); i++; continue; }
 
-    // 세그먼트 수집 (같은 그룹 연속)
-    const segEntries: string[] = [];
-    while (i < expanded.length && statusToGroupKey(expanded[i]) === key) {
-      segEntries.push(expanded[i]);
-      i++;
-    }
-
-    // 세그먼트 내 가장 마지막 상태 위치 파악
+    // 하나의 세그먼트: 인덱스 역행 지점에서 종료
     let maxIdx = -1;
-    for (const e of segEntries) {
-      const idx = group.statuses.indexOf(e as ProjectStatus);
+    let prevIdx = -1;
+    while (i < expanded.length && statusToGroupKey(expanded[i]) === key) {
+      const idx = group.statuses.indexOf(expanded[i] as ProjectStatus);
+      if (idx < prevIdx) break;
       if (idx > maxIdx) maxIdx = idx;
+      prevIdx = idx;
+      i++;
     }
 
     // 0부터 maxIdx까지 모든 세부 상태 채워넣기
@@ -83,13 +81,22 @@ function normalizeStack(stack: string[], currentStatus: ProjectStatus): string[]
   return result;
 }
 
-/** 스택에서 그룹 세그먼트(연속된 동일 그룹 엔트리) 경계 계산 */
+/** 스택에서 그룹 세그먼트(연속된 동일 그룹 엔트리) 경계 계산.
+ *  동일 그룹의 인덱스가 역행하면 새 세그먼트로 분리. */
 function getGroupSegments(stack: string[]): { key: string; startIdx: number; endIdx: number }[] {
   const segments: { key: string; startIdx: number; endIdx: number }[] = [];
   for (let i = 0; i < stack.length; i++) {
     const key = statusToGroupKey(stack[i]);
-    if (segments.length > 0 && segments[segments.length - 1].key === key) {
-      segments[segments.length - 1].endIdx = i;
+    const group = PROJECT_STATUS_GROUPS.find((g) => g.key === key);
+    const curIdx = group ? group.statuses.indexOf(stack[i] as ProjectStatus) : -1;
+    const last = segments[segments.length - 1];
+    if (last && last.key === key) {
+      const prevIdx = group ? group.statuses.indexOf(stack[last.endIdx] as ProjectStatus) : -1;
+      if (curIdx >= 0 && prevIdx >= 0 && curIdx < prevIdx) {
+        segments.push({ key, startIdx: i, endIdx: i });
+      } else {
+        last.endIdx = i;
+      }
     } else {
       segments.push({ key, startIdx: i, endIdx: i });
     }
@@ -97,16 +104,10 @@ function getGroupSegments(stack: string[]): { key: string; startIdx: number; end
   return segments;
 }
 
-/** 그룹 세그먼트 수 카운트 */
+/** 그룹 세그먼트 수 카운트 (인덱스 역행을 새 세그먼트로 취급) */
 function countGroupSegments(stack: string[], targetKey: string): number {
-  let count = 0;
-  let lastKey = '';
-  for (const s of stack) {
-    const key = statusToGroupKey(s);
-    if (key === targetKey && key !== lastKey) count++;
-    lastKey = key;
-  }
-  return count;
+  const segments = getGroupSegments(stack);
+  return segments.filter((s) => s.key === targetKey).length;
 }
 
 /** metadata에서 workflow_stack 읽기 + 정규화 */
@@ -256,6 +257,7 @@ function ProjectsContent() {
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState<EditForm | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [members, setMembers] = useState<MemberOption[]>([]);
 
@@ -479,6 +481,34 @@ function ProjectsContent() {
       setEditForm(null);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleDeleteProject() {
+    if (!selected) return;
+    const confirmed = confirm(
+      `"${selected.title}" 프로젝트를 영구 삭제하시겠습니까?\n\n` +
+      `연관된 견적서/계약서/입금/집행/환불 등 모든 데이터가 함께 삭제됩니다.\n` +
+      `이 작업은 되돌릴 수 없습니다.`,
+    );
+    if (!confirmed) return;
+
+    const deletingId = selected.id;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/projects/${deletingId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err?.error?.message || '프로젝트 삭제에 실패했습니다.');
+        return;
+      }
+      setProjects((prev) => prev.filter((p) => p.id !== deletingId));
+      setSelected(null);
+      setDetail(null);
+      setEditing(false);
+      setEditForm(null);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -1031,6 +1061,8 @@ function ProjectsContent() {
                           <div className={panel.boardCardMeta}>
                             <span>{p.clientName}</span>
                             <span>·</span>
+                            <span>{p.ownerName}</span>
+                            <span>·</span>
 
                             <StatusBadge status={p.status} type="project" />
                           </div>
@@ -1055,6 +1087,8 @@ function ProjectsContent() {
                   <span className={panel.itemName}>{p.title}</span>
                   <span className={panel.itemMeta}>
                     <span>{p.clientName}</span>
+                    <span>·</span>
+                    <span>{p.ownerName}</span>
                     <span>·</span>
                     <StatusBadge status={p.status} type="project" />
                   </span>
@@ -1089,8 +1123,16 @@ function ProjectsContent() {
                 )}
                 {editing && (
                   <>
-                    <ActionButton label="취소" variant="ghost" size="sm" icon={<LuX size={13} />} onClick={cancelEdit} disabled={saving} />
-                    <ActionButton label={saving ? '저장 중...' : '저장'} variant="primary" size="sm" icon={<LuCheck size={13} />} onClick={saveEdit} disabled={saving} />
+                    <ActionButton label="취소" variant="ghost" size="sm" icon={<LuX size={13} />} onClick={cancelEdit} disabled={saving || deleting} />
+                    <ActionButton
+                      label={deleting ? '삭제 중...' : '삭제'}
+                      variant="danger"
+                      size="sm"
+                      icon={<LuTrash2 size={13} />}
+                      onClick={handleDeleteProject}
+                      disabled={saving || deleting}
+                    />
+                    <ActionButton label={saving ? '저장 중...' : '저장'} variant="primary" size="sm" icon={<LuCheck size={13} />} onClick={saveEdit} disabled={saving || deleting} />
                   </>
                 )}
               </div>

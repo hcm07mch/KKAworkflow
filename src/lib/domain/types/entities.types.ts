@@ -50,9 +50,12 @@ export interface Client extends OrgScopedEntity {
   contact_phone: string | null;
   address: string | null;
   notes: string | null;
-  service_type: ServiceType;       // 留耳? ?鍮????
-  payment_type: PaymentType;       // 寃곗 諛⑹
-  tier: ClientTier;                // 怨媛 ?깃?
+  service_type: ServiceType;
+  payment_type: PaymentType;
+  tier: ClientTier;
+  business_number: string | null;
+  business_registration_file_path: string | null;
+  business_registration_file_name: string | null;
   metadata: JsonObject;
   is_active: boolean;
 }

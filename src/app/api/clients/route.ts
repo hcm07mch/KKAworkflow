@@ -38,13 +38,28 @@ export async function POST(request: NextRequest) {
   const {
     project_title, project_description, project_owner_id,
     service_type, payment_type,
+    organization_id: requestedOrgId,
+    business_number,
     ...clientData
   } = body;
+
+  // 조직 선택: 본사 계정은 fullAllowedOrgIds 범위 내에서 선택 가능, 지사는 본인 조직 고정
+  let targetOrgId = auth.userOrganizationId;
+  if (requestedOrgId && typeof requestedOrgId === 'string') {
+    if (!auth.fullAllowedOrgIds.includes(requestedOrgId)) {
+      return NextResponse.json(
+        { error: { code: 'ORGANIZATION_NOT_ALLOWED', message: '허용되지 않는 조직입니다' } },
+        { status: 403 },
+      );
+    }
+    targetOrgId = requestedOrgId;
+  }
 
   // 1. 고객사 생성
   const client = await auth.services.clientRepo.create({
     ...clientData,
-    organization_id: auth.userOrganizationId,
+    business_number: business_number ?? null,
+    organization_id: targetOrgId,
   });
 
   // 2. '영업(A_sales)' 상태의 프로젝트 자동 생성
@@ -60,12 +75,21 @@ export async function POST(request: NextRequest) {
     {
       userId: auth.dbUser.id,
       userRole: auth.role,
-      organizationId: auth.organizationId,
+      organizationId: targetOrgId,
     },
   );
 
+  // 조직 정보 포함 재조회
+  const serviceClient = createSupabaseServiceClient();
+  const { data: clientWithOrg } = await serviceClient
+    .from('workflow_clients')
+    .select('*, organization:workflow_organizations(id, name)')
+    .eq('id', client.id)
+    .single();
+
   return NextResponse.json(
-    { ...client, project: projectResult.success ? projectResult.data : null },
+    { ...(clientWithOrg ?? client), project: projectResult.success ? projectResult.data : null },
     { status: 201 },
   );
 }
+

@@ -63,6 +63,9 @@ export interface IClientRepository {
     service_type?: string;
     payment_type?: string;
     tier?: string;
+    business_number?: string | null;
+    business_registration_file_path?: string | null;
+    business_registration_file_name?: string | null;
     metadata?: JsonObject;
   }): Promise<Client>;
   update(id: string, data: Partial<{
@@ -75,6 +78,9 @@ export interface IClientRepository {
     service_type: string;
     payment_type: string;
     tier: string;
+    business_number: string | null;
+    business_registration_file_path: string | null;
+    business_registration_file_name: string | null;
     metadata: JsonObject;
     is_active: boolean;
     organization_id: string;
@@ -139,6 +145,8 @@ export interface IProjectRepository {
     changed_by: string | null;
     note?: string | null;
   }): Promise<void>;
+
+  delete(id: string): Promise<void>;
 }
 
 // ============================================================================
