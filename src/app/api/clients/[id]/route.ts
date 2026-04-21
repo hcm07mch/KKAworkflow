@@ -66,11 +66,13 @@ export async function PATCH(
   }
 
   // 조직 이관 시 옵션에 따라 해당 고객의 프로젝트도 함께 이관
+  let migratedProjectCount = 0;
   if (organizationIdUpdate !== undefined && body.migrate_projects === true) {
-    const { error: projectError } = await serviceClient
+    const { data: migrated, error: projectError } = await serviceClient
       .from('workflow_projects')
       .update({ organization_id: organizationIdUpdate })
-      .eq('client_id', id);
+      .eq('client_id', id)
+      .select('id');
 
     if (projectError) {
       return NextResponse.json(
@@ -83,9 +85,29 @@ export async function PATCH(
         { status: 500 },
       );
     }
+    migratedProjectCount = migrated?.length ?? 0;
+
+    // 이관된 프로젝트에 종속된 org-scoped 보조 데이터도 함께 이관
+    //  - workflow_activity_logs: 프로젝트 관련 로그는 project_id 로 연결되어 있으며, RLS/스코프 필터용 organization_id 컬럼을 가짐
+    //  - workflow_notifications: organization_id 로 스코프되어 있어 이관 후 대상 조직에서 조회 가능해야 함
+    // 문서(workflow_project_documents)와 승인(workflow_document_approvals)은 organization_id 컬럼이 없고 project 를 통해 조직 스코프를 따라가므로 별도 업데이트 불필요.
+    const migratedProjectIds = (migrated ?? []).map((p: { id: string }) => p.id);
+    if (migratedProjectIds.length > 0) {
+      // 활동 로그 organization_id 동기화
+      await serviceClient
+        .from('workflow_activity_logs')
+        .update({ organization_id: organizationIdUpdate })
+        .in('project_id', migratedProjectIds);
+
+      // 알림 organization_id 동기화
+      await serviceClient
+        .from('workflow_notifications')
+        .update({ organization_id: organizationIdUpdate })
+        .in('project_id', migratedProjectIds);
+    }
   }
 
-  return NextResponse.json(updated);
+  return NextResponse.json({ ...updated, migrated_project_count: migratedProjectCount });
 }
 
 export async function DELETE(

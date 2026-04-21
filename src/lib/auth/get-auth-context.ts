@@ -262,6 +262,9 @@ function notFound(resource: string): NextResponse {
  * - 없으면 404
  * - 다른 조직 소속이면 403
  * - 일치하면 null
+ *
+ * 본사(root) 계정은 활성 스코프(allowedOrgIds)와 무관하게 자신의 전체 관할 조직(fullAllowedOrgIds)에
+ * 속한 고객사라면 접근을 허용한다(조직 간 이관/통합 관리를 위함).
  */
 export async function verifyClientInOrg(
   auth: AuthContext,
@@ -275,7 +278,9 @@ export async function verifyClientInOrg(
     .maybeSingle();
 
   if (!data) return notFound('고객사');
-  if (!auth.allowedOrgIds.includes((data as { organization_id: string }).organization_id)) {
+  const orgId = (data as { organization_id: string }).organization_id;
+  const scope = auth.isRootOrg ? auth.fullAllowedOrgIds : auth.allowedOrgIds;
+  if (!scope.includes(orgId)) {
     return forbidOrgMismatch('고객사');
   }
   return null;
@@ -283,6 +288,7 @@ export async function verifyClientInOrg(
 
 /**
  * 프로젝트가 사용자의 허용 조직 범위에 속하는지 검증.
+ * 본사(root) 계정은 fullAllowedOrgIds 기준으로 판단.
  */
 export async function verifyProjectInOrg(
   auth: AuthContext,
@@ -296,7 +302,9 @@ export async function verifyProjectInOrg(
     .maybeSingle();
 
   if (!data) return notFound('프로젝트');
-  if (!auth.allowedOrgIds.includes((data as { organization_id: string }).organization_id)) {
+  const orgId = (data as { organization_id: string }).organization_id;
+  const scope = auth.isRootOrg ? auth.fullAllowedOrgIds : auth.allowedOrgIds;
+  if (!scope.includes(orgId)) {
     return forbidOrgMismatch('프로젝트');
   }
   return null;
@@ -304,6 +312,7 @@ export async function verifyProjectInOrg(
 
 /**
  * 문서가 사용자의 허용 조직 범위에 속하는지 검증 (project.organization_id 기준).
+ * 본사(root) 계정은 fullAllowedOrgIds 기준으로 판단.
  */
 export async function verifyDocumentInOrg(
   auth: AuthContext,
@@ -319,7 +328,8 @@ export async function verifyDocumentInOrg(
   if (!data) return notFound('문서');
   const projectField = (data as { project: { organization_id: string } | { organization_id: string }[] | null }).project;
   const orgId = Array.isArray(projectField) ? projectField[0]?.organization_id : projectField?.organization_id;
-  if (!orgId || !auth.allowedOrgIds.includes(orgId)) {
+  const scope = auth.isRootOrg ? auth.fullAllowedOrgIds : auth.allowedOrgIds;
+  if (!orgId || !scope.includes(orgId)) {
     return forbidOrgMismatch('문서');
   }
   return null;

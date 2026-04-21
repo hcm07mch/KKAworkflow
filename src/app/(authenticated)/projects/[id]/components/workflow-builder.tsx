@@ -14,6 +14,7 @@ import {
   PROJECT_STATUS_META,
   PROJECT_STATUS_GROUPS,
 } from '@/lib/domain/types';
+import { useFeedback } from '@/components/ui';
 import styles from './workflow-builder.module.css';
 
 // 각 그룹의 대표 색상
@@ -237,6 +238,7 @@ interface WorkflowBuilderProps {
 }
 
 export function WorkflowBuilder({ serviceType, projectStatus, workflowStack, manualStatuses, documents = [], onAdd, onDelete, onStatusChange, onRefresh }: WorkflowBuilderProps) {
+  const { confirm } = useFeedback();
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const addBtnRef = useRef<HTMLButtonElement>(null);
@@ -284,16 +286,21 @@ export function WorkflowBuilder({ serviceType, projectStatus, workflowStack, man
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [open]);
 
-  function handleSelect(group: typeof PROJECT_STATUS_GROUPS[number]) {
+  async function handleSelect(group: typeof PROJECT_STATUS_GROUPS[number]) {
     if (group.key === 'D') {
       // D 그룹은 부모에서 결제 모달을 표시하므로 바로 위임
       onAdd(group.key);
-    } else {
-      if (confirm(`워크플로우에 "${group.label}" 단계를 추가하시겠습니까?`)) {
-        onAdd(group.key);
-      }
+      setOpen(false);
+      return;
     }
     setOpen(false);
+    const ok = await confirm({
+      title: `"${group.label}" 단계 추가`,
+      description: `워크플로우에 "${group.label}" 단계를 추가하시겠습니까?`,
+      confirmLabel: '추가',
+      variant: group.key === 'G' ? 'danger' : 'info',
+    });
+    if (ok) onAdd(group.key);
   }
 
   function handleSubClick(item: { status: ProjectStatus; state: 'done' | 'active' | 'upcoming' }, group: typeof stack[number], gIdx: number) {

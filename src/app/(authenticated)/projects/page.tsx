@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 
-import { LuFolderOpen, LuPanelLeftOpen, LuPanelLeftClose, LuDownload, LuPencil, LuX, LuCheck, LuExternalLink, LuChevronDown, LuChevronUp, LuRefreshCw, LuTrash2 } from 'react-icons/lu';
+import { LuFolderOpen, LuPanelLeftOpen, LuPanelLeftClose, LuDownload, LuPencil, LuX, LuCheck, LuExternalLink, LuChevronDown, LuChevronUp, LuRefreshCw, LuTrash2, LuBan } from 'react-icons/lu';
 import { StatusBadge, ActionButton } from '@/components/ui';
 import type { ProjectStatus, ServiceType, PaymentType, DocumentStatus, DocumentType } from '@/lib/domain/types';
 import {
@@ -884,12 +884,18 @@ function ProjectsContent() {
     if (!closingModal || !detail || !selected) return;
     const { toStatus, source, groupKey } = closingModal;
     const reason = closingReason.trim();
+    const closedAt = new Date().toISOString();
 
     if (source === 'workflowAdd' && groupKey) {
       // 워크플로우에 G 그룹 추가 — 단일 PATCH로 status + metadata 동시 변경
       const currentStack = readStack(detail.metadata, selected.status);
       const newStack = [...currentStack, toStatus];
-      const newMeta = { ...detail.metadata, workflow_stack: newStack };
+      const newMeta = {
+        ...detail.metadata,
+        workflow_stack: newStack,
+        closing_reason: reason,
+        closed_at: closedAt,
+      };
       setDetail((prev) => prev ? { ...prev, status: toStatus, metadata: newMeta } : prev);
       setSelected((prev) => prev ? { ...prev, status: toStatus } : prev);
       setProjects((prev) => prev.map((p) => p.id === detail.id ? { ...p, status: toStatus } : p));
@@ -908,18 +914,23 @@ function ProjectsContent() {
     } else {
       // transition / workflowStatus: 단일 PATCH로 상태 변경
       const prevStatus = selected.status;
-      setDetail((prev) => prev ? { ...prev, status: toStatus } : prev);
+      const newMeta = {
+        ...detail.metadata,
+        closing_reason: reason,
+        closed_at: closedAt,
+      };
+      setDetail((prev) => prev ? { ...prev, status: toStatus, metadata: newMeta } : prev);
       setSelected((prev) => prev ? { ...prev, status: toStatus } : prev);
       setProjects((prev) => prev.map((p) => p.id === detail.id ? { ...p, status: toStatus } : p));
       fetch(`/api/projects/${detail.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: toStatus }),
+        body: JSON.stringify({ status: toStatus, metadata: newMeta }),
       }).then((r) => {
         if (!r.ok) throw new Error();
         if (source === 'transition') selectProject({ ...selected, status: toStatus });
       }).catch(() => {
-        setDetail((prev) => prev ? { ...prev, status: prevStatus } : prev);
+        setDetail((prev) => prev ? { ...prev, status: prevStatus, metadata: detail.metadata } : prev);
         setSelected((prev) => prev ? { ...prev, status: prevStatus } : prev);
         setProjects((prev) => prev.map((p) => p.id === detail.id ? { ...p, status: prevStatus } : p));
         alert('상태 변경에 실패했습니다.');
@@ -1078,22 +1089,40 @@ function ProjectsContent() {
           /* ── Collapsed: Normal List ── */
           <>
             <div className={panel.itemList}>
-              {filtered.map((p) => (
-                <div
-                  key={p.id}
-                  className={`${panel.item} ${selected?.id === p.id ? panel.itemActive : ''}`}
-                  onClick={() => selectProject(p)}
-                >
-                  <span className={panel.itemName}>{p.title}</span>
-                  <span className={panel.itemMeta}>
-                    <span>{p.clientName}</span>
-                    <span>·</span>
-                    <span>{p.ownerName}</span>
-                    <span>·</span>
-                    <StatusBadge status={p.status} type="project" />
-                  </span>
-                </div>
-              ))}
+              {filtered.map((p) => {
+                const isClosed = p.status === 'G1_closed';
+                return (
+                  <div
+                    key={p.id}
+                    className={`${panel.item} ${selected?.id === p.id ? panel.itemActive : ''}`}
+                    onClick={() => selectProject(p)}
+                    style={isClosed ? {
+                      opacity: 0.6,
+                      background: 'repeating-linear-gradient(135deg, transparent, transparent 8px, rgba(0,0,0,0.03) 8px, rgba(0,0,0,0.03) 16px)',
+                    } : undefined}
+                  >
+                    <span
+                      className={panel.itemName}
+                      style={isClosed ? {
+                        color: 'var(--color-text-muted)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                      } : undefined}
+                    >
+                      {isClosed && <LuBan size={13} style={{ color: '#9ca3af', flexShrink: 0 }} />}
+                      {p.title}
+                    </span>
+                    <span className={panel.itemMeta}>
+                      <span>{p.clientName}</span>
+                      <span>·</span>
+                      <span>{p.ownerName}</span>
+                      <span>·</span>
+                      <StatusBadge status={p.status} type="project" />
+                    </span>
+                  </div>
+                );
+              })}
             </div>
             <div className={panel.leftFooter}>{filtered.length}개 프로젝트</div>
           </>
@@ -1137,6 +1166,52 @@ function ProjectsContent() {
                 )}
               </div>
             </div>
+
+            {/* ── 종료 프로젝트 배너 ── */}
+            {selected.status === 'G1_closed' && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 12,
+                  padding: '14px 16px',
+                  marginBottom: 12,
+                  borderRadius: 10,
+                  border: '1px solid #fecaca',
+                  background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
+                  boxShadow: '0 1px 2px rgba(220, 38, 38, 0.06)',
+                }}
+              >
+                <div
+                  style={{
+                    width: 36, height: 36, borderRadius: '50%',
+                    background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: '#dc2626', flexShrink: 0,
+                    boxShadow: '0 1px 3px rgba(220, 38, 38, 0.12)',
+                  }}
+                >
+                  <LuBan size={20} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#dc2626' }}>
+                      종료된 프로젝트
+                    </span>
+                    {detail?.metadata?.closed_at && (
+                      <span style={{ fontSize: 11, color: '#991b1b', opacity: 0.75 }}>
+                        · {formatDate(detail.metadata.closed_at)}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 13, color: '#7f1d1d', lineHeight: 1.5, wordBreak: 'break-word' }}>
+                    <span style={{ fontWeight: 600 }}>종료 사유: </span>
+                    {detail?.metadata?.closing_reason
+                      ? detail.metadata.closing_reason
+                      : <span style={{ opacity: 0.6, fontStyle: 'italic' }}>기록된 사유가 없습니다</span>}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* 프로젝트 기본 정보 */}
             <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -1752,13 +1827,50 @@ function ProjectsContent() {
               </div>
             </div>
             <div style={{ padding: '12px 24px 20px' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                {[
+                  '프로젝트 정상 완료',
+                  '고객 요청으로 종료',
+                  '계약 불발',
+                  '예산 부족',
+                  '경쟁사 선정',
+                  '연락 두절',
+                  '일정 불일치',
+                  '내부 사정으로 종료',
+                ].map((preset) => {
+                  const active = closingReason.trim() === preset;
+                  return (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => {
+                        setClosingReason(preset);
+                        closingReasonRef.current?.focus();
+                      }}
+                      style={{
+                        fontSize: 12,
+                        padding: '5px 10px',
+                        borderRadius: 999,
+                        border: `1px solid ${active ? '#dc2626' : 'var(--color-border)'}`,
+                        background: active ? '#fef2f2' : 'var(--color-surface)',
+                        color: active ? '#dc2626' : 'var(--color-text-primary)',
+                        cursor: 'pointer',
+                        lineHeight: 1.2,
+                        transition: 'all 0.12s',
+                      }}
+                    >
+                      {preset}
+                    </button>
+                  );
+                })}
+              </div>
               <textarea
                 ref={closingReasonRef}
                 className="form-input"
                 rows={4}
                 value={closingReason}
                 onChange={(e) => setClosingReason(e.target.value)}
-                placeholder="예: 고객 요청으로 프로젝트 종료, 계약 불발 등"
+                placeholder="위 항목을 클릭하거나 직접 입력해 주세요"
                 autoFocus
                 style={{
                   width: '100%', fontSize: 13, resize: 'vertical',

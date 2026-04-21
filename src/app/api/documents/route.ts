@@ -16,12 +16,32 @@ export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const type = searchParams.get('type');
 
+  // 1) 먼저 허용 조직 범위의 프로젝트 ID를 조회한다.
+  //    (문서를 project.organization_id 로 필터링하는 것은 PostgREST의 embed 필터 특성상
+  //     `!inner`와 조합해도 안정적으로 적용되지 않는 경우가 있어, project_id 화이트리스트로 처리한다.)
+  const { data: projectRows, error: projectError } = await supabase
+    .from('workflow_projects')
+    .select('id')
+    .in('organization_id', allowedOrgIds);
+
+  if (projectError) {
+    return NextResponse.json(
+      { error: { code: 'DB_ERROR', message: projectError.message } },
+      { status: 500 },
+    );
+  }
+
+  const allowedProjectIds = (projectRows ?? []).map((p: { id: string }) => p.id);
+  if (allowedProjectIds.length === 0) {
+    return NextResponse.json([]);
+  }
+
   let query = supabase
     .from('workflow_project_documents')
     .select(
-      '*, project:workflow_projects!inner(id, title, organization_id, service_type, total_amount, start_date, end_date, status, client:workflow_clients(id, name), owner:workflow_users!workflow_projects_owner_id_fkey(id, name))',
+      '*, project:workflow_projects(id, title, organization_id, service_type, total_amount, start_date, end_date, status, client:workflow_clients(id, name), owner:workflow_users!workflow_projects_owner_id_fkey(id, name))',
     )
-    .in('project.organization_id', allowedOrgIds);
+    .in('project_id', allowedProjectIds);
 
   if (type) {
     query = query.eq('type', type);

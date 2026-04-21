@@ -74,6 +74,7 @@ export default function ClientsPage() {
   }, []);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [migrateModal, setMigrateModal] = useState<{ newOrgName: string; count: number } | null>(null);
 
   const loadClients = useCallback(() => {
     setLoading(true);
@@ -274,19 +275,24 @@ export default function ClientsPage() {
       return;
     }
 
-    // 조직 변경 시 프로젝트 이관 여부 확인
+    // 조직 변경 시 프로젝트 이관 여부 확인 — 커스텀 3-옵션 모달 사용
     const orgChanged = isRootOrg && !!form.organization_id && form.organization_id !== selected.organizationId;
-    let migrateProjects = false;
     if (orgChanged) {
       const clientProjectCount = projects.filter((p) => p.clientId === selected.id).length;
       if (clientProjectCount > 0) {
         const newOrgName = allowedOrgOptions.find((o) => o.id === form.organization_id)?.name ?? '선택한 조직';
-        migrateProjects = confirm(
-          `"${selected.name}" 고객의 프로젝트 ${clientProjectCount}건도 "${newOrgName}"(으)로 함께 이관하시겠습니까?\n\n[확인] 프로젝트 함께 이관\n[취소] 고객만 이관 (프로젝트는 현재 조직에 유지)`,
-        );
+        setMigrateModal({ newOrgName, count: clientProjectCount });
+        return; // 모달에서 선택 시 performClientUpdate 호출
       }
     }
 
+    // 조직 미변경 또는 프로젝트 없음 → 바로 저장
+    performClientUpdate(false, orgChanged);
+  }
+
+  async function performClientUpdate(migrateProjects: boolean, orgChanged: boolean) {
+    if (!selected) return;
+    const trimmedName = form.name.trim();
     setSaving(true);
     setFormError('');
     try {
@@ -350,6 +356,14 @@ export default function ClientsPage() {
       setSelected(updatedClient);
       setMode('view');
       loadClients();
+      if (orgChanged && migrateProjects) {
+        const count = typeof updated.migrated_project_count === 'number' ? updated.migrated_project_count : null;
+        if (count === 0) {
+          alert('고객은 이관되었으나 이관된 프로젝트가 없습니다. (해당 고객에 연결된 프로젝트가 없거나 DB 권한 문제일 수 있습니다)');
+        } else if (count != null) {
+          alert(`고객과 프로젝트 ${count}건이 새 조직으로 이관되었습니다.`);
+        }
+      }
     } catch (e: any) {
       setFormError(e.message || '수정에 실패했습니다.');
     } finally {
@@ -1049,6 +1063,97 @@ export default function ClientsPage() {
           </>
         )}
       </div>
+
+      {/* ── 프로젝트 이관 선택 모달 ── */}
+      {migrateModal && selected && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(2px)',
+          }}
+          onClick={() => setMigrateModal(null)}
+        >
+          <div
+            style={{
+              width: 480, maxWidth: 'calc(100vw - 32px)',
+              background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius)', boxShadow: '0 16px 48px rgba(0,0,0,0.18)',
+              overflow: 'hidden',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ padding: '20px 24px 0' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 6 }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: '50%',
+                  background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#2563eb', flexShrink: 0,
+                }}>
+                  <LuBuilding2 size={18} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: 15, fontWeight: 600, margin: 0, color: 'var(--color-text-primary)' }}>
+                    고객 조직 이관
+                  </p>
+                  <p style={{ fontSize: 13, color: 'var(--color-text-muted)', margin: '4px 0 0', lineHeight: 1.5 }}>
+                    <strong style={{ color: 'var(--color-text-primary)' }}>"{selected.name}"</strong> 고객의 프로젝트{' '}
+                    <strong style={{ color: 'var(--color-text-primary)' }}>{migrateModal.count}건</strong>을{' '}
+                    <strong style={{ color: 'var(--color-text-primary)' }}>"{migrateModal.newOrgName}"</strong>(으)로 어떻게 처리할까요?
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div style={{ padding: '16px 24px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button
+                type="button"
+                className="btn btn-md btn-primary"
+                style={{ justifyContent: 'flex-start', textAlign: 'left', padding: '12px 16px', height: 'auto' }}
+                onClick={() => {
+                  setMigrateModal(null);
+                  performClientUpdate(true, true);
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>프로젝트 함께 이관</div>
+                  <div style={{ fontSize: 11, opacity: 0.85, marginTop: 2, fontWeight: 400 }}>
+                    고객과 프로젝트 {migrateModal.count}건을 새 조직으로 모두 이동
+                  </div>
+                </div>
+              </button>
+              <button
+                type="button"
+                className="btn btn-md btn-secondary"
+                style={{ justifyContent: 'flex-start', textAlign: 'left', padding: '12px 16px', height: 'auto' }}
+                onClick={() => {
+                  setMigrateModal(null);
+                  performClientUpdate(false, true);
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>고객만 이관</div>
+                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2, fontWeight: 400 }}>
+                    프로젝트는 현재 조직에 유지, 고객만 새 조직으로 이동
+                  </div>
+                </div>
+              </button>
+              <button
+                type="button"
+                className="btn btn-md btn-ghost"
+                style={{ justifyContent: 'flex-start', textAlign: 'left', padding: '12px 16px', height: 'auto' }}
+                onClick={() => setMigrateModal(null)}
+              >
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>취소</div>
+                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2, fontWeight: 400 }}>
+                    작업을 취소하고 이전 상태로 돌아가기
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
