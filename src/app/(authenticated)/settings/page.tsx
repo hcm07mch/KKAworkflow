@@ -433,6 +433,7 @@ export default function SettingsPage() {
             setCategories={setEstimateCategories}
             toast={toast}
             confirm={confirm}
+            isBranch={!!org?.parent_id}
           />
         )}
 
@@ -448,6 +449,7 @@ export default function SettingsPage() {
             setCategories={setExecutionCategories}
             toast={toast}
             confirm={confirm}
+            isBranch={!!org?.parent_id}
           />
         )}
 
@@ -1427,7 +1429,7 @@ function CatalogEditModal({
 
 
 function CatalogSection({
-  catalogType, title, subtitle, items, setItems, categories, setCategories, toast, confirm,
+  catalogType, title, subtitle, items, setItems, categories, setCategories, toast, confirm, isBranch,
 }: {
   catalogType: 'estimate' | 'execution';
   title: string;
@@ -1438,7 +1440,62 @@ function CatalogSection({
   setCategories: React.Dispatch<React.SetStateAction<CatalogCategory[]>>;
   toast: (opts: ToastOptions) => void;
   confirm: (opts: ConfirmOptions) => Promise<boolean>;
+  isBranch?: boolean;
 }) {
+  const [syncing, setSyncing] = useState(false);
+
+  const handleSyncFromHq = async () => {
+    const ok = await confirm({
+      title: '본사 카탈로그를 동기화하시겠습니까?',
+      description:
+        '본사의 카테고리/카탈로그 항목을 현재 지사로 가져옵니다.\n' +
+        '· 동일한 이름의 항목은 본사 내용(가격/내용/카테고리/정렬)으로 덮어씁니다.\n' +
+        '· 지사에만 있는 항목은 그대로 유지됩니다.',
+      variant: 'warning',
+      confirmLabel: '동기화',
+      cancelLabel: '취소',
+    });
+    if (!ok) return;
+
+    setSyncing(true);
+    try {
+      const res = await fetch('/api/settings/catalogs/sync-from-hq', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ catalog_type: catalogType }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({
+          title: data?.error?.message || '동기화에 실패했습니다',
+          variant: 'error',
+        });
+        return;
+      }
+
+      // 재조회하여 화면 갱신
+      const [itemsRes, catsRes] = await Promise.all([
+        fetch(`/api/settings/catalogs?type=${catalogType}`).then((r) => r.json()),
+        fetch(`/api/settings/catalog-categories?type=${catalogType}`).then((r) => r.json()),
+      ]);
+      if (Array.isArray(itemsRes)) setItems(itemsRes);
+      if (Array.isArray(catsRes)) setCategories(catsRes);
+
+      const { categoriesAdded = 0, itemsAdded = 0, itemsUpdated = 0, failures = [] } = data;
+      const summary =
+        `카테고리 ${categoriesAdded}개 추가 · 항목 ${itemsAdded}개 추가 / ${itemsUpdated}개 갱신`;
+      if (Array.isArray(failures) && failures.length > 0) {
+        toast({ title: `${summary} (실패 ${failures.length}건)`, variant: 'warning' });
+      } else {
+        toast({ title: summary, variant: 'success' });
+      }
+    } catch {
+      toast({ title: '동기화 중 오류가 발생했습니다', variant: 'error' });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const [editing, setEditing] = useState<CatalogItem | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -1503,6 +1560,7 @@ function CatalogSection({
   // item drag-and-drop state (항목 자체 순서 조정)
   const dragItemId = useRef<string | null>(null);
   const [dragOverItemId, setDragOverItemId] = useState<string | null>(null);
+  const [dragOverCategoryKey, setDragOverCategoryKey] = useState<string | null>(null);
 
   const handleItemDragStart = (e: React.DragEvent, itemId: string) => {
     dragItemId.current = itemId;
@@ -1523,6 +1581,80 @@ function CatalogSection({
   const handleItemDragEnd = () => {
     dragItemId.current = null;
     setDragOverItemId(null);
+    setDragOverCategoryKey(null);
+  };
+
+  // 카테고리 섹션 전체(헤더 + 항목 그리드) 위에 드래그/드롭 처리
+  const handleCategorySectionDragOver = (e: React.DragEvent, key: string) => {
+    if (!dragItemId.current) return;
+    e.preventDefault();
+    if (dragOverCategoryKey !== key) setDragOverCategoryKey(key);
+  };
+
+  const handleCategorySectionDragLeave = (e: React.DragEvent, key: string) => {
+    const related = e.relatedTarget as Node | null;
+    if (related && (e.currentTarget as Node).contains(related)) return;
+    if (dragOverCategoryKey === key) setDragOverCategoryKey(null);
+  };
+
+  const handleCategorySectionDrop = async (key: string) => {
+    const fromId = dragItemId.current;
+    setDragOverCategoryKey(null);
+    if (!fromId) return;
+    // item drop on an item already handled - that handler already clears dragItemId.current first
+    dragItemId.current = null;
+    setDragOverItemId(null);
+
+    const fromItem = items.find((i) => i.id === fromId);
+    if (!fromItem) return;
+
+    const targetCategoryId = key === '__uncategorized__' ? null : key;
+    if ((fromItem.category_id ?? null) === targetCategoryId) return; // 같은 카테고리면 무시
+
+    const targetCat = targetCategoryId ? categories.find((c) => c.id === targetCategoryId) : null;
+    const targetGroupName = targetCat?.name ?? '';
+
+    // 대상 카테고리의 마지막 위치 뒤에 삽입
+    const ordered = [...items].sort((a, b) => a.sort_order - b.sort_order);
+    const fromIdx = ordered.findIndex((i) => i.id === fromId);
+    if (fromIdx < 0) return;
+    const [moved] = ordered.splice(fromIdx, 1);
+    moved.category_id = targetCategoryId;
+    moved.group_name = targetGroupName;
+
+    let insertAt = ordered.length;
+    for (let i = ordered.length - 1; i >= 0; i--) {
+      if ((ordered[i].category_id ?? null) === targetCategoryId) {
+        insertAt = i + 1;
+        break;
+      }
+    }
+    ordered.splice(insertAt, 0, moved);
+
+    const updated = ordered.map((it, i) => ({ ...it, sort_order: i }));
+    const prevItems = items;
+    setItems(updated);
+
+    try {
+      const res = await fetch('/api/settings/catalogs', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orders: updated.map((it) => ({ id: it.id, sort_order: it.sort_order })) }),
+      });
+      if (!res.ok) {
+        toast({ title: '정렬 저장에 실패했습니다', variant: 'error' });
+        setItems(prevItems);
+        return;
+      }
+      await fetch(`/api/settings/catalogs/${moved.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category_id: moved.category_id, group_name: moved.group_name }),
+      });
+    } catch {
+      toast({ title: '정렬 저장에 실패했습니다', variant: 'error' });
+      setItems(prevItems);
+    }
   };
 
   const handleItemDrop = async (targetId: string) => {
@@ -1951,6 +2083,15 @@ function CatalogSection({
           <div className={panel.detailSubtitle}>{subtitle}</div>
         </div>
         <div className={panel.detailActions}>
+          {isBranch && (
+            <ActionButton
+              label={syncing ? '동기화 중...' : '본사에서 동기화'}
+              variant="ghost"
+              size="sm"
+              onClick={handleSyncFromHq}
+              disabled={syncing}
+            />
+          )}
           <ActionButton
             label="+ 카테고리"
             variant="ghost"
@@ -2119,7 +2260,24 @@ function CatalogSection({
           const cat = isUncategorized ? null : categories[catIdx];
           const isEditingThisCat = cat && editingCategoryId === cat.id;
           return (
-            <div key={key} style={{ marginBottom: 16 }}>
+            <div
+              key={key}
+              onDragOver={(e) => handleCategorySectionDragOver(e, key)}
+              onDragLeave={(e) => handleCategorySectionDragLeave(e, key)}
+              onDrop={() => handleCategorySectionDrop(key)}
+              style={{
+                marginBottom: 16,
+                padding: 6,
+                borderRadius: 6,
+                background: dragOverCategoryKey === key
+                  ? 'var(--color-primary-soft, rgba(59,130,246,0.08))'
+                  : 'transparent',
+                outline: dragOverCategoryKey === key
+                  ? '1px dashed var(--color-primary, #3b82f6)'
+                  : '1px dashed transparent',
+                transition: 'background 0.1s, outline-color 0.1s',
+              }}
+            >
               <div
                 draggable={!isUncategorized && !isEditingThisCat}
                 onDragStart={() => { if (!isUncategorized && !isEditingThisCat) handleCategoryDragStart(catIdx); }}
@@ -2177,7 +2335,7 @@ function CatalogSection({
                   </>
                 )}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8, minHeight: 60 }}>
               {groupItems.length === 0 && (
                 <div style={{ fontSize: 12, color: 'var(--color-text-muted)', padding: '12px 4px', gridColumn: '1 / -1' }}>
                   항목이 없습니다. 항목을 여기에 드래그하거나 &quot;+ 항목 추가&quot;로 추가하세요.
