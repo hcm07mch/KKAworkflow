@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthContext, requireRole } from '@/lib/auth';
+import { getAuthContext, requireRole, requireRootOrg } from '@/lib/auth';
 
 export async function PUT(
   request: NextRequest,
@@ -14,7 +14,10 @@ export async function PUT(
   const auth = await getAuthContext();
   if (!auth.success) return auth.response;
 
-  const roleCheck = requireRole(auth.role, 'manager');
+  const rootCheck = requireRootOrg(auth);
+  if (rootCheck) return rootCheck;
+
+  const roleCheck = requireRole(auth.role, 'member');
   if (roleCheck) return roleCheck;
 
   const { id } = await params;
@@ -62,7 +65,10 @@ export async function DELETE(
   const auth = await getAuthContext();
   if (!auth.success) return auth.response;
 
-  const roleCheck = requireRole(auth.role, 'manager');
+  const rootCheck = requireRootOrg(auth);
+  if (rootCheck) return rootCheck;
+
+  const roleCheck = requireRole(auth.role, 'member');
   if (roleCheck) return roleCheck;
 
   const { id } = await params;

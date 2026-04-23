@@ -9,7 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthContext, requireRole } from '@/lib/auth';
+import { getAuthContext, requireRole, requireRootOrg } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   const auth = await getAuthContext();
@@ -51,7 +51,10 @@ export async function POST(request: NextRequest) {
   const auth = await getAuthContext();
   if (!auth.success) return auth.response;
 
-  const roleCheck = requireRole(auth.role, 'manager');
+  const rootCheck = requireRootOrg(auth);
+  if (rootCheck) return rootCheck;
+
+  const roleCheck = requireRole(auth.role, 'member');
   if (roleCheck) return roleCheck;
 
   const body = await request.json();
@@ -87,7 +90,10 @@ export async function DELETE(request: NextRequest) {
   const auth = await getAuthContext();
   if (!auth.success) return auth.response;
 
-  const roleCheck = requireRole(auth.role, 'manager');
+  const rootCheck = requireRootOrg(auth);
+  if (rootCheck) return rootCheck;
+
+  const roleCheck = requireRole(auth.role, 'member');
   if (roleCheck) return roleCheck;
 
   const { searchParams } = new URL(request.url);
