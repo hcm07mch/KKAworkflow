@@ -132,11 +132,15 @@ export class SupabaseApprovalPolicyRepository implements IApprovalPolicyReposito
 
   async delete(id: string): Promise<void> {
     // steps??ON DELETE CASCADE
-    const { error } = await this.db
+    const { data, error } = await this.db
       .from('workflow_approval_policies')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .select('id');
 
-    if (error) throw new Error(`approval policy ?? ?ㅽ? ${error.message}`);
+    if (error) throw new Error(`approval policy 삭제 실패: ${error.message}`);
+    if (!data || data.length === 0) {
+      throw new Error('approval policy 삭제 실패: 권한이 없거나 정책을 찾을 수 없습니다');
+    }
   }
 }
