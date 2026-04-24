@@ -433,7 +433,6 @@ export default function SettingsPage() {
             setCategories={setEstimateCategories}
             toast={toast}
             confirm={confirm}
-            isBranch={!!org?.parent_id}
           />
         )}
 
@@ -449,7 +448,6 @@ export default function SettingsPage() {
             setCategories={setExecutionCategories}
             toast={toast}
             confirm={confirm}
-            isBranch={!!org?.parent_id}
           />
         )}
 
@@ -1429,7 +1427,7 @@ function CatalogEditModal({
 
 
 function CatalogSection({
-  catalogType, title, subtitle, items, setItems, categories, setCategories, toast, confirm, isBranch,
+  catalogType, title, subtitle, items, setItems, categories, setCategories, toast, confirm,
 }: {
   catalogType: 'estimate' | 'execution';
   title: string;
@@ -1440,62 +1438,7 @@ function CatalogSection({
   setCategories: React.Dispatch<React.SetStateAction<CatalogCategory[]>>;
   toast: (opts: ToastOptions) => void;
   confirm: (opts: ConfirmOptions) => Promise<boolean>;
-  isBranch?: boolean;
 }) {
-  const [syncing, setSyncing] = useState(false);
-
-  const handleSyncFromHq = async () => {
-    const ok = await confirm({
-      title: '본사 카탈로그를 동기화하시겠습니까?',
-      description:
-        '본사의 카테고리/카탈로그 항목을 현재 지사로 가져옵니다.\n' +
-        '· 동일한 이름의 항목은 본사 내용(가격/내용/카테고리/정렬)으로 덮어씁니다.\n' +
-        '· 지사에만 있는 항목은 그대로 유지됩니다.',
-      variant: 'warning',
-      confirmLabel: '동기화',
-      cancelLabel: '취소',
-    });
-    if (!ok) return;
-
-    setSyncing(true);
-    try {
-      const res = await fetch('/api/settings/catalogs/sync-from-hq', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ catalog_type: catalogType }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast({
-          title: data?.error?.message || '동기화에 실패했습니다',
-          variant: 'error',
-        });
-        return;
-      }
-
-      // 재조회하여 화면 갱신
-      const [itemsRes, catsRes] = await Promise.all([
-        fetch(`/api/settings/catalogs?type=${catalogType}`).then((r) => r.json()),
-        fetch(`/api/settings/catalog-categories?type=${catalogType}`).then((r) => r.json()),
-      ]);
-      if (Array.isArray(itemsRes)) setItems(itemsRes);
-      if (Array.isArray(catsRes)) setCategories(catsRes);
-
-      const { categoriesAdded = 0, itemsAdded = 0, itemsUpdated = 0, failures = [] } = data;
-      const summary =
-        `카테고리 ${categoriesAdded}개 추가 · 항목 ${itemsAdded}개 추가 / ${itemsUpdated}개 갱신`;
-      if (Array.isArray(failures) && failures.length > 0) {
-        toast({ title: `${summary} (실패 ${failures.length}건)`, variant: 'warning' });
-      } else {
-        toast({ title: summary, variant: 'success' });
-      }
-    } catch {
-      toast({ title: '동기화 중 오류가 발생했습니다', variant: 'error' });
-    } finally {
-      setSyncing(false);
-    }
-  };
-
   const [editing, setEditing] = useState<CatalogItem | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -2083,15 +2026,6 @@ function CatalogSection({
           <div className={panel.detailSubtitle}>{subtitle}</div>
         </div>
         <div className={panel.detailActions}>
-          {isBranch && (
-            <ActionButton
-              label={syncing ? '동기화 중...' : '본사에서 동기화'}
-              variant="ghost"
-              size="sm"
-              onClick={handleSyncFromHq}
-              disabled={syncing}
-            />
-          )}
           <ActionButton
             label="+ 카테고리"
             variant="ghost"

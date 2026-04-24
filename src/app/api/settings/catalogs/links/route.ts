@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
       estimate_catalog:workflow_service_catalog!estimate_catalog_id(*),
       execution_catalog:workflow_service_catalog!execution_catalog_id(*)
     `)
-    .eq('organization_id', auth.organizationId);
+    .eq('organization_id', auth.rootOrganizationId);
 
   if (estimateId) {
     query = query.eq('estimate_catalog_id', estimateId);
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
   const { data, error } = await serviceClient
     .from('workflow_catalog_links')
     .insert({
-      organization_id: auth.organizationId,
+      organization_id: auth.rootOrganizationId,
       estimate_catalog_id: body.estimate_catalog_id,
       execution_catalog_id: body.execution_catalog_id,
     })
@@ -116,7 +116,7 @@ export async function DELETE(request: NextRequest) {
     .from('workflow_catalog_links')
     .delete()
     .eq('id', linkId)
-    .eq('organization_id', auth.organizationId);
+    .eq('organization_id', auth.rootOrganizationId);
 
   if (error) {
     return NextResponse.json(

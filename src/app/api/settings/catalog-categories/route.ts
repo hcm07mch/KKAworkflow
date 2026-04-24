@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   let query = serviceClient
     .from('workflow_catalog_categories')
     .select('*')
-    .eq('organization_id', auth.organizationId)
+    .eq('organization_id', auth.rootOrganizationId)
     .order('sort_order', { ascending: true })
     .order('name', { ascending: true });
 
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
   const { data, error } = await serviceClient
     .from('workflow_catalog_categories')
     .insert({
-      organization_id: auth.organizationId,
+      organization_id: auth.rootOrganizationId,
       catalog_type: body.catalog_type,
       name: body.name.trim(),
       sort_order: body.sort_order ?? 0,
@@ -115,7 +115,7 @@ export async function PATCH(request: NextRequest) {
         .from('workflow_catalog_categories')
         .update({ sort_order })
         .eq('id', id)
-        .eq('organization_id', auth.organizationId),
+        .eq('organization_id', auth.rootOrganizationId),
     ),
   );
 

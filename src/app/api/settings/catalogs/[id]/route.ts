@@ -24,7 +24,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     .from('workflow_service_catalog')
     .select('*')
     .eq('id', id)
-    .eq('organization_id', auth.organizationId)
+    .eq('organization_id', auth.rootOrganizationId)
     .single();
 
   if (error || !data) {
@@ -65,7 +65,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     .from('workflow_service_catalog')
     .update(updateData)
     .eq('id', id)
-    .eq('organization_id', auth.organizationId)
+    .eq('organization_id', auth.rootOrganizationId)
     .select()
     .single();
 
@@ -96,7 +96,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
     .from('workflow_service_catalog')
     .delete()
     .eq('id', id)
-    .eq('organization_id', auth.organizationId);
+    .eq('organization_id', auth.rootOrganizationId);
 
   if (error) {
     return NextResponse.json(

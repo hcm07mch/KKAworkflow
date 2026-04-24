@@ -41,7 +41,7 @@ export async function PUT(
     .from('workflow_catalog_categories')
     .update(updates)
     .eq('id', id)
-    .eq('organization_id', auth.organizationId)
+    .eq('organization_id', auth.rootOrganizationId)
     .select()
     .single();
 
@@ -82,7 +82,7 @@ export async function DELETE(
     .from('workflow_catalog_categories')
     .delete()
     .eq('id', id)
-    .eq('organization_id', auth.organizationId);
+    .eq('organization_id', auth.rootOrganizationId);
 
   if (error) {
     return NextResponse.json(

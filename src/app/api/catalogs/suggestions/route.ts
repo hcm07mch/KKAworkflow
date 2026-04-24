@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
       execution_catalog_id,
       execution_catalog:workflow_service_catalog!execution_catalog_id(*)
     `)
-    .eq('organization_id', auth.organizationId)
+    .eq('organization_id', auth.rootOrganizationId)
     .in('estimate_catalog_id', estimateIds);
 
   if (error) {

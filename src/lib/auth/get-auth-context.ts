@@ -46,6 +46,13 @@ export interface AuthContext {
   fullAllowedOrgIds: string[];
   /** 사용자가 루트 조직(본사) 소속인지 여부 (parent_id가 없으면 true) */
   isRootOrg: boolean;
+  /**
+   * 루트 조직(본사) ID.
+   * - 본사 계정: userOrganizationId 와 동일
+   * - 지사 계정: 부모(본사) 조직 ID
+   * 본사·지사가 공유하는 리소스(카탈로그 등)를 읽고 쓸 때 기준 조직으로 사용한다.
+   */
+  rootOrganizationId: string;
   /** 현재 활성 스코프로 선택된 조직 ID (쿠키). 미설정이면 null. */
   activeScope: string | null;
   /** 서비스 인스턴스 모음 */
@@ -126,6 +133,9 @@ export async function getAuthContext(): Promise<AuthResult> {
     .eq('id', userOrgId)
     .single();
   const isRootOrg = !ownOrg?.parent_id;
+  const rootOrganizationId = isRootOrg
+    ? userOrgId
+    : ((ownOrg as { parent_id: string }).parent_id);
 
   const { data: childOrgs } = await serviceClient
     .from('workflow_organizations')
@@ -171,6 +181,7 @@ export async function getAuthContext(): Promise<AuthResult> {
     allowedOrgIds,
     fullAllowedOrgIds,
     isRootOrg,
+    rootOrganizationId,
     activeScope,
     services,
     supabase,
