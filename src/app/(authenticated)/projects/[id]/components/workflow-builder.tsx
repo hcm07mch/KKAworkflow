@@ -8,7 +8,7 @@
  */
 
 import { useState, useRef, useEffect } from 'react';
-import { LuPlus, LuTrash2, LuExternalLink, LuRefreshCw } from 'react-icons/lu';
+import { LuPlus, LuTrash2, LuExternalLink, LuRefreshCw, LuLoader } from 'react-icons/lu';
 import type { ProjectStatus, ServiceType, DocumentType, DocumentStatus } from '@/lib/domain/types';
 import {
   PROJECT_STATUS_META,
@@ -441,6 +441,20 @@ export function WorkflowBuilder({ serviceType, projectStatus, workflowStack, man
                             >
                               <LuExternalLink size={12} />
                             </a>
+                          )}
+                          {/*
+                           * 시스템(자동) 스텝이면서 해당 그룹에 문서가 있어야 하지만
+                           * 아직 로드되지 않은 경우(새 플로우 추가 직후 등) 로딩 스피너 노출.
+                           * 문서가 도착하면 위의 navLink 로 대체된다.
+                           */}
+                          {isSystem && nav && !doc && (
+                            <span
+                              className={styles.navLoading}
+                              title={`${nav.label} 준비 중...`}
+                              aria-label="문서 로딩 중"
+                            >
+                              <LuLoader size={12} />
+                            </span>
                           )}
                         </div>
                       );
