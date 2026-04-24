@@ -437,11 +437,22 @@ function EstimatesContent() {
             defaultClientId={selected.clientId}
             documentId={selected.id}
             projectOwnerName={selected.ownerName && selected.ownerName !== '-' ? selected.ownerName : undefined}
-            readOnly={selected.status !== 'draft' || !currentUserId || selected.ownerId !== currentUserId}
+            /*
+             * 편집/제출 권한은 서버 정책과 일치해야 한다.
+             *  - 서버: 프로젝트에 owner_id가 설정되어 있고, 그 owner_id가 본인과 다를 때만 금지.
+             *  - 즉, owner_id 가 비어있으면(담당자 미지정) 동일 조직 누구나 제출 가능.
+             * UI 에서 ownerId !== currentUserId 로 단순 비교하면 담당자 미지정 드래프트에
+             * 대해 readOnly 가 되어 "견적서 제출" 버튼이 사라지는 문제가 있었다.
+             */
+            readOnly={
+              selected.status !== 'draft'
+              || !currentUserId
+              || (!!selected.ownerId && selected.ownerId !== currentUserId)
+            }
             documentStatus={selected.status}
-            onSave={currentUserId && selected.ownerId === currentUserId ? handleSaveEdit : undefined}
-            onSubmit={currentUserId && selected.ownerId === currentUserId ? handleSubmit : undefined}
-            onRedraft={currentUserId && selected.ownerId === currentUserId ? handleRedraft : undefined}
+            onSave={!!currentUserId && (!selected.ownerId || selected.ownerId === currentUserId) ? handleSaveEdit : undefined}
+            onSubmit={!!currentUserId && (!selected.ownerId || selected.ownerId === currentUserId) ? handleSubmit : undefined}
+            onRedraft={!!currentUserId && (!selected.ownerId || selected.ownerId === currentUserId) ? handleRedraft : undefined}
             onStatusChange={handleStatusChange}
             onCancel={handleCancel}
           />

@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthContext } from '@/lib/auth';
+import { createSupabaseServiceClient } from '@/lib/infrastructure/supabase/client';
 
 export async function GET(request: NextRequest) {
   const auth = await getAuthContext();
@@ -20,7 +21,8 @@ export async function GET(request: NextRequest) {
   }
 
   // Find all linked execution catalog items for the given estimate catalog IDs
-  const { data: links, error } = await auth.supabase
+  const serviceClient = createSupabaseServiceClient();
+  const { data: links, error } = await serviceClient
     .from('workflow_catalog_links')
     .select(`
       execution_catalog_id,

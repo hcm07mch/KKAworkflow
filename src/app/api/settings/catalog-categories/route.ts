@@ -7,15 +7,17 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthContext, requireRole, requireRootOrg } from '@/lib/auth';
+import { createSupabaseServiceClient } from '@/lib/infrastructure/supabase/client';
 
 export async function GET(request: NextRequest) {
   const auth = await getAuthContext();
   if (!auth.success) return auth.response;
 
+  const serviceClient = createSupabaseServiceClient();
   const { searchParams } = new URL(request.url);
   const catalogType = searchParams.get('type');
 
-  let query = auth.supabase
+  let query = serviceClient
     .from('workflow_catalog_categories')
     .select('*')
     .eq('organization_id', auth.organizationId)
@@ -57,7 +59,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { data, error } = await auth.supabase
+  const serviceClient = createSupabaseServiceClient();
+
+  const { data, error } = await serviceClient
     .from('workflow_catalog_categories')
     .insert({
       organization_id: auth.organizationId,
@@ -104,9 +108,10 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
+  const serviceClient = createSupabaseServiceClient();
   const results = await Promise.all(
     orders.map(({ id, sort_order }) =>
-      auth.supabase
+      serviceClient
         .from('workflow_catalog_categories')
         .update({ sort_order })
         .eq('id', id)

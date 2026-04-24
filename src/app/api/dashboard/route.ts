@@ -5,12 +5,18 @@
 
 import { NextResponse } from 'next/server';
 import { getAuthContext } from '@/lib/auth';
+import { createSupabaseServiceClient } from '@/lib/infrastructure/supabase/client';
 
 export async function GET() {
   const auth = await getAuthContext();
   if (!auth.success) return auth.response;
 
-  const { supabase, allowedOrgIds } = auth;
+  // 본사 계정이 지사 스코프로 전환한 경우 workflow_users.organization_id(본사) 와
+  // allowedOrgIds(지사) 가 달라 RLS(projects_select_same_org 등) 에 막혀 대시보드가
+  // 비어 보인다. 조직 경계는 allowedOrgIds 필터로 보장되므로 service client 로
+  // RLS 를 우회한다. (clients / projects / documents API 와 동일 패턴)
+  const supabase = createSupabaseServiceClient();
+  const { allowedOrgIds } = auth;
 
   // ── 병렬로 필요한 데이터 조회 ──
 

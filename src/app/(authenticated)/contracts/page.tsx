@@ -373,11 +373,11 @@ function ContractsContent() {
             initialData={selected.content}
             documentId={selected.id}
             clientName={selected.clientName}
-            readOnly={selected.status !== 'draft' || !currentUserId || selected.ownerId !== currentUserId}
+            readOnly={selected.status !== 'draft' || !currentUserId || (!!selected.ownerId && selected.ownerId !== currentUserId)}
             documentStatus={selected.status}
-            onSave={currentUserId && selected.ownerId === currentUserId ? handleSaveEdit : undefined}
-            onSubmit={currentUserId && selected.ownerId === currentUserId ? handleSubmit : undefined}
-            onRedraft={currentUserId && selected.ownerId === currentUserId ? handleRedraft : undefined}
+            onSave={!!currentUserId && (!selected.ownerId || selected.ownerId === currentUserId) ? handleSaveEdit : undefined}
+            onSubmit={!!currentUserId && (!selected.ownerId || selected.ownerId === currentUserId) ? handleSubmit : undefined}
+            onRedraft={!!currentUserId && (!selected.ownerId || selected.ownerId === currentUserId) ? handleRedraft : undefined}
             onStatusChange={handleStatusChange}
             onFileUploaded={handleFileUploaded}
           />

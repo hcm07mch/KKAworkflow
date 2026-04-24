@@ -376,11 +376,11 @@ function ExecutionsContent() {
             documentId={selected.id}
             defaultClientName={selected.clientName}
             defaultProjectName={selected.projectTitle}
-            readOnly={selected.docStatus !== 'draft' || !currentUserId || selected.ownerId !== currentUserId}
+            readOnly={selected.docStatus !== 'draft' || !currentUserId || (!!selected.ownerId && selected.ownerId !== currentUserId)}
             documentStatus={selected.docStatus}
-            onSave={currentUserId && selected.ownerId === currentUserId ? handleSaveEdit : undefined}
-            onSubmit={currentUserId && selected.ownerId === currentUserId ? handleSubmit : undefined}
-            onRedraft={currentUserId && selected.ownerId === currentUserId ? handleRedraft : undefined}
+            onSave={!!currentUserId && (!selected.ownerId || selected.ownerId === currentUserId) ? handleSaveEdit : undefined}
+            onSubmit={!!currentUserId && (!selected.ownerId || selected.ownerId === currentUserId) ? handleSubmit : undefined}
+            onRedraft={!!currentUserId && (!selected.ownerId || selected.ownerId === currentUserId) ? handleRedraft : undefined}
             onStatusChange={handleStatusChange}
             onCancel={handleCancel}
           />

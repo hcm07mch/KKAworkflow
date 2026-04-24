@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthContext, requireRole, requireRootOrg } from '@/lib/auth';
+import { createSupabaseServiceClient } from '@/lib/infrastructure/supabase/client';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -17,8 +18,9 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   if (!auth.success) return auth.response;
 
   const { id } = await params;
+  const serviceClient = createSupabaseServiceClient();
 
-  const { data, error } = await auth.supabase
+  const { data, error } = await serviceClient
     .from('workflow_service_catalog')
     .select('*')
     .eq('id', id)
@@ -58,7 +60,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   if (body.is_active !== undefined) updateData.is_active = body.is_active;
   updateData.updated_at = new Date().toISOString();
 
-  const { data, error } = await auth.supabase
+  const serviceClient = createSupabaseServiceClient();
+  const { data, error } = await serviceClient
     .from('workflow_service_catalog')
     .update(updateData)
     .eq('id', id)
@@ -88,7 +91,8 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
 
   const { id } = await params;
 
-  const { error } = await auth.supabase
+  const serviceClient = createSupabaseServiceClient();
+  const { error } = await serviceClient
     .from('workflow_service_catalog')
     .delete()
     .eq('id', id)

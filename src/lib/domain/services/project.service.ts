@@ -17,7 +17,6 @@ import type {
 } from '../types';
 import {
   canTransitionProjectStatus,
-  getRequiredRoleForTransition,
   PROJECT_STATUS_META,
 } from '../types';
 import type { IProjectRepository, IClientRepository } from '../repositories/interfaces';
@@ -200,17 +199,15 @@ export class ProjectService {
     }
 
     // [단계 3] 권한 검증
-    const requiredRole = getRequiredRoleForTransition(toStatus);
-    const roleLevel: Record<string, number> = { admin: 100, manager: 50, member: 10 };
-    if ((roleLevel[ctx.userRole] ?? 0) < (roleLevel[requiredRole] ?? 0)) {
-      return {
-        success: false,
-        error: {
-          code: 'INSUFFICIENT_PERMISSION',
-          message: `이 상태 변경은 ${requiredRole} 이상 권한이 필요합니다`,
-        },
-      };
-    }
+    // 정책: 프로젝트 상태 변경은 member 이상이면 누구나 가능. (조직 범위 검증은
+    // 상위 API 레이어(verifyProjectInOrg) 에서 이미 수행됨)
+    // getRequiredRoleForTransition 매핑은 일부 전이에 admin/manager 를 요구했으나,
+    // 현장 운영상 member 도 워크플로 진행을 막을 필요가 없어 제약을 제거한다.
+    //
+    // 참고: 과거 로직
+    //   const requiredRole = getRequiredRoleForTransition(toStatus);
+    //   const roleLevel: Record<string, number> = { admin: 100, manager: 50, member: 10 };
+    //   if ((roleLevel[ctx.userRole] ?? 0) < (roleLevel[requiredRole] ?? 0)) { ... }
 
     const isSystem = options?.systemInitiated === true;
 

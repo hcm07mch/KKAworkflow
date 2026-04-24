@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthContext, requireRole, requireRootOrg } from '@/lib/auth';
+import { createSupabaseServiceClient } from '@/lib/infrastructure/supabase/client';
 
 export async function PUT(
   request: NextRequest,
@@ -34,7 +35,9 @@ export async function PUT(
     );
   }
 
-  const { data, error } = await auth.supabase
+  const serviceClient = createSupabaseServiceClient();
+
+  const { data, error } = await serviceClient
     .from('workflow_catalog_categories')
     .update(updates)
     .eq('id', id)
@@ -74,7 +77,8 @@ export async function DELETE(
   const { id } = await params;
 
   // category_id가 이 카테고리인 카탈로그 항목은 category_id = null 로 처리됨 (ON DELETE SET NULL)
-  const { error } = await auth.supabase
+  const serviceClient = createSupabaseServiceClient();
+  const { error } = await serviceClient
     .from('workflow_catalog_categories')
     .delete()
     .eq('id', id)

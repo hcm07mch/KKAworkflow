@@ -7,6 +7,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthContext, requireRole } from '@/lib/auth';
+import { createSupabaseServiceClient } from '@/lib/infrastructure/supabase/client';
+import { createServices } from '@/lib/service-factory';
 
 export async function POST(
   request: NextRequest,
@@ -19,28 +21,32 @@ export async function POST(
   const { action, comment } = await request.json();
   const ctx = { userId: auth.dbUser.id, userRole: auth.role, organizationId: auth.organizationId };
 
+  // 본사 계정이 지사 스코프에서 승인 처리할 때 RLS 를 우회하기 위해 service client 기반 서비스 사용
+  const serviceClient = createSupabaseServiceClient();
+  const services = createServices(serviceClient, { organizationId: auth.organizationId });
+
   let result;
 
   switch (action) {
     case 'approve': {
       const roleCheck = requireRole(auth.role, 'manager');
       if (roleCheck) return roleCheck;
-      result = await auth.services.approvalService.approveDocument({ approval_id: approvalId, comment }, ctx);
+      result = await services.approvalService.approveDocument({ approval_id: approvalId, comment }, ctx);
       break;
     }
     case 'reject': {
       const roleCheck = requireRole(auth.role, 'manager');
       if (roleCheck) return roleCheck;
-      result = await auth.services.approvalService.rejectDocument({ approval_id: approvalId, comment }, ctx);
+      result = await services.approvalService.rejectDocument({ approval_id: approvalId, comment }, ctx);
       break;
     }
     case 'cancel':
-      result = await auth.services.approvalService.cancelApprovalRequest({ approval_id: approvalId, comment }, ctx);
+      result = await services.approvalService.cancelApprovalRequest({ approval_id: approvalId, comment }, ctx);
       break;
     case 'revert': {
       const roleCheck = requireRole(auth.role, 'manager');
       if (roleCheck) return roleCheck;
-      result = await auth.services.approvalService.revertApproval({ approval_id: approvalId, comment }, ctx);
+      result = await services.approvalService.revertApproval({ approval_id: approvalId, comment }, ctx);
       break;
     }
     default:

@@ -37,7 +37,48 @@ export class SupabaseApprovalPolicyRepository implements IApprovalPolicyReposito
     if (error) throw new Error(`approval policy 議고 ?ㅽ? ${error.message}`);
     return (data as unknown as ApprovalPolicyWithSteps) ?? null;
   }
+  /**
+   * 지사(하위 조직)에 정책이 없으면 상위(본사) 조직 정책을 상속한다.
+   *
+   * 조회 순서 (가장 가까운 조직부터, 각 조직에서는 타입 전용 → 기본 순):
+   *   1. organizationId 자체 정책 (타입 전용 → 기본)
+   *   2. parent_id 로 한 단계 위 조직 정책 (타입 전용 → 기본)
+   *   3. 루트(parent_id IS NULL)까지 반복
+   * 어느 단계에서도 발견 못 하면 null 반환.
+   */
+  async findByOrgAndTypeWithRootFallback(
+    organizationId: string,
+    documentType: string | null,
+  ): Promise<ApprovalPolicyWithSteps | null> {
+    let currentOrgId: string | null = organizationId;
+    const visited = new Set<string>();
 
+    while (currentOrgId && !visited.has(currentOrgId)) {
+      visited.add(currentOrgId);
+
+      // 1) 타입 전용 정책 (documentType 이 null 이면 건너뜀)
+      if (documentType !== null) {
+        const specific = await this.findByOrgAndType(currentOrgId, documentType);
+        if (specific) return specific;
+      }
+
+      // 2) 조직 기본 정책 (document_type = null)
+      const fallback = await this.findByOrgAndType(currentOrgId, null);
+      if (fallback) return fallback;
+
+      // 3) 상위 조직으로 이동
+      const { data: org, error } = (await this.db
+        .from('workflow_organizations')
+        .select('parent_id')
+        .eq('id', currentOrgId)
+        .maybeSingle()) as { data: { parent_id: string | null } | null; error: unknown };
+
+      if (error) break;
+      currentOrgId = org?.parent_id ?? null;
+    }
+
+    return null;
+  }
   async findByIdWithSteps(id: string): Promise<ApprovalPolicyWithSteps | null> {
     const { data, error } = await this.db
       .from('workflow_approval_policies')

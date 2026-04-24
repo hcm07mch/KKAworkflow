@@ -62,27 +62,20 @@ export class ApprovalService {
     organizationId: string,
     documentType: string,
   ): Promise<ApprovalPolicyWithSteps> {
-    // 타입 전용 정책 우선
-    const specific = await this.policyRepo.findByOrgAndType(organizationId, documentType);
-    if (specific) {
-      // 방어적 검증: 조회된 정책의 조직이 요청 조직과 일치하는지 확인
-      if (specific.organization_id !== organizationId) {
-        throw new Error(
-          `approval policy organization mismatch: expected ${organizationId}, got ${specific.organization_id}`,
-        );
-      }
-      return specific;
-    }
-
-    // 조직 기본 정책
-    const fallback = await this.policyRepo.findByOrgAndType(organizationId, null);
-    if (fallback) {
-      if (fallback.organization_id !== organizationId) {
-        throw new Error(
-          `approval policy organization mismatch: expected ${organizationId}, got ${fallback.organization_id}`,
-        );
-      }
-      return fallback;
+    // 본사/지사 통합 정책: 해당 조직에 정책이 없으면 상위(본사) 조직 정책을 상속한다.
+    // 우선순위:
+    //   1. organizationId 타입 전용 정책
+    //   2. organizationId 기본 정책
+    //   3. 상위 조직 타입 전용 정책
+    //   4. 상위 조직 기본 정책
+    //   ... (루트까지 반복)
+    //   최종 없으면 하드코딩 기본값
+    const inherited = await this.policyRepo.findByOrgAndTypeWithRootFallback(
+      organizationId,
+      documentType,
+    );
+    if (inherited) {
+      return inherited;
     }
 
     // 하드코딩 기본값 (DB에 정책이 없는 경우)

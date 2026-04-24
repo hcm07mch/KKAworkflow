@@ -245,7 +245,17 @@ export interface IApprovalPolicyRepository {
     organizationId: string,
     documentType: string | null,
   ): Promise<ApprovalPolicyWithSteps | null>;
-
+  /**
+   * 조직 + 문서 타입에 맞는 정책을 조회하되, 해당 조직에 정책이 없으면 상위 조직
+   * (parent_id)을 따라 올라가며 가장 가까운 조상의 정책을 반환한다.
+   * 본사/지사 통합 승인 정책 운영을 위해 사용.
+   * document_type 전용 정책을 우선, 없으면 조직 기본 정책(document_type = null),
+   * 최종적으로 없으면 null.
+   */
+  findByOrgAndTypeWithRootFallback(
+    organizationId: string,
+    documentType: string | null,
+  ): Promise<ApprovalPolicyWithSteps | null>;
   findByIdWithSteps(id: string): Promise<ApprovalPolicyWithSteps | null>;
 
   findByOrganizationId(organizationId: string): Promise<ApprovalPolicyWithSteps[]>;
