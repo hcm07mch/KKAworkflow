@@ -433,6 +433,7 @@ export default function SettingsPage() {
             setCategories={setEstimateCategories}
             toast={toast}
             confirm={confirm}
+            isBranch={!!org?.parent_id}
           />
         )}
 
@@ -448,6 +449,7 @@ export default function SettingsPage() {
             setCategories={setExecutionCategories}
             toast={toast}
             confirm={confirm}
+            isBranch={!!org?.parent_id}
           />
         )}
 
@@ -1427,7 +1429,7 @@ function CatalogEditModal({
 
 
 function CatalogSection({
-  catalogType, title, subtitle, items, setItems, categories, setCategories, toast, confirm,
+  catalogType, title, subtitle, items, setItems, categories, setCategories, toast, confirm, isBranch,
 }: {
   catalogType: 'estimate' | 'execution';
   title: string;
@@ -1438,6 +1440,7 @@ function CatalogSection({
   setCategories: React.Dispatch<React.SetStateAction<CatalogCategory[]>>;
   toast: (opts: ToastOptions) => void;
   confirm: (opts: ConfirmOptions) => Promise<boolean>;
+  isBranch?: boolean;
 }) {
   const [editing, setEditing] = useState<CatalogItem | null>(null);
   const [isNew, setIsNew] = useState(false);
@@ -2026,13 +2029,17 @@ function CatalogSection({
           <div className={panel.detailSubtitle}>{subtitle}</div>
         </div>
         <div className={panel.detailActions}>
-          <ActionButton
-            label="+ 카테고리"
-            variant="ghost"
-            size="sm"
-            onClick={() => { setNewCategoryName(''); setShowCategoryModal(true); }}
-          />
-          <ActionButton label="+ 항목 추가" variant="primary" size="sm" onClick={handleNew} />
+          {!isBranch && (
+            <>
+              <ActionButton
+                label="+ 카테고리"
+                variant="ghost"
+                size="sm"
+                onClick={() => { setNewCategoryName(''); setShowCategoryModal(true); }}
+              />
+              <ActionButton label="+ 항목 추가" variant="primary" size="sm" onClick={handleNew} />
+            </>
+          )}
         </div>
       </div>
 
