@@ -2,9 +2,9 @@
 
 import { Suspense, useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { LuCreditCard, LuExternalLink, LuCheck, LuFileText, LuFileCheck, LuChevronDown, LuChevronRight } from 'react-icons/lu';
+import { LuCreditCard, LuExternalLink, LuCheck, LuFileText, LuFileCheck, LuChevronDown, LuChevronRight, LuRotateCcw } from 'react-icons/lu';
 import { StatusBadge, useFeedback } from '@/components/ui';
-import { SERVICE_TYPE_META, PAYMENT_TYPE_META, DOCUMENT_STATUS_META } from '@/lib/domain/types';
+import { SERVICE_TYPE_META, PAYMENT_TYPE_META, DOCUMENT_STATUS_META, PROJECT_STATUS_GROUPS } from '@/lib/domain/types';
 import type { ServiceType, ProjectStatus, DocumentStatus, DocumentType } from '@/lib/domain/types';
 import panel from '../panel-layout.module.css';
 
@@ -32,6 +32,7 @@ interface PaymentItem {
   createdAt: string;
   title: string;        // document title
   flowNumber: number | null;
+  depositorName: string | null;
 }
 
 interface ProjectDocItem {
@@ -52,6 +53,51 @@ function formatDate(d: string | null) {
   return new Date(d).toLocaleDateString('ko-KR', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
+/** status 문자열 → 그룹 키(A~G). workflow-builder의 로직과 일치해야 함. */
+function statusToGroupKey(status: string): string {
+  const g = PROJECT_STATUS_GROUPS.find((grp) => (grp.statuses as readonly string[]).includes(status));
+  return g?.key ?? status?.[0] ?? '';
+}
+
+/** 연속된 동일 그룹 엔트리를 하나의 세그먼트(=플로우)로 묶음. */
+function getGroupSegments(stack: string[]): { key: string; startIdx: number; endIdx: number }[] {
+  const segments: { key: string; startIdx: number; endIdx: number }[] = [];
+  for (let i = 0; i < stack.length; i++) {
+    const key = statusToGroupKey(stack[i]);
+    const group = PROJECT_STATUS_GROUPS.find((g) => g.key === key);
+    const curIdx = group ? (group.statuses as readonly string[]).indexOf(stack[i]) : -1;
+    const last = segments[segments.length - 1];
+    if (last && last.key === key) {
+      const prevIdx = group ? (group.statuses as readonly string[]).indexOf(stack[last.endIdx]) : -1;
+      if (curIdx >= 0 && prevIdx >= 0 && curIdx < prevIdx) {
+        segments.push({ key, startIdx: i, endIdx: i });
+      } else {
+        last.endIdx = i;
+      }
+    } else {
+      segments.push({ key, startIdx: i, endIdx: i });
+    }
+  }
+  return segments;
+}
+
+/**
+ * 입금 확인 번복 가능 여부.
+ * - 이 입금의 D 세그먼트가 workflow_stack의 **마지막 세그먼트**여야 함
+ *   (= 입금 플로우 이후에 새로운 플로우가 추가되지 않았음)
+ */
+function canRevertPayment(stack: string[], flowNumber: number | null): boolean {
+  if (!stack || stack.length === 0) return true;
+  const segments = getGroupSegments(stack);
+  if (segments.length === 0) return true;
+  const last = segments[segments.length - 1];
+  if (last.key !== 'D') return false;
+  if (!flowNumber) return true;
+  // 이 입금의 D 세그먼트 순번 == 전체 D 세그먼트 개수여야 함
+  const dCount = segments.filter((s) => s.key === 'D').length;
+  return flowNumber === dCount;
+}
+
 // ── Page ─────────────────────────────────────────────────
 
 export default function PaymentsPage() {
@@ -64,7 +110,7 @@ export default function PaymentsPage() {
 
 function PaymentsContent() {
   const searchParams = useSearchParams();
-  const { toast, confirm } = useFeedback();
+  const { toast, confirm, prompt } = useFeedback();
   const [payments, setPayments] = useState<PaymentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState(false);
@@ -80,6 +126,8 @@ function PaymentsContent() {
   const [projectDocs, setProjectDocs] = useState<ProjectDocItem[]>([]);
   const [docsLoading, setDocsLoading] = useState(false);
   const [docsExpanded, setDocsExpanded] = useState(true);
+  const [projectStack, setProjectStack] = useState<string[]>([]);
+  const [reverting, setReverting] = useState(false);
 
   const selectPayment = useCallback((p: PaymentItem) => {
     setSelected(p);
@@ -90,9 +138,19 @@ function PaymentsContent() {
   useEffect(() => {
     if (!selected?.projectId) {
       setProjectDocs([]);
+      setProjectStack([]);
       return;
     }
     setDocsLoading(true);
+    // 프로젝트 메타데이터 (workflow_stack)
+    fetch(`/api/projects/${selected.projectId}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((proj: any) => {
+        const stack: string[] = (proj?.metadata?.workflow_stack as string[]) ?? [];
+        setProjectStack(stack);
+      })
+      .catch(() => setProjectStack([]));
+    // 관련 문서
     fetch(`/api/projects/${selected.projectId}/documents`)
       .then((r) => r.json())
       .then((docs: any[]) => {
@@ -135,6 +193,7 @@ function PaymentsContent() {
             createdAt: d.created_at,
             title: d.title ?? '',
             flowNumber: content.flow_number ?? null,
+            depositorName: content.depositor_name ?? null,
           };
         });
         setPayments(items);
@@ -160,15 +219,38 @@ function PaymentsContent() {
 
   async function handleConfirmPayment() {
     if (!selected || selected.status !== 'pending') return;
-    const ok = await confirm({ title: `"${selected.title || selected.clientName}" 입금을 확인 처리하시겠습니까?` });
-    if (!ok) return;
+    const defaultDepositor = (selected.depositorName ?? selected.clientName ?? '').trim();
+    const entered = await prompt({
+      title: `"${selected.title || selected.clientName}" 입금을 확인 처리하시겠습니까?`,
+      input: {
+        label: '입금자명 (기본값: 업체명, 수정 가능)',
+        placeholder: selected.clientName || '입금자명을 입력하세요',
+        defaultValue: defaultDepositor,
+        required: true,
+      },
+    });
+    if (entered === null) return;
+    const depositor = entered.trim();
+    if (!depositor) {
+      toast({ title: '입금자명을 입력해주세요', variant: 'error' });
+      return;
+    }
     setConfirming(true);
     try {
-      // 문서 content에 confirmed_at 기록
+      // 문서 content에 confirmed_at + depositor_name 기록
       const docRes = await fetch(`/api/documents/${selected.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: { ...({ payment_type: selected.paymentType, amount: selected.amount, months: selected.months, flow_number: selected.flowNumber } as Record<string, unknown>), confirmed_at: new Date().toISOString() } }),
+        body: JSON.stringify({
+          content: {
+            payment_type: selected.paymentType,
+            amount: selected.amount,
+            months: selected.months,
+            flow_number: selected.flowNumber,
+            depositor_name: depositor,
+            confirmed_at: new Date().toISOString(),
+          },
+        }),
       });
       if (!docRes.ok) throw new Error();
       // 프로젝트 상태를 D2_payment_confirmed로 변경
@@ -179,13 +261,62 @@ function PaymentsContent() {
       });
       // 로컬 상태 업데이트
       const now = new Date().toISOString();
-      setPayments((prev) => prev.map((p) => p.id === selected.id ? { ...p, status: 'confirmed' as PaymentStatus, confirmedAt: now } : p));
-      setSelected((prev) => prev ? { ...prev, status: 'confirmed' as PaymentStatus, confirmedAt: now } : prev);
+      setPayments((prev) => prev.map((p) => p.id === selected.id ? { ...p, status: 'confirmed' as PaymentStatus, confirmedAt: now, depositorName: depositor } : p));
+      setSelected((prev) => prev ? { ...prev, status: 'confirmed' as PaymentStatus, confirmedAt: now, depositorName: depositor } : prev);
       toast({ title: '입금이 확인되었습니다', variant: 'success' });
     } catch {
       toast({ title: '입금 확인에 실패했습니다', variant: 'error' });
     } finally {
       setConfirming(false);
+    }
+  }
+
+  async function handleRevertPayment() {
+    if (!selected || selected.status !== 'confirmed') return;
+    if (!canRevertPayment(projectStack, selected.flowNumber)) {
+      toast({
+        title: '번복할 수 없습니다',
+        message: '입금 확인 이후에 새로운 플로우가 추가되어 번복이 불가능합니다.',
+        variant: 'error',
+      });
+      return;
+    }
+    const ok = await confirm({
+      title: `"${selected.title || selected.clientName}" 입금 확인을 번복하시겠습니까?`,
+      description: '입금자명·확인일이 제거되고 프로젝트 상태가 "입금 대기"로 되돌아갑니다.',
+      variant: 'danger',
+      confirmLabel: '번복',
+    });
+    if (!ok) return;
+    setReverting(true);
+    try {
+      // 문서 content에서 confirmed_at / depositor_name 제거
+      const docRes = await fetch(`/api/documents/${selected.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: {
+            payment_type: selected.paymentType,
+            amount: selected.amount,
+            months: selected.months,
+            flow_number: selected.flowNumber,
+          },
+        }),
+      });
+      if (!docRes.ok) throw new Error();
+      // 프로젝트 상태를 D1_payment_pending으로 되돌림
+      await fetch(`/api/projects/${selected.projectId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'D1_payment_pending' }),
+      });
+      setPayments((prev) => prev.map((p) => p.id === selected.id ? { ...p, status: 'pending' as PaymentStatus, confirmedAt: null, depositorName: null } : p));
+      setSelected((prev) => prev ? { ...prev, status: 'pending' as PaymentStatus, confirmedAt: null, depositorName: null } : prev);
+      toast({ title: '입금 확인이 번복되었습니다', variant: 'success' });
+    } catch {
+      toast({ title: '번복 처리에 실패했습니다', variant: 'error' });
+    } finally {
+      setReverting(false);
     }
   }
 
@@ -348,6 +479,12 @@ function PaymentsContent() {
                       <td><span className={panel.fieldValue}>{formatDate(selected.confirmedAt)}</span></td>
                     </tr>
                   )}
+                  {selected.status === 'confirmed' && selected.depositorName && (
+                    <tr>
+                      <th>입금자명</th>
+                      <td><span className={panel.fieldValue} style={{ fontWeight: 500 }}>{selected.depositorName}</span></td>
+                    </tr>
+                  )}
                   <tr>
                     <th>등록일</th>
                     <td><span className={panel.fieldValue}>{formatDate(selected.createdAt)}</span></td>
@@ -455,6 +592,41 @@ function PaymentsContent() {
                 </button>
               </div>
             )}
+
+            {/* 입금 확인 번복 버튼 (D 세그먼트가 마지막일 때만 활성) */}
+            {selected.status === 'confirmed' && (() => {
+              const revertable = canRevertPayment(projectStack, selected.flowNumber);
+              return (
+                <div style={{ padding: '16px 0' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6,
+                      padding: '10px 0',
+                      fontWeight: 600,
+                      opacity: revertable ? 1 : 0.55,
+                      cursor: revertable ? 'pointer' : 'not-allowed',
+                    }}
+                    onClick={handleRevertPayment}
+                    disabled={reverting || !revertable}
+                    title={revertable ? '입금 확인을 번복합니다' : '입금 이후에 새 플로우가 추가되어 번복할 수 없습니다'}
+                  >
+                    <LuRotateCcw size={16} />
+                    {reverting ? '처리 중...' : '입금 확인 번복'}
+                  </button>
+                  {!revertable && (
+                    <div style={{ marginTop: 8, fontSize: 12, color: 'var(--color-text-muted)', textAlign: 'center' }}>
+                      입금 이후 새로운 플로우가 추가되어 번복할 수 없습니다.
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </>
         )}
       </div>

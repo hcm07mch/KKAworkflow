@@ -80,6 +80,36 @@
   line-height: 1.55;
 }
 
+.inputWrap {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+}
+
+.inputLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.input {
+  padding: 8px 10px;
+  font-size: 13px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg, var(--color-surface));
+  color: var(--color-text-primary);
+  outline: none;
+  transition: border-color 0.1s, box-shadow 0.1s;
+}
+
+.input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-light);
+}
+
 /* ── Actions ── */
 
 .actions {

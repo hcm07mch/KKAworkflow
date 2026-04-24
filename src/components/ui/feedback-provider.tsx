@@ -15,13 +15,19 @@
  */
 
 import { createContext, useContext, useState, useCallback, useRef, type ReactNode } from 'react';
-import { ConfirmDialog, type ConfirmOptions } from './confirm-dialog';
+import { ConfirmDialog, type ConfirmOptions, type ConfirmInputOptions } from './confirm-dialog';
 import { ToastContainer, useToastState, type ToastOptions } from './toast';
 
 // ── Context ──────────────────────────────────────────────
 
+export interface PromptOptions extends Omit<ConfirmOptions, 'input'> {
+  input: ConfirmInputOptions;
+}
+
 interface FeedbackContextValue {
   confirm: (options: ConfirmOptions) => Promise<boolean>;
+  /** Ask for a text value via the confirm dialog. Resolves with the entered string on confirm, or null on cancel. */
+  prompt: (options: PromptOptions) => Promise<string | null>;
   toast: (options: ToastOptions) => void;
 }
 
@@ -31,21 +37,50 @@ const FeedbackContext = createContext<FeedbackContextValue | null>(null);
 
 export function FeedbackProvider({ children }: { children: ReactNode }) {
   // ── Confirm state ──
-  const [confirmState, setConfirmState] = useState<(ConfirmOptions & { resolve: (v: boolean) => void }) | null>(null);
+  const [confirmState, setConfirmState] = useState<
+    (ConfirmOptions & { resolve: (v: boolean | string | null) => void; returnsString: boolean }) | null
+  >(null);
 
   const confirm = useCallback((options: ConfirmOptions): Promise<boolean> => {
     return new Promise<boolean>((resolve) => {
-      setConfirmState({ ...options, resolve });
+      setConfirmState({
+        ...options,
+        returnsString: false,
+        resolve: (v) => resolve(v === true),
+      });
     });
   }, []);
 
-  const handleConfirm = useCallback(() => {
-    confirmState?.resolve(true);
-    setConfirmState(null);
-  }, [confirmState]);
+  const prompt = useCallback((options: PromptOptions): Promise<string | null> => {
+    return new Promise<string | null>((resolve) => {
+      setConfirmState({
+        ...options,
+        returnsString: true,
+        resolve: (v) => resolve(typeof v === 'string' ? v : null),
+      });
+    });
+  }, []);
+
+  const handleConfirm = useCallback(
+    (inputValue?: string) => {
+      if (!confirmState) return;
+      if (confirmState.returnsString) {
+        confirmState.resolve(inputValue ?? '');
+      } else {
+        confirmState.resolve(true);
+      }
+      setConfirmState(null);
+    },
+    [confirmState],
+  );
 
   const handleCancel = useCallback(() => {
-    confirmState?.resolve(false);
+    if (!confirmState) return;
+    if (confirmState.returnsString) {
+      confirmState.resolve(null);
+    } else {
+      confirmState.resolve(false);
+    }
     setConfirmState(null);
   }, [confirmState]);
 
@@ -53,7 +88,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   const { toasts, toast, dismiss } = useToastState();
 
   return (
-    <FeedbackContext.Provider value={{ confirm, toast }}>
+    <FeedbackContext.Provider value={{ confirm, prompt, toast }}>
       {children}
 
       {/* Confirm Dialog */}
@@ -64,6 +99,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
           variant={confirmState.variant}
           confirmLabel={confirmState.confirmLabel}
           cancelLabel={confirmState.cancelLabel}
+          input={confirmState.input}
           onConfirm={handleConfirm}
           onCancel={handleCancel}
         />

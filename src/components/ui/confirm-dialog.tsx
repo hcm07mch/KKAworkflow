@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { LuInfo, LuTriangleAlert, LuCircleAlert, LuCircleCheck } from 'react-icons/lu';
 import s from './confirm-dialog.module.css';
 
@@ -8,16 +8,25 @@ import s from './confirm-dialog.module.css';
 
 export type ConfirmVariant = 'info' | 'warning' | 'danger' | 'success';
 
+export interface ConfirmInputOptions {
+  label?: string;
+  placeholder?: string;
+  defaultValue?: string;
+  required?: boolean;
+}
+
 export interface ConfirmOptions {
   title: string;
   description?: string;
   variant?: ConfirmVariant;
   confirmLabel?: string;
   cancelLabel?: string;
+  /** Render an editable text input inside the dialog. The entered value is passed back via onConfirm. */
+  input?: ConfirmInputOptions;
 }
 
 interface ConfirmDialogProps extends ConfirmOptions {
-  onConfirm: () => void;
+  onConfirm: (inputValue?: string) => void;
   onCancel: () => void;
 }
 
@@ -52,13 +61,23 @@ export function ConfirmDialog({
   variant = 'info',
   confirmLabel = '확인',
   cancelLabel = '취소',
+  input,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
   const confirmRef = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [inputValue, setInputValue] = useState<string>(input?.defaultValue ?? '');
 
-  // Focus confirm button on mount
-  useEffect(() => { confirmRef.current?.focus(); }, []);
+  // Focus: input (if present) > confirm button
+  useEffect(() => {
+    if (input) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    } else {
+      confirmRef.current?.focus();
+    }
+  }, [input]);
 
   // Escape key
   const handleKey = useCallback(
@@ -69,6 +88,13 @@ export function ConfirmDialog({
     document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
   }, [handleKey]);
+
+  const confirmDisabled = !!input?.required && !inputValue.trim();
+
+  const handleConfirm = () => {
+    if (confirmDisabled) return;
+    onConfirm(input ? inputValue : undefined);
+  };
 
   return (
     <div className={s.overlay} onClick={onCancel}>
@@ -82,6 +108,25 @@ export function ConfirmDialog({
         <div className={s.body}>
           <p className={s.title}>{title}</p>
           {description && <p className={s.description}>{description}</p>}
+          {input && (
+            <div className={s.inputWrap}>
+              {input.label && <label className={s.inputLabel}>{input.label}</label>}
+              <input
+                ref={inputRef}
+                type="text"
+                className={s.input}
+                value={inputValue}
+                placeholder={input.placeholder}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !confirmDisabled) {
+                    e.preventDefault();
+                    handleConfirm();
+                  }
+                }}
+              />
+            </div>
+          )}
         </div>
 
         <div className={s.actions}>
@@ -92,7 +137,8 @@ export function ConfirmDialog({
             ref={confirmRef}
             type="button"
             className={`btn btn-md ${VARIANT_BTN[variant]}`}
-            onClick={onConfirm}
+            onClick={handleConfirm}
+            disabled={confirmDisabled}
           >
             {confirmLabel}
           </button>

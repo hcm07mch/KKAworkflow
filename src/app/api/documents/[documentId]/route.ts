@@ -58,10 +58,21 @@ export async function PUT(
   }
 
   // 담당자(프로젝트 소유자)만 수정 가능
+  // 단, 입금(payment) 문서는 회계 담당(manager/admin)도 확인·번복할 수 있도록 허용.
   const project = await auth.services.projectRepo.findById(existing.project_id);
-  if (project && project.owner_id && project.owner_id !== auth.dbUser.id) {
+  const isOwner = !project?.owner_id || project.owner_id === auth.dbUser.id;
+  const isAccountingRole = auth.role === 'manager' || auth.role === 'admin';
+  const isPaymentDoc = existing.type === 'payment';
+  if (!isOwner && !(isPaymentDoc && isAccountingRole)) {
     return NextResponse.json(
-      { error: { code: 'FORBIDDEN', message: '담당자만 견적서를 수정할 수 있습니다' } },
+      {
+        error: {
+          code: 'FORBIDDEN',
+          message: isPaymentDoc
+            ? '담당자 또는 회계 담당(매니저/관리자)만 입금 문서를 수정할 수 있습니다'
+            : '담당자만 견적서를 수정할 수 있습니다',
+        },
+      },
       { status: 403 },
     );
   }
