@@ -23,9 +23,10 @@ const GROUP_COLORS: Record<string, string> = {
   B: '#3b82f6', // 견적 - blue
   C: '#8b5cf6', // 계약 - purple
   D: '#f59e0b', // 입금 - amber
-  E: '#10b981', // 집행 - emerald
-  F: '#ef4444', // 환불 - red
-  G: '#6b7280', // 종료 - gray
+  E: '#6366f1', // 보고서 - indigo
+  F: '#10b981', // 집행 - emerald
+  G: '#ef4444', // 환불 - red
+  H: '#6b7280', // 종료 - gray
 };
 
 const GROUP_MAP = Object.fromEntries(PROJECT_STATUS_GROUPS.map((g) => [g.key, g]));
@@ -251,7 +252,7 @@ export function WorkflowBuilder({ serviceType, projectStatus, workflowStack, man
   const stack = buildFromStack(effectiveStack, projectStatus);
 
   // 종료 상태면 추가 불가
-  const isFinal = projectStatus === 'G1_closed';
+  const isFinal = projectStatus === 'H1_closed';
 
   // 승인이 필요한 그룹: B(견적), C(계약), E(집행) — 문서 승인 전까지 다음 진행 차단
   const APPROVAL_REQUIRED_GROUPS: Record<string, DocumentType> = { B: 'estimate', C: 'contract', E: 'pre_report' };
@@ -298,7 +299,7 @@ export function WorkflowBuilder({ serviceType, projectStatus, workflowStack, man
       title: `"${group.label}" 단계 추가`,
       description: `워크플로우에 "${group.label}" 단계를 추가하시겠습니까?`,
       confirmLabel: '추가',
-      variant: group.key === 'G' ? 'danger' : 'info',
+      variant: group.key === 'H' ? 'danger' : 'info',
     });
     if (ok) onAdd(group.key);
   }

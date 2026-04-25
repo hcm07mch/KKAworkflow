@@ -17,7 +17,7 @@ import panel from '../panel-layout.module.css';
 /** metadata.workflow_stack이 없을 때 현재 status에서 스택 추론 */
 /** 상태 문자열에서 그룹 키 추출 (예: 'B3_estimate_sent' → 'B') */
 function statusToGroupKey(status: string): string {
-  // G1_closed → 'G', F1_refund → 'F', B3_estimate_sent → 'B', etc.
+  // H1_closed → 'H', G1_refund → 'G', B3_estimate_sent → 'B', etc.
   return status.charAt(0);
 }
 
@@ -514,8 +514,8 @@ function ProjectsContent() {
 
   function handleTransition(toStatus: ProjectStatus) {
     if (!detail || !selected) return;
-    // G 그룹(종료) 전환 시 종료 사유 모달 표시
-    if (toStatus === 'G1_closed') {
+    // H 그룹(종료) 전환 시 종료 사유 모달 표시
+    if (toStatus === 'H1_closed') {
       setClosingReason('');
       setClosingModal({ toStatus, source: 'transition' });
       return;
@@ -543,10 +543,10 @@ function ProjectsContent() {
 
   function handleWorkflowAdd(groupKey: string, paymentAmount?: number) {
     if (!detail || !selected) return;
-    // G 그룹(종료) 추가 시 종료 사유 모달 표시
-    if (groupKey === 'G') {
+    // H 그룹(종료) 추가 시 종료 사유 모달 표시
+    if (groupKey === 'H') {
       setClosingReason('');
-      setClosingModal({ toStatus: 'G1_closed' as ProjectStatus, source: 'workflowAdd', groupKey: 'G' });
+      setClosingModal({ toStatus: 'H1_closed' as ProjectStatus, source: 'workflowAdd', groupKey: 'H' });
       return;
     }
     // D 그룹(입금) 추가 시 결제 모달 표시 (paymentAmount 없으면)
@@ -557,10 +557,10 @@ function ProjectsContent() {
       setPaymentModal(true);
       return;
     }
-    // F 그룹(환불) 추가 시 환불 금액 저장 후 상태 변경
-    if (groupKey === 'F' && paymentAmount != null) {
+    // G 그룹(환불) 추가 시 환불 금액 저장 후 상태 변경
+    if (groupKey === 'G' && paymentAmount != null) {
       const currentStack = readStack(detail.metadata, selected.status);
-      const newStatus = 'F1_refund' as ProjectStatus;
+      const newStatus = 'G1_refund' as ProjectStatus;
       const newStack = [...currentStack, newStatus];
       const newMeta = { ...detail.metadata, workflow_stack: newStack };
       setDetail((prev) => prev ? { ...prev, status: newStatus, metadata: newMeta } : prev);
@@ -741,7 +741,7 @@ function ProjectsContent() {
     if (docsOfType.length > 0) {
       message += `\n\n⚠️ 연결된 ${docConfig!.label} ${docsOfType.length}건이 함께 삭제됩니다.\n삭제된 문서는 복구할 수 없습니다.`;
     }
-    if (deletedGroupKey === 'F') {
+    if (deletedGroupKey === 'G') {
       message += `\n\n⚠️ 환불 내역도 함께 삭제됩니다.`;
     }
 
@@ -784,8 +784,8 @@ function ProjectsContent() {
       );
     }
 
-    // F(종료) 그룹 삭제 시 환불 내역도 함께 삭제
-    if (deletedGroupKey === 'F') {
+    // G(환불) 그룹 삭제 시 환불 내역도 함께 삭제
+    if (deletedGroupKey === 'G') {
       deletions.push(
         fetch(`/api/projects/${detail.id}/refunds`, { method: 'DELETE' }),
       );
@@ -810,8 +810,8 @@ function ProjectsContent() {
 
   function handleWorkflowStatusChange(toStatus: ProjectStatus) {
     if (!detail || !selected) return;
-    // G 그룹(종료) 상태 변경 시 종료 사유 모달 표시
-    if (toStatus === 'G1_closed') {
+    // H 그룹(종료) 상태 변경 시 종료 사유 모달 표시
+    if (toStatus === 'H1_closed') {
       setClosingReason('');
       setClosingModal({ toStatus, source: 'workflowStatus' });
       return;
@@ -1090,7 +1090,7 @@ function ProjectsContent() {
           <>
             <div className={panel.itemList}>
               {filtered.map((p) => {
-                const isClosed = p.status === 'G1_closed';
+                const isClosed = p.status === 'H1_closed';
                 return (
                   <div
                     key={p.id}
@@ -1147,7 +1147,7 @@ function ProjectsContent() {
                 </div>
               </div>
               <div className={panel.detailActions}>
-                {!editing && !['E4_execution', 'F1_refund', 'G1_closed'].includes(selected.status) && (
+                {!editing && !['F1_execution', 'G1_refund', 'H1_closed'].includes(selected.status) && (
                   <ActionButton label="수정" variant="ghost-filled" size="sm" icon={<LuPencil size={13} />} onClick={startEdit} />
                 )}
                 {editing && (
@@ -1168,7 +1168,7 @@ function ProjectsContent() {
             </div>
 
             {/* ── 종료 프로젝트 배너 ── */}
-            {selected.status === 'G1_closed' && (
+            {selected.status === 'H1_closed' && (
               <div
                 style={{
                   display: 'flex',

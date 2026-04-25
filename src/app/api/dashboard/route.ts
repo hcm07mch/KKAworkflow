@@ -38,9 +38,9 @@ export async function GET() {
 
   const projects = projectsRes.data ?? [];
 
-  // ── 파이프라인 (F그룹 제외) ──
+  // ── 파이프라인 (환불/종료 그룹 제외) ──
   const pipeline = projects
-    .filter((p: any) => !p.status.startsWith('F') && !p.status.startsWith('G'))
+    .filter((p: any) => !p.status.startsWith('G') && !p.status.startsWith('H'))
     .map((p: any) => ({
       id: p.id,
       client: p.client?.name ?? '',
@@ -51,7 +51,7 @@ export async function GET() {
 
   // ── 견적 승인 현황 (workflow_stack 기반) ──
   // B그룹(견적) 플로우가 스택에 존재하는 프로젝트 = 견적 진행
-  // → D그룹(입금) 도달 = 승인 / F1·G1 종료 = 거절
+  // → D그룹(입금) 도달 = 승인 / G1(환불)·H1(종료) = 거절
 
   // 상태 이력에서 D1 진입 날짜 (미입금 경과일용)
   const statusHistory = (statusHistoryRes.data ?? []) as any[];
@@ -98,7 +98,7 @@ export async function GET() {
     // 마지막 B 세그먼트 이후 D가 없는 경우
     const unresolvedB = bCount - dAfterB;
     if (unresolvedB > 0) {
-      if (status === 'F1_refund' || status === 'G1_closed') {
+      if (status === 'G1_refund' || status === 'H1_closed') {
         estRejected += unresolvedB;
       } else {
         estPending += unresolvedB;
@@ -144,7 +144,7 @@ export async function GET() {
 
   // ── 계약 갱신/해지 (workflow_stack 기반) ──
   // C 세그먼트(계약 플로우) 이후 추가 C 세그먼트 → 갱신
-  // C 세그먼트 이후 G 세그먼트(종료 플로우) → 해지
+  // C 세그먼트 이후 H 세그먼트(종료 플로우) → 해지
   let totalRenewed = 0;
   let totalCancelled = 0;
   let totalRenewPending = 0;
@@ -170,19 +170,19 @@ export async function GET() {
     // 마지막 C를 제외한 모든 C 세그먼트 = 갱신 (이후 다시 C 진입)
     totalRenewed += (cCount - 1);
 
-    // 마지막 C 세그먼트: G 진입 여부로 해지/진행중 판별
-    let gAfterLastC = false;
+    // 마지막 C 세그먼트: H 진입 여부로 해지/진행중 판별
+    let hAfterLastC = false;
     let lastCIdx = -1;
     for (let i = stack.length - 1; i >= 0; i--) {
       if (stack[i].charAt(0) === 'C') { lastCIdx = i; break; }
     }
     if (lastCIdx >= 0) {
       for (let i = lastCIdx + 1; i < stack.length; i++) {
-        if (stack[i].charAt(0) === 'G') { gAfterLastC = true; break; }
+        if (stack[i].charAt(0) === 'H') { hAfterLastC = true; break; }
       }
     }
 
-    if (gAfterLastC || status.startsWith('G')) {
+    if (hAfterLastC || status.startsWith('H')) {
       totalCancelled++;
     } else {
       totalRenewPending++;

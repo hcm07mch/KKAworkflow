@@ -120,7 +120,7 @@ export class ProjectService {
     const inputKeys = new Set(Object.keys(input));
     const allowedKeys = new Set(['status', 'metadata', 'total_amount']);
     const isAllowedUpdate = inputKeys.size > 0 && [...inputKeys].every((k) => allowedKeys.has(k));
-    if (['E4_execution', 'F1_refund', 'G1_closed'].includes(existing.status) && !isAllowedUpdate) {
+    if (['F1_execution', 'G1_refund', 'H1_closed'].includes(existing.status) && !isAllowedUpdate) {
       return {
         success: false,
         error: {

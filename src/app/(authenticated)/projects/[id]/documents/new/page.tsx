@@ -24,7 +24,7 @@ import styles from '../document-form.module.css';
 const MOCK_PROJECT = {
   id: 'p1',
   title: '블루오션 3월 마케팅 대행',
-  status: 'E4_execution' as ProjectStatus,
+  status: 'F1_execution' as ProjectStatus,
   serviceType: 'viral_performance' as ServiceType,
 };
 

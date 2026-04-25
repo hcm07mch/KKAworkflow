@@ -48,7 +48,7 @@ export function ProjectHeader({ project, currentUserRole, onTransition }: Projec
               <ActionButton
                 key={next}
                 label={`${PROJECT_STATUS_META[next].label}(으)로 변경`}
-                variant={next === 'F1_refund' ? 'danger' : 'primary'}
+                variant={next === 'G1_refund' ? 'danger' : 'primary'}
                 size="sm"
                 onClick={() => onTransition?.(next)}
               />

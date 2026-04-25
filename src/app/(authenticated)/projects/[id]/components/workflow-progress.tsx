@@ -4,8 +4,8 @@
  * WorkflowProgress - 15단계 프로젝트 워크플로우 시각화
  *
  * 서비스 유형별 플로우:
- * - 바이럴:           A → B1~B4 → D1~D2 → E4 (C단계, E1~E3 생략)
- * - 퍼포먼스/복합:    A → B1~B4 → C1~C4 → D1~D2 → E1~E4
+ * - 바이럴:           A → B1~B4 → D1~D2 → F1 (C단계, E1~E3 생략)
+ * - 퍼포먼스/복합:    A → B1~B4 → C1~C4 → D1~D2 → E1~E3 → F1
  */
 
 import type { ProjectStatus, ServiceType } from '@/lib/domain/types';
@@ -19,18 +19,19 @@ function getVisibleStatuses(serviceType: ServiceType, currentStatus: ProjectStat
         'A_sales',
         'B1_estimate_draft', 'B2_estimate_review', 'B3_estimate_sent', 'B4_estimate_response',
         'D1_payment_pending', 'D2_payment_confirmed',
-        'E4_execution',
+        'F1_execution',
       ]
     : [
         'A_sales',
         'B1_estimate_draft', 'B2_estimate_review', 'B3_estimate_sent', 'B4_estimate_response',
         'C1_contract_draft', 'C2_contract_review', 'C3_contract_sent', 'C4_contract_signed',
         'D1_payment_pending', 'D2_payment_confirmed',
-        'E1_prereport_draft', 'E2_prereport_review', 'E3_prereport_sent', 'E4_execution',
+        'E1_prereport_draft', 'E2_prereport_review', 'E3_prereport_sent',
+        'F1_execution',
       ];
 
-  if (currentStatus === 'F1_refund') base.push('F1_refund', 'G1_closed');
-  else if (currentStatus === 'G1_closed') base.push('G1_closed');
+  if (currentStatus === 'G1_refund') base.push('G1_refund', 'H1_closed');
+  else if (currentStatus === 'H1_closed') base.push('H1_closed');
 
   return base;
 }
@@ -134,12 +135,12 @@ export function WorkflowProgress({ serviceType, projectStatus }: WorkflowProgres
       </div>
 
       {/* 계약 유지 루프 힌트 */}
-      {serviceType !== 'viral' && projectStatus === 'E4_execution' && (
+      {serviceType !== 'viral' && projectStatus === 'F1_execution' && (
         <div className={styles.loopHint}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" className={styles.loopIcon}>
             <path d="M5.5 3.5A1.5 1.5 0 017 2h2a1.5 1.5 0 011.5 1.5v1.25a.75.75 0 01-1.5 0V3.5H7v1.25a.75.75 0 01-1.5 0V3.5zM3.22 6.22a.75.75 0 011.06 0L6 7.94l1.72-1.72a.75.75 0 111.06 1.06l-2.25 2.25a.75.75 0 01-1.06 0L3.22 7.28a.75.75 0 010-1.06z" />
           </svg>
-          계약 유지 시 E-1 사전 보고서 → E-4 집행 단계가 반복됩니다
+          계약 유지 시 E-1 사전 보고서 → F-1 집행 단계가 반복됩니다
         </div>
       )}
     </section>
