@@ -287,6 +287,24 @@ export function WorkflowBuilder({ serviceType, projectStatus, workflowStack, man
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [open]);
 
+  // picker가 열려 있는 동안 버튼 위치 변화(스크롤/리사이즈)에 맞춰 위치 갱신
+  useEffect(() => {
+    if (!open) return;
+    function updatePos() {
+      if (addBtnRef.current) {
+        const rect = addBtnRef.current.getBoundingClientRect();
+        setPickerPos({ top: rect.bottom + 8, left: rect.left });
+      }
+    }
+    updatePos();
+    window.addEventListener('scroll', updatePos, true);
+    window.addEventListener('resize', updatePos);
+    return () => {
+      window.removeEventListener('scroll', updatePos, true);
+      window.removeEventListener('resize', updatePos);
+    };
+  }, [open]);
+
   async function handleSelect(group: typeof PROJECT_STATUS_GROUPS[number]) {
     if (group.key === 'D') {
       // D 그룹은 부모에서 결제 모달을 표시하므로 바로 위임
@@ -331,10 +349,6 @@ export function WorkflowBuilder({ serviceType, projectStatus, workflowStack, man
     // 그룹 마지막 세부 상태 체크 시 → 새 그룹 피커 열기
     if (isLastInGroup && isLastGroup) {
       setTimeout(() => {
-        if (addBtnRef.current) {
-          const rect = addBtnRef.current.getBoundingClientRect();
-          setPickerPos({ top: rect.bottom + 8, left: rect.left });
-        }
         setOpen(true);
       }, 300);
     }
@@ -482,13 +496,7 @@ export function WorkflowBuilder({ serviceType, projectStatus, workflowStack, man
                 type="button"
                 ref={addBtnRef}
                 className={styles.addBtn}
-                onClick={() => {
-                  if (!open && addBtnRef.current) {
-                    const rect = addBtnRef.current.getBoundingClientRect();
-                    setPickerPos({ top: rect.bottom + 8, left: rect.left });
-                  }
-                  setOpen((v) => !v);
-                }}
+                onClick={() => setOpen((v) => !v)}
                 title="단계 추가"
               >
                 <LuPlus size={16} />
@@ -497,7 +505,7 @@ export function WorkflowBuilder({ serviceType, projectStatus, workflowStack, man
               {open && pickerPos && (
                 <div
                   className={styles.pickerNodes}
-                  style={{ position: 'fixed', top: pickerPos.top, left: pickerPos.left }}
+                  style={{ top: pickerPos.top, left: pickerPos.left }}
                 >
                   {PROJECT_STATUS_GROUPS.map((group, i) => {
                     const color = GROUP_COLORS[group.key] ?? '#6b7280';

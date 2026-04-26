@@ -295,6 +295,7 @@
 /* -- Picker nodes -- */
 
 .pickerNodes {
+  position: fixed;
   display: flex;
   flex-direction: column;
   align-items: stretch;
