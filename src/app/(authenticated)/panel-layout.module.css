@@ -342,9 +342,15 @@
 
 .filterTabs {
   display: flex;
-  gap: 2px;
+  gap: 1px;
   margin-top: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.filterTabs::-webkit-scrollbar {
+  display: none;
 }
 
 .filterTab {
@@ -357,6 +363,8 @@
   cursor: pointer;
   border-radius: 4px;
   transition: background 0.1s, color 0.1s;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .filterTab:hover {
