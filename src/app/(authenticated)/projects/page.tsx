@@ -4,7 +4,8 @@ import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 
 import { LuFolderOpen, LuPanelLeftOpen, LuPanelLeftClose, LuDownload, LuPencil, LuX, LuCheck, LuExternalLink, LuChevronDown, LuChevronUp, LuRefreshCw, LuTrash2, LuBan } from 'react-icons/lu';
-import { StatusBadge, ActionButton } from '@/components/ui';
+import { StatusBadge, ActionButton, useFeedback } from '@/components/ui';
+import { useProjectAssignees } from '@/components/hooks/use-project-assignees';
 import type { ProjectStatus, ServiceType, PaymentType, DocumentStatus, DocumentType } from '@/lib/domain/types';
 import {
   PROJECT_STATUS_META, PROJECT_STATUS_GROUPS, PROJECT_STATUS_TRANSITIONS,
@@ -237,6 +238,8 @@ export default function ProjectsPage() {
 function ProjectsContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { toast } = useFeedback();
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [groupFilter, setGroupFilter] = useState<string>('all');
@@ -284,6 +287,32 @@ function ProjectsContent() {
   const [paymentType, setPaymentType] = useState<PaymentType>('per_invoice');
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMonths, setPaymentMonths] = useState('1');
+
+  // 현재 사용자 + 선택된 프로젝트의 담당자 권한
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => r.json())
+      .then((u) => setCurrentUserId(u?.id ?? null))
+      .catch(() => {});
+  }, []);
+  const { isAssignee } = useProjectAssignees(
+    selected?.id ?? null,
+    currentUserId,
+    detail?.owner?.id ?? null,
+  );
+
+  /** 담당자가 아니면 토스트를 띄우고 false 반환. 담당자면 true. */
+  function ensureAssignee(): boolean {
+    if (!isAssignee) {
+      toast({
+        title: '담당자만 수행할 수 있는 작업입니다',
+        message: '이 프로젝트의 담당자가 아니므로 작업을 진행할 수 없습니다.',
+        variant: 'warning',
+      });
+      return false;
+    }
+    return true;
+  }
 
   useEffect(() => {
     fetch('/api/settings/status-check-types')
@@ -543,6 +572,7 @@ function ProjectsContent() {
 
   function handleWorkflowAdd(groupKey: string, paymentAmount?: number) {
     if (!detail || !selected) return;
+    if (!ensureAssignee()) return;
     // H 그룹(종료) 추가 시 종료 사유 모달 표시
     if (groupKey === 'H') {
       setClosingReason('');
@@ -711,6 +741,7 @@ function ProjectsContent() {
 
   async function handleWorkflowDelete(index: number) {
     if (!detail || !selected) return;
+    if (!ensureAssignee()) return;
     const currentStack = readStack(detail.metadata, selected.status);
 
     // index는 세그먼트(표시 그룹) 인덱스 → 실제 스택 범위 계산
@@ -718,6 +749,12 @@ function ProjectsContent() {
     const segment = segments[index];
     if (!segment) return;
     const deletedGroupKey = segment.key;
+
+    // 동일 그룹 내에서 이 세그먼트의 flow_number (1부터 시작)
+    let deletedFlowNumber = 0;
+    for (let i = 0; i <= index; i++) {
+      if (segments[i].key === deletedGroupKey) deletedFlowNumber++;
+    }
 
     // 삭제할 그룹에 연결된 문서 타입 매핑
     const groupDocTypeMap: Record<string, { type: string; label: string }> = {
@@ -730,10 +767,22 @@ function ProjectsContent() {
     const docConfig = groupDocTypeMap[deletedGroupKey];
     const groupLabel = PROJECT_STATUS_GROUPS.find((g) => g.key === deletedGroupKey)?.label ?? deletedGroupKey;
 
-    // 해당 타입의 문서 목록 찾기
+    // 해당 타입의 문서 중 이 세그먼트(flow_number)에 매칭되는 문서만 추림.
+    //  - content.flow_number 가 일치하면 그 문서.
+    //  - flow_number 가 비어있는 레거시 문서는 정렬 순서상 deletedFlowNumber 번째 위치를 매칭.
     let docsOfType: { id: string; type: string }[] = [];
     if (docConfig && detail.documents) {
-      docsOfType = detail.documents.filter((d) => d.type === docConfig.type);
+      const allOfType = detail.documents.filter((d) => d.type === docConfig.type);
+      const byFlow = allOfType.find((d) => (d.content as any)?.flow_number === deletedFlowNumber);
+      if (byFlow) {
+        docsOfType = [byFlow];
+      } else {
+        // flow_number 미설정 레거시 케이스: 같은 타입 문서가 1건뿐이거나
+        // deletedFlowNumber 번째 (1-indexed) 위치 문서를 대상으로 한다.
+        const noFlow = allOfType.filter((d) => (d.content as any)?.flow_number == null);
+        const fallback = noFlow[deletedFlowNumber - 1];
+        if (fallback) docsOfType = [fallback];
+      }
     }
 
     // 경고 메시지 구성
@@ -777,11 +826,13 @@ function ProjectsContent() {
     // 병렬 삭제 요청
     const deletions: Promise<any>[] = [];
 
-    // 해당 타입 문서 전체 삭제
-    if (docConfig && docsOfType.length > 0) {
-      deletions.push(
-        fetch(`/api/projects/${detail.id}/documents?type=${docConfig.type}`, { method: 'DELETE' }),
-      );
+    // 해당 세그먼트에 매칭되는 문서만 개별 삭제
+    if (docsOfType.length > 0) {
+      for (const d of docsOfType) {
+        deletions.push(
+          fetch(`/api/documents/${d.id}`, { method: 'DELETE' }),
+        );
+      }
     }
 
     // G(환불) 그룹 삭제 시 환불 내역도 함께 삭제
@@ -810,6 +861,7 @@ function ProjectsContent() {
 
   function handleWorkflowStatusChange(toStatus: ProjectStatus) {
     if (!detail || !selected) return;
+    if (!ensureAssignee()) return;
     // H 그룹(종료) 상태 변경 시 종료 사유 모달 표시
     if (toStatus === 'H1_closed') {
       setClosingReason('');
@@ -1147,7 +1199,7 @@ function ProjectsContent() {
                 </div>
               </div>
               <div className={panel.detailActions}>
-                {!editing && !['F1_execution', 'G1_refund', 'H1_closed'].includes(selected.status) && (
+                {!editing && selected.status !== 'F1_execution' && (
                   <ActionButton label="수정" variant="ghost-filled" size="sm" icon={<LuPencil size={13} />} onClick={startEdit} />
                 )}
                 {editing && (

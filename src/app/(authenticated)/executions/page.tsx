@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { LuRocket, LuExternalLink } from 'react-icons/lu';
 import { StatusBadge, useFeedback } from '@/components/ui';
+import { useProjectAssignees } from '@/components/hooks/use-project-assignees';
 import type { DocumentStatus, PreReportContent } from '@/lib/domain/types';
 import { CampaignPlanEditor } from './campaign-plan-editor';
 import panel from '../panel-layout.module.css';
@@ -119,6 +120,24 @@ function ExecutionsContent() {
   });
 
   const selected = selectedId ? executions.find((e) => e.id === selectedId) ?? null : null;
+
+  // 선택된 집행 프로젝트의 담당자 권한
+  const { isAssignee } = useProjectAssignees(
+    selected?.projectId ?? null,
+    currentUserId,
+    selected?.ownerId ?? null,
+  );
+  function ensureAssignee(): boolean {
+    if (!isAssignee) {
+      toast({
+        title: '담당자만 수행할 수 있는 작업입니다',
+        message: '이 프로젝트의 담당자가 아니므로 작업을 진행할 수 없습니다.',
+        variant: 'warning',
+      });
+      return false;
+    }
+    return true;
+  }
 
   // ── Handlers ──
 
@@ -376,11 +395,11 @@ function ExecutionsContent() {
             documentId={selected.id}
             defaultClientName={selected.clientName}
             defaultProjectName={selected.projectTitle}
-            readOnly={selected.docStatus !== 'draft' || !currentUserId || (!!selected.ownerId && selected.ownerId !== currentUserId)}
+            readOnly={selected.docStatus !== 'draft'}
             documentStatus={selected.docStatus}
-            onSave={!!currentUserId && (!selected.ownerId || selected.ownerId === currentUserId) ? handleSaveEdit : undefined}
-            onSubmit={!!currentUserId && (!selected.ownerId || selected.ownerId === currentUserId) ? handleSubmit : undefined}
-            onRedraft={!!currentUserId && (!selected.ownerId || selected.ownerId === currentUserId) ? handleRedraft : undefined}
+            onSave={(data) => { if (ensureAssignee()) handleSaveEdit(data); }}
+            onSubmit={(data) => { if (ensureAssignee()) handleSubmit(data); }}
+            onRedraft={() => { if (ensureAssignee()) handleRedraft(); }}
             onStatusChange={handleStatusChange}
             onCancel={handleCancel}
           />
