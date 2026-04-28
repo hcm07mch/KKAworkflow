@@ -167,7 +167,16 @@ export async function getAuthContext(): Promise<AuthResult> {
   }
 
   // 4) 서비스 인스턴스 생성 (활성 스코프 기준 - 새로 생성되는 데이터는 선택된 조직 소속)
-  const services = createServices(supabase, {
+  //
+  // 본사 계정이 지사 스코프로 전환한 경우(effectiveOrgId !== userOrgId), Supabase RLS 는
+  // workflow_users.organization_id(본사) 와 대상 조직(지사) 의 organization_id 불일치로
+  // 모든 SELECT/UPDATE 를 차단한다. 이 경우 서비스가 사용하는 DB 클라이언트를
+  // service-role 클라이언트로 교체해 RLS 를 우회한다. 조직 경계는 API 레이어의
+  // verifyClientInOrg / verifyProjectInOrg / verifyDocumentInOrg 가 이미 검증하므로
+  // 권한 격리는 유지된다.
+  const isCrossOrgScope = effectiveOrgId !== userOrgId;
+  const servicesDb = isCrossOrgScope ? createSupabaseServiceClient() : supabase;
+  const services = createServices(servicesDb, {
     organizationId: effectiveOrgId,
   });
 
@@ -184,7 +193,10 @@ export async function getAuthContext(): Promise<AuthResult> {
     rootOrganizationId,
     activeScope,
     services,
-    supabase,
+    // 활성 스코프에 맞는 DB 클라이언트. cross-org 스코프(본사 계정→지사 업무)
+    // 에서는 service-role 클라이언트로 교체되어 RLS 를 우회한다.
+    // 직접 raw 쿼리를 실행하는 라우트는 이 클라이언트를 사용해야 RLS 차단을 피할 수 있다.
+    supabase: servicesDb,
   };
 }
 

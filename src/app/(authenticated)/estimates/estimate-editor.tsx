@@ -49,12 +49,21 @@ export interface EstimateEditorProps {
 
 // ── Helpers ──────────────────────────────────────────────
 
-function generateDocNumber(): string {
+function generateDocNumber(documentId?: string): string {
   const now = new Date();
   const y = now.getFullYear();
   const m = String(now.getMonth() + 1).padStart(2, '0');
   const d = String(now.getDate()).padStart(2, '0');
-  const seq = String(Math.floor(Math.random() * 999) + 1).padStart(3, '0');
+  // documentId 가 있으면 id 기반 결정적 시퀀스를 사용 → 모든 조회자에게 동일한 번호 노출.
+  // 이전에 document_number 없이 저장된 레거시 문서에 대한 폴백.
+  let seq: string;
+  if (documentId) {
+    const hex = documentId.replace(/[^0-9a-f]/gi, '').slice(0, 6);
+    const num = parseInt(hex || '0', 16) % 1000;
+    seq = String(num).padStart(3, '0');
+  } else {
+    seq = String(Math.floor(Math.random() * 999) + 1).padStart(3, '0');
+  }
   return `KKA-${y}-${m}${d}-${seq}`;
 }
 
@@ -294,7 +303,7 @@ export function EstimateEditor({ mode, initialData, documentId, defaultClientId,
   }, [panelWidth]);
 
   // Basic info
-  const [docNumber, setDocNumber] = useState(initialData?.document_number || generateDocNumber());
+  const [docNumber, setDocNumber] = useState(initialData?.document_number || generateDocNumber(documentId));
   const [issuedDate, setIssuedDate] = useState(initialData?.issued_date || todayISO());
   const [clientId, setClientId] = useState(() => {
     if (defaultClientId) return defaultClientId;

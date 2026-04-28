@@ -105,18 +105,49 @@ export async function DELETE(
     );
   }
 
-  // 스토리지 파일 정리
+  // 권한 체크: admin/manager 또는 프로젝트 owner / 담당자(assignee).
+  // (기존 RLS 정책은 admin + draft 만 허용하지만, 실제 운영상 워크플로우 단계 삭제 시
+  //  매니저/담당자가 함께 문서를 정리할 수 있어야 하므로 API 레이어에서 더 넓게 허용한다.)
+  const project = await auth.services.projectRepo.findById(doc.project_id);
+  const isPrivileged = auth.role === 'admin' || auth.role === 'manager';
+  const isOwner = !!project && project.owner_id === auth.dbUser.id;
+  let isAssignee = false;
+  if (!isPrivileged && !isOwner) {
+    const assignees = await auth.services.assigneeRepo.findByProjectId(doc.project_id);
+    isAssignee = assignees.some((a) => a.user_id === auth.dbUser.id);
+  }
+  if (!isPrivileged && !isOwner && !isAssignee) {
+    return NextResponse.json(
+      { error: { code: 'FORBIDDEN', message: '문서를 삭제할 권한이 없습니다' } },
+      { status: 403 },
+    );
+  }
+
+  // 스토리지 파일 정리 + 실제 삭제는 service client 로 수행하여 RLS(admin+draft 제한)를 우회.
+  // 조직 경계는 위의 verifyDocumentInOrg 가 이미 검증했고, 권한은 위에서 검증했다.
+  const serviceClient = createSupabaseServiceClient();
   const content = doc.content as Record<string, unknown>;
   const filePath = content?.file_path as string | undefined;
-  if (filePath) {
+  const pdfPath = content?.pdf_path as string | undefined;
+  const storagePaths = [filePath, pdfPath].filter((p): p is string => !!p);
+  if (storagePaths.length > 0) {
     try {
-      const serviceClient = createSupabaseServiceClient();
-      await serviceClient.storage.from('project-documents').remove([filePath]);
+      await serviceClient.storage.from('project-documents').remove(storagePaths);
     } catch { /* ignore */ }
   }
 
   // 문서 삭제 (cascade로 approvals도 삭제)
-  await auth.services.documentRepo.deleteById(documentId);
+  const { error: deleteError } = await serviceClient
+    .from('workflow_project_documents')
+    .delete()
+    .eq('id', documentId);
+
+  if (deleteError) {
+    return NextResponse.json(
+      { error: { code: 'DELETE_FAILED', message: deleteError.message } },
+      { status: 500 },
+    );
+  }
 
   return NextResponse.json({ deleted: documentId });
 }

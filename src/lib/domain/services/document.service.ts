@@ -30,6 +30,21 @@ interface DocumentServiceContext {
   organizationId: string;
 }
 
+/**
+ * 문서번호 생성 (KKA-YYYY-MMDD-NNN 형식).
+ * 생성 시각 기반이므로 같은 문서에 대해 한 번만 생성되어 모든 조회자에게
+ * 동일한 값으로 노출된다. NNN 은 시각의 초·밀리초를 압축한 3자리.
+ */
+function generateStableDocNumber(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  // 초(0~59) * 1000 + 밀리초(0~999) → 4자리 → 마지막 3자리만 사용 (충돌 가능성 낮음)
+  const seq = String((now.getSeconds() * 1000 + now.getMilliseconds()) % 1000).padStart(3, '0');
+  return `KKA-${y}-${m}${d}-${seq}`;
+}
+
 export class DocumentService {
   constructor(
     private readonly documentRepo: IDocumentRepository,
@@ -75,13 +90,22 @@ export class DocumentService {
     }
 
     // [단계 3] 초기 상태는 반드시 draft
+    //   document_number 가 content 에 없으면 서버에서 결정적으로 생성하여 영속화한다.
+    //   이렇게 해야 본사/지사 등 여러 사용자가 같은 문서를 열 때 서로 다른 번호가
+    //   보이는 문제(에디터의 random fallback 으로 인한 분기)를 방지할 수 있다.
+    const incomingContent = (input.content ?? {}) as Record<string, unknown>;
+    const needsDocNumber = ['estimate', 'contract', 'pre_report', 'report'].includes(input.type);
+    const finalContent: Record<string, unknown> = needsDocNumber && !incomingContent.document_number
+      ? { ...incomingContent, document_number: generateStableDocNumber() }
+      : incomingContent;
+
     const document = await this.documentRepo.create({
       project_id: input.project_id,
       type: input.type,
       title: input.title,
       status: 'draft',
       version: 1,
-      content: input.content ?? {},
+      content: finalContent,
       created_by: ctx.userId,
       metadata: input.metadata ?? {},
     });
