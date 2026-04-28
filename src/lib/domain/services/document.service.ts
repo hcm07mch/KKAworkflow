@@ -9,6 +9,7 @@ import type {
   ProjectDocument,
   DocumentStatus,
   ServiceResult,
+  JsonObject,
 } from '../types';
 import type {
   CreateDocumentInput,
@@ -93,9 +94,9 @@ export class DocumentService {
     //   document_number 가 content 에 없으면 서버에서 결정적으로 생성하여 영속화한다.
     //   이렇게 해야 본사/지사 등 여러 사용자가 같은 문서를 열 때 서로 다른 번호가
     //   보이는 문제(에디터의 random fallback 으로 인한 분기)를 방지할 수 있다.
-    const incomingContent = (input.content ?? {}) as Record<string, unknown>;
+    const incomingContent = (input.content ?? {}) as JsonObject;
     const needsDocNumber = ['estimate', 'contract', 'pre_report', 'report'].includes(input.type);
-    const finalContent: Record<string, unknown> = needsDocNumber && !incomingContent.document_number
+    const finalContent: JsonObject = needsDocNumber && !(incomingContent as Record<string, unknown>).document_number
       ? { ...incomingContent, document_number: generateStableDocNumber() }
       : incomingContent;
 
