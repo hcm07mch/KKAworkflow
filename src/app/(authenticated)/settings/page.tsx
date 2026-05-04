@@ -513,10 +513,10 @@ const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
 
 /** 문서 유형 그룹 (표시 순서) */
 const DOC_TYPE_GROUPS: { value: DocumentType | null; label: string; description: string }[] = [
+  { value: null,          label: '기본 정책',  description: '전용 정책이 없는 문서에 적용되는 기본 정책' },
   { value: 'estimate',   label: '견적서',     description: '견적서 제출 시 적용되는 승인 정책' },
   { value: 'contract',   label: '계약서',     description: '계약서 제출 시 적용되는 승인 정책' },
   { value: 'pre_report', label: '사전 보고서', description: '사전 보고서 제출 시 적용되는 승인 정책' },
-  { value: null,          label: '기본 정책',  description: '전용 정책이 없는 문서에 적용되는 기본 정책' },
 ];
 
 function emptyPolicy(docType: DocumentType | null): ApprovalPolicyItem {
@@ -590,7 +590,7 @@ function ApprovalPolicySection({
 
   /** 해당 문서 유형에서 특정 정책을 활성화하고 나머지를 비활성화 */
   const handleActivate = async (targetPolicy: ApprovalPolicyItem) => {
-    if (activatingId) return;
+    if (activatingId || deactivatingAll) return;
     setActivatingId(targetPolicy.id);
     try {
     const docType = targetPolicy.document_type;
@@ -621,6 +621,50 @@ function ApprovalPolicySection({
     } else {
       toast({ title: '정책 변경에 실패했습니다', variant: 'error' });
     }
+    } finally {
+      setActivatingId(null);
+    }
+  };
+
+  const handleUseDefaultPolicy = async (docType: DocumentType, label: string) => {
+    if (activatingId || deactivatingAll) return;
+
+    const activePolicies = policies.filter((p) => p.document_type === docType && p.is_active);
+    if (activePolicies.length === 0) {
+      toast({ title: `${label}는 이미 기본 정책을 따르고 있습니다`, variant: 'success' });
+      return;
+    }
+
+    const defaultOptionId = `default:${docType}`;
+    setActivatingId(defaultOptionId);
+    try {
+      const results = await Promise.all(activePolicies.map((policy) => fetch(`/api/settings/approval-policies/${policy.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          required_steps: policy.required_steps,
+          description: policy.description,
+          is_active: false,
+        }),
+      })));
+
+      const failed = results.find((res) => !res.ok);
+      if (failed) {
+        const err = await failed.json().catch(() => ({}));
+        toast({ title: err?.error?.message || '기본 정책 적용에 실패했습니다', variant: 'error' });
+        return;
+      }
+
+      setPolicies((prev) => prev.map((policy) => (
+        policy.document_type === docType ? { ...policy, is_active: false } : policy
+      )));
+      if (editingPolicy?.document_type === docType) {
+        setEditingPolicy(null);
+        setIsNewPolicy(false);
+      }
+      toast({ title: `${label}가 기본 정책을 따르도록 변경되었습니다`, variant: 'success' });
+    } catch {
+      toast({ title: '기본 정책 적용에 실패했습니다', variant: 'error' });
     } finally {
       setActivatingId(null);
     }
@@ -941,11 +985,25 @@ function ApprovalPolicySection({
         const groupPolicies = policies.filter((p) => p.document_type === group.value);
         const activePolicy = groupPolicies.find((p) => p.is_active);
         const isEditingInGroup = editingPolicy && editingPolicy.document_type === group.value;
+        const isDefaultGroup = group.value === null;
+        const defaultOptionId = group.value ? `default:${group.value}` : null;
 
         return (
-          <div key={group.value ?? '__default'} className="card" style={{ marginBottom: 12 }}>
+          <div
+            key={group.value ?? '__default'}
+            className="card"
+            style={{
+              marginBottom: 12,
+              ...(isDefaultGroup
+                ? {
+                    background: 'linear-gradient(180deg, var(--color-surface-muted, #f3f4f6) 0%, var(--color-surface, #fff) 100%)',
+                    borderColor: 'var(--color-border-strong, #cbd5e1)',
+                  }
+                : {}),
+            }}
+          >
             {/* 그룹 헤더 */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: groupPolicies.length > 0 ? 12 : 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: groupPolicies.length > 0 || !isDefaultGroup ? 12 : 0 }}>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-primary)' }}>
                   {group.label}
@@ -966,9 +1024,43 @@ function ApprovalPolicySection({
             </div>
 
             {/* 정책 목록 (라디오 선택) */}
-            {groupPolicies.length === 0 && !isEditingInGroup && (
+            {groupPolicies.length === 0 && isDefaultGroup && !isEditingInGroup && (
               <div style={{ fontSize: 12, color: 'var(--color-text-muted)', padding: '8px 0 0', borderTop: '1px solid var(--color-border)' }}>
                 설정된 정책이 없습니다. {group.value === null ? '기본값(1단계 매니저 승인)이 적용됩니다.' : '기본 정책이 적용됩니다.'}
+              </div>
+            )}
+
+            {!isDefaultGroup && group.value && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 10,
+                  padding: '10px 0',
+                  borderTop: '1px solid var(--color-border)',
+                }}
+              >
+                <input
+                  type="radio"
+                  name={`policy-${group.value}`}
+                  checked={!activePolicy}
+                  onChange={() => handleUseDefaultPolicy(group.value as DocumentType, group.label)}
+                  disabled={!!activatingId || deactivatingAll}
+                  style={{ marginTop: 3, accentColor: 'var(--color-primary)', cursor: activatingId || deactivatingAll ? 'wait' : 'pointer' }}
+                />
+                {activatingId === defaultOptionId && (
+                  <LuLoader size={14} style={{ animation: 'spin 1s linear infinite', color: 'var(--color-primary)', flexShrink: 0 }} />
+                )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: !activePolicy ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}>
+                      기본 정책 따르기
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
+                    별도 {group.label} 정책을 사용하지 않고 기본 승인 정책을 적용합니다.
+                  </div>
+                </div>
               </div>
             )}
 
