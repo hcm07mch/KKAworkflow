@@ -6,6 +6,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthContext, requireRole, requireRootOrg } from '@/lib/auth';
+import { createSupabaseServiceClient } from '@/lib/infrastructure/supabase/client';
+import { createServices } from '@/lib/service-factory';
 
 /** 본사 계정은 하위 지사 정책까지 관리 가능. 지사 계정은 자기 조직만. */
 function policyAllowedOrgIds(
@@ -54,9 +56,15 @@ export async function PUT(
 
   const body = await request.json();
 
+  // 본사 계정이 지사 정책을 수정할 때 RLS 에 막히지 않도록 service role 클라이언트를 사용
+  // (조직 범위는 assertPolicyInScope 에서 이미 보장된다)
+  const serviceClient = createSupabaseServiceClient();
+  const existing = await auth.services.approvalPolicyRepo.findByIdWithSteps(id);
+  const serviceRoleServices = createServices(serviceClient, { organizationId: existing!.organization_id });
+
   try {
     // 기존 정책의 steps를 삭제하고 새로 삽입하는 방식
-    const updated = await auth.services.approvalPolicyRepo.update(id, {
+    const updated = await serviceRoleServices.approvalPolicyRepo.update(id, {
       required_steps: body.required_steps,
       description: body.description,
       is_active: body.is_active,
@@ -65,7 +73,7 @@ export async function PUT(
     // steps를 교체해야 할 경우 — 기존 steps 삭제 후 재생성
     if (body.steps && Array.isArray(body.steps)) {
       // 기존 steps 삭제 (CASCADE 아닌 수동 처리)
-      const { error: deleteError } = await auth.supabase
+      const { error: deleteError } = await serviceClient
         .from('workflow_approval_policy_steps')
         .delete()
         .eq('policy_id', id);
@@ -77,7 +85,7 @@ export async function PUT(
 
       // 새 steps 삽입
       if (body.steps.length > 0) {
-        const { error: insertError } = await auth.supabase
+        const { error: insertError } = await serviceClient
           .from('workflow_approval_policy_steps')
           .insert(
             body.steps.map((s: { step: number; required_role: string; label?: string; assigned_user_id?: string }) => ({
@@ -96,7 +104,7 @@ export async function PUT(
       }
 
       // 최종 결과 재조회
-      const final = await auth.services.approvalPolicyRepo.findByIdWithSteps(id);
+      const final = await serviceRoleServices.approvalPolicyRepo.findByIdWithSteps(id);
       return NextResponse.json(final);
     }
 
@@ -128,7 +136,10 @@ export async function DELETE(
   if (scopeErr) return scopeErr;
 
   try {
-    await auth.services.approvalPolicyRepo.delete(id);
+    const serviceClient = createSupabaseServiceClient();
+    const existing2 = await auth.services.approvalPolicyRepo.findByIdWithSteps(id);
+    const svcDelete = createServices(serviceClient, { organizationId: existing2!.organization_id });
+    await svcDelete.approvalPolicyRepo.delete(id);
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error('[approval-policies] Delete error:', err);

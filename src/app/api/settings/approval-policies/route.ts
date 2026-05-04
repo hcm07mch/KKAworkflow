@@ -9,6 +9,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthContext, requireRole, requireRootOrg } from '@/lib/auth';
+import { createSupabaseServiceClient } from '@/lib/infrastructure/supabase/client';
+import { createServices } from '@/lib/service-factory';
 
 /**
  * 승인 정책을 관리할 수 있는 조직 ID 범위:
@@ -64,7 +66,11 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const policy = await auth.services.approvalPolicyRepo.create({
+    // 본사 계정이 지사 정책을 생성할 때 RLS(organization_id 일치 검사)가 차단하므로
+    // service role 클라이언트로 RLS 를 우회한다. 조직 범위는 위의 allowed 검사로 이미 보장된다.
+    const serviceClient = createSupabaseServiceClient();
+    const serviceRoleServices = createServices(serviceClient, { organizationId: targetOrgId });
+    const policy = await serviceRoleServices.approvalPolicyRepo.create({
       organization_id: targetOrgId,
       document_type: body.document_type ?? null,
       required_steps: body.required_steps,

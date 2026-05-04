@@ -187,16 +187,28 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!selectedPolicyOrgId || !org || org.parent_id) return; // 지사 계정은 스킵
     setPoliciesLoading(true);
-    Promise.all([
+    const selectedOrg = policyOrgs.find((o) => o.id === selectedPolicyOrgId);
+    const isBranchSelected = !!selectedOrg?.parent_id;
+    const requests: Promise<unknown>[] = [
       fetch(`/api/settings/approval-policies?organization_id=${selectedPolicyOrgId}`).then((r) => r.json()),
       fetch(`/api/settings/members?organization_id=${selectedPolicyOrgId}`).then((r) => r.json()),
-    ]).then(([pol, mem]) => {
+    ];
+    if (isBranchSelected && rootOrgId) {
+      requests.push(fetch(`/api/settings/members?organization_id=${rootOrgId}`).then((r) => r.json()));
+    }
+    Promise.all(requests).then(([pol, branchMem, hqMem]) => {
       setPolicies(Array.isArray(pol) ? pol : []);
-      setPolicyMembers(Array.isArray(mem) ? mem : []);
+      const branchMembers = Array.isArray(branchMem) ? (branchMem as MemberItem[]) : [];
+      const hqMembers = Array.isArray(hqMem) ? (hqMem as MemberItem[]) : [];
+      // 본사 멤버를 먼저, 지사 멤버를 뒤에 (중복 제거)
+      const combined = isBranchSelected
+        ? [...hqMembers, ...branchMembers.filter((m) => !hqMembers.some((h) => h.id === m.id))]
+        : branchMembers;
+      setPolicyMembers(combined);
       setEditingPolicy(null);
       setIsNewPolicy(false);
     }).finally(() => setPoliciesLoading(false));
-  }, [selectedPolicyOrgId, org]);
+  }, [selectedPolicyOrgId, org, policyOrgs, rootOrgId]);
 
   if (loading) {
     return (
@@ -798,9 +810,15 @@ function ApprovalPolicySection({
                     style={{ flex: 1.5 }}
                   >
                     <option value="">지정 담당자 없음</option>
-                    {members.filter((m) => m.is_active).map((m) => (
-                      <option key={m.id} value={m.id}>{m.name} ({USER_ROLE_META[m.role]?.label})</option>
-                    ))}
+                    {members.filter((m) => m.is_active).map((m) => {
+                      const memberOrg = policyOrgs.find((o) => o.id === m.organization_id);
+                      const orgTag = memberOrg ? (memberOrg.parent_id ? ` · ${memberOrg.name}` : ' · 본사') : '';
+                      return (
+                        <option key={m.id} value={m.id}>
+                          {m.name} ({USER_ROLE_META[m.role]?.label}){orgTag}
+                        </option>
+                      );
+                    })}
                   </select>
                   {editingPolicy.steps.length > 1 && (
                     <button
