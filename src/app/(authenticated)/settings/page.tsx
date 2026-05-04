@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
-import { LuBuilding2, LuUsers, LuShieldCheck, LuLoader, LuPlus, LuTrash2, LuPencil, LuX, LuCheck, LuBookOpen, LuFileText, LuSearch, LuGripVertical, LuCopy } from 'react-icons/lu';
+import { LuBuilding2, LuUsers, LuShieldCheck, LuLoader, LuPlus, LuTrash2, LuPencil, LuX, LuCheck, LuBookOpen, LuFileText, LuSearch, LuGripVertical, LuCopy, LuRotateCcw } from 'react-icons/lu';
 import { ActionButton, useFeedback } from '@/components/ui';
 import type { ConfirmOptions } from '@/components/ui/confirm-dialog';
 import type { ToastOptions } from '@/components/ui/toast';
@@ -550,6 +550,9 @@ function ApprovalPolicySection({
 }) {
   const [saving, setSaving] = useState(false);
   const [activatingId, setActivatingId] = useState<string | null>(null);
+  const [deactivatingAll, setDeactivatingAll] = useState(false);
+  const selectedPolicyOrg = policyOrgs.find((o) => o.id === selectedPolicyOrgId);
+  const isBranchPolicyOrg = !!selectedPolicyOrg?.parent_id;
 
   const handleNew = (docType: DocumentType | null) => {
     setEditingPolicy(emptyPolicy(docType));
@@ -620,6 +623,54 @@ function ApprovalPolicySection({
     }
     } finally {
       setActivatingId(null);
+    }
+  };
+
+  const handleUseHqPolicies = async () => {
+    if (!isBranchPolicyOrg || deactivatingAll) return;
+
+    const activePolicies = policies.filter((p) => p.is_active);
+    if (activePolicies.length === 0) {
+      toast({ title: '이미 본사 승인 정책을 채택 중입니다', variant: 'success' });
+      return;
+    }
+
+    const ok = await confirm({
+      title: '본사 승인 정책을 채택하시겠습니까?',
+      description: `${selectedPolicyOrg?.name ?? '선택한 지사'}의 모든 승인 정책을 비활성화합니다. 이후 문서 승인에는 본사 정책이 적용됩니다.`,
+      variant: 'danger',
+      confirmLabel: '본사 정책 채택',
+      cancelLabel: '취소',
+    });
+    if (!ok) return;
+
+    setDeactivatingAll(true);
+    try {
+      const results = await Promise.all(activePolicies.map((policy) => fetch(`/api/settings/approval-policies/${policy.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          required_steps: policy.required_steps,
+          description: policy.description,
+          is_active: false,
+        }),
+      })));
+
+      const failed = results.find((res) => !res.ok);
+      if (failed) {
+        const err = await failed.json().catch(() => ({}));
+        toast({ title: err?.error?.message || '본사 정책 채택에 실패했습니다', variant: 'error' });
+        return;
+      }
+
+      setPolicies((prev) => prev.map((policy) => ({ ...policy, is_active: false })));
+      setEditingPolicy(null);
+      setIsNewPolicy(false);
+      toast({ title: '본사 승인 정책을 채택하도록 변경되었습니다', variant: 'success' });
+    } catch {
+      toast({ title: '본사 정책 채택에 실패했습니다', variant: 'error' });
+    } finally {
+      setDeactivatingAll(false);
     }
   };
 
@@ -740,6 +791,41 @@ function ApprovalPolicySection({
           </div>
         )}
       </div>
+
+      {isBranchPolicyOrg && (
+        <div
+          style={{
+            marginBottom: 12,
+            padding: '12px 14px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            background: 'var(--color-surface-muted, #f3f4f6)',
+            border: '1px solid var(--color-border, #d1d5db)',
+            borderRadius: 'var(--radius)',
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 3 }}>
+              {policies.some((p) => p.is_active) ? '지사 전용 승인 정책 사용 중' : '본사 승인 정책 채택 중'}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+              모든 지사 정책을 비활성화하면 승인 요청 시 본사 정책이 적용됩니다.
+            </div>
+          </div>
+          <ActionButton
+            label="본사 정책 채택"
+            variant="ghost-filled"
+            size="sm"
+            icon={<LuRotateCcw size={13} />}
+            onClick={handleUseHqPolicies}
+            loading={deactivatingAll}
+            disabled={policiesLoading || deactivatingAll || policies.every((p) => !p.is_active)}
+            style={{ flexShrink: 0 }}
+          />
+        </div>
+      )}
 
       {/* 정책 편집 모달 */}
       {editingPolicy && (
