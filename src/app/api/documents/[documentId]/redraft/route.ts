@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthContext, verifyDocumentInOrg } from '@/lib/auth';
 import { createSupabaseServiceClient } from '@/lib/infrastructure/supabase';
+import { createServices } from '@/lib/service-factory';
 import type { ProjectStatus } from '@/lib/domain/types';
 
 /** 문서 유형 → 재작성 시 프로젝트 전환 매핑 */
@@ -60,7 +61,9 @@ export async function POST(
     // 0) 대기 중인 승인 요청이 있으면 취소
     const pendingApproval = await auth.services.approvalRepo.findPendingByDocumentId(documentId);
     if (pendingApproval) {
-      await auth.services.approvalRepo.update(pendingApproval.id, {
+      const serviceClient = createSupabaseServiceClient();
+      const serviceServices = createServices(serviceClient, { organizationId: auth.organizationId });
+      await serviceServices.approvalRepo.update(pendingApproval.id, {
         approver_id: ctx.userId,
         action: 'cancel',
         actioned_at: new Date().toISOString(),

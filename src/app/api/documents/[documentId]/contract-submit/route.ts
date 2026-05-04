@@ -8,6 +8,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthContext, verifyDocumentInOrg } from '@/lib/auth';
+import { createSupabaseServiceClient } from '@/lib/infrastructure/supabase';
+import { createServices } from '@/lib/service-factory';
 
 export async function POST(
   _request: NextRequest,
@@ -60,7 +62,9 @@ export async function POST(
       // 이전 재작성 등으로 남아있는 대기 중 승인 요청이 있으면 자동 취소
       const staleApproval = await auth.services.approvalRepo.findPendingByDocumentId(documentId);
       if (staleApproval) {
-        await auth.services.approvalRepo.update(staleApproval.id, {
+        const serviceClient = createSupabaseServiceClient();
+        const serviceServices = createServices(serviceClient, { organizationId: auth.organizationId });
+        await serviceServices.approvalRepo.update(staleApproval.id, {
           approver_id: ctx.userId,
           action: 'cancel',
           actioned_at: new Date().toISOString(),

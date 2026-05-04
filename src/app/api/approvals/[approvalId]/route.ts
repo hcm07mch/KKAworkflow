@@ -40,7 +40,8 @@ export async function POST(
         .select('project:workflow_projects!inner(organization_id)')
         .eq('id', approvalRec.document_id)
         .maybeSingle();
-      const projectOrg = (docRec?.project as { organization_id: string } | null)?.organization_id;
+      const project = docRec?.project as { organization_id: string } | { organization_id: string }[] | null | undefined;
+      const projectOrg = Array.isArray(project) ? project[0]?.organization_id : project?.organization_id;
       if (projectOrg && auth.fullAllowedOrgIds.includes(projectOrg)) {
         ctxOrgId = projectOrg;
       }

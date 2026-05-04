@@ -8,33 +8,44 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthContext, requireRole, requireRootOrg } from '@/lib/auth';
 import { createSupabaseServiceClient } from '@/lib/infrastructure/supabase/client';
 import { createServices } from '@/lib/service-factory';
+import type { ApprovalPolicyWithSteps } from '@/lib/domain/types';
+
+type AuthSuccess = Extract<Awaited<ReturnType<typeof getAuthContext>>, { success: true }>;
 
 /** 본사 계정은 하위 지사 정책까지 관리 가능. 지사 계정은 자기 조직만. */
 function policyAllowedOrgIds(
-  auth: Extract<Awaited<ReturnType<typeof getAuthContext>>, { success: true }>,
+  auth: AuthSuccess,
 ): string[] {
   return auth.isRootOrg ? auth.fullAllowedOrgIds : auth.allowedOrgIds;
 }
 
 /** 정책 id가 caller가 관리할 수 있는 조직 범위에 속하는지 확인 */
 async function assertPolicyInScope(
-  auth: Extract<Awaited<ReturnType<typeof getAuthContext>>, { success: true }>,
+  auth: AuthSuccess,
   policyId: string,
-): Promise<NextResponse | null> {
-  const existing = await auth.services.approvalPolicyRepo.findByIdWithSteps(policyId);
+): Promise<{ policy: ApprovalPolicyWithSteps; response: null } | { policy: null; response: NextResponse }> {
+  const serviceClient = createSupabaseServiceClient();
+  const serviceRoleServices = createServices(serviceClient, { organizationId: auth.organizationId });
+  const existing = await serviceRoleServices.approvalPolicyRepo.findByIdWithSteps(policyId);
   if (!existing) {
-    return NextResponse.json(
-      { error: { code: 'NOT_FOUND', message: '정책을 찾을 수 없습니다' } },
-      { status: 404 },
-    );
+    return {
+      policy: null,
+      response: NextResponse.json(
+        { error: { code: 'NOT_FOUND', message: '정책을 찾을 수 없습니다' } },
+        { status: 404 },
+      ),
+    };
   }
   if (!policyAllowedOrgIds(auth).includes(existing.organization_id)) {
-    return NextResponse.json(
-      { error: { code: 'FORBIDDEN', message: '해당 조직의 정책을 수정할 권한이 없습니다' } },
-      { status: 403 },
-    );
+    return {
+      policy: null,
+      response: NextResponse.json(
+        { error: { code: 'FORBIDDEN', message: '해당 조직의 정책을 수정할 권한이 없습니다' } },
+        { status: 403 },
+      ),
+    };
   }
-  return null;
+  return { policy: existing, response: null };
 }
 
 export async function PUT(
@@ -51,7 +62,7 @@ export async function PUT(
   if (roleCheck) return roleCheck;
 
   const { id } = await params;
-  const scopeErr = await assertPolicyInScope(auth, id);
+  const { policy: existing, response: scopeErr } = await assertPolicyInScope(auth, id);
   if (scopeErr) return scopeErr;
 
   const body = await request.json();
@@ -59,8 +70,7 @@ export async function PUT(
   // 본사 계정이 지사 정책을 수정할 때 RLS 에 막히지 않도록 service role 클라이언트를 사용
   // (조직 범위는 assertPolicyInScope 에서 이미 보장된다)
   const serviceClient = createSupabaseServiceClient();
-  const existing = await auth.services.approvalPolicyRepo.findByIdWithSteps(id);
-  const serviceRoleServices = createServices(serviceClient, { organizationId: existing!.organization_id });
+  const serviceRoleServices = createServices(serviceClient, { organizationId: existing.organization_id });
 
   try {
     // 기존 정책의 steps를 삭제하고 새로 삽입하는 방식
@@ -132,13 +142,12 @@ export async function DELETE(
   if (roleCheck) return roleCheck;
 
   const { id } = await params;
-  const scopeErr = await assertPolicyInScope(auth, id);
+  const { policy: existing, response: scopeErr } = await assertPolicyInScope(auth, id);
   if (scopeErr) return scopeErr;
 
   try {
     const serviceClient = createSupabaseServiceClient();
-    const existing2 = await auth.services.approvalPolicyRepo.findByIdWithSteps(id);
-    const svcDelete = createServices(serviceClient, { organizationId: existing2!.organization_id });
+    const svcDelete = createServices(serviceClient, { organizationId: existing.organization_id });
     await svcDelete.approvalPolicyRepo.delete(id);
     return NextResponse.json({ success: true });
   } catch (err) {

@@ -39,7 +39,11 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const policies = await auth.services.approvalPolicyRepo.findByOrganizationId(targetOrgId);
+  // 본사 계정이 지사 정책을 조회할 때 RLS(사용자 소속 조직 일치)가 차단하므로
+  // service role 클라이언트로 조회한다. 조직 범위는 allowed 검사로 이미 보장된다.
+  const serviceClient = createSupabaseServiceClient();
+  const serviceRoleServices = createServices(serviceClient, { organizationId: targetOrgId });
+  const policies = await serviceRoleServices.approvalPolicyRepo.findByOrganizationId(targetOrgId);
 
   return NextResponse.json(policies);
 }
