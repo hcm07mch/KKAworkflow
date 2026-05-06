@@ -502,8 +502,9 @@ export function CampaignPlanEditor({
     if (!documentId) return;
     setPdfDownloading(true);
     try {
-      let res = await fetch(`/api/documents/${documentId}/pdf`);
-      if (!res.ok) res = await fetch(`/api/documents/${documentId}/pdf/generate`, { method: 'POST' });
+      // pre_report는 제출 시 자동 PDF 생성이 없고 내용이 자주 변경될 수 있으므로
+      // 다운로드 시점에 항상 최신 콘텐츠로 재생성한다.
+      const res = await fetch(`/api/documents/${documentId}/pdf/generate`, { method: 'POST' });
       if (!res.ok) { toast({ title: 'PDF 다운로드에 실패했습니다', variant: 'error' }); return; }
       const { url } = await res.json();
       window.open(url, '_blank');
