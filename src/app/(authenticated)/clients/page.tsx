@@ -21,6 +21,7 @@ interface ClientItem {
   contactEmail: string | null;
   contactPhone: string | null;
   address: string | null;
+  notes: string | null;
   organizationId: string | null;
   organizationName: string | null;
   serviceType: ServiceType;
@@ -103,6 +104,7 @@ export default function ClientsPage() {
         contactEmail: c.contact_email,
         contactPhone: c.contact_phone,
         address: c.address,
+        notes: c.notes ?? null,
         organizationId: c.organization_id ?? null,
         organizationName: c.organization?.name ?? null,
         serviceType: c.service_type,
@@ -248,7 +250,7 @@ export default function ClientsPage() {
       contact_email: selected.contactEmail ?? '',
       contact_phone: selected.contactPhone ?? '',
       address: selected.address ?? '',
-      notes: '',
+      notes: selected.notes ?? '',
       service_type: selected.serviceType,
       payment_type: selected.paymentType,
       tier: selected.tier,
@@ -1014,6 +1016,10 @@ export default function ClientsPage() {
                   <tr>
                     <th>등록일</th>
                     <td><span className={panel.fieldValue}>{formatDate(selected.createdAt)}</span></td>
+                  </tr>
+                  <tr>
+                    <th>메모</th>
+                    <td><span className={panel.fieldValue} style={{ whiteSpace: 'pre-wrap' }}>{selected.notes ?? '-'}</span></td>
                   </tr>
                 </tbody>
               </table>
