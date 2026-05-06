@@ -192,7 +192,7 @@ function PaymentsContent() {
             confirmedAt: content.confirmed_at ?? null,
             createdAt: d.created_at,
             title: d.title ?? '',
-            flowNumber: content.flow_number ?? null,
+            flowNumber: d.segment?.flow_number ?? content.flow_number ?? null,
             depositorName: content.depositor_name ?? null,
           };
         });

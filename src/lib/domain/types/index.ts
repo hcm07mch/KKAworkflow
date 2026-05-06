@@ -65,6 +65,14 @@ export {
   getProjectTransitionsForServiceType,
 } from './status.types';
 
+// Workflow group ↔ document mapping (단일 진실 공급원)
+export type { WorkflowGroupKey, WorkflowGroupDocumentMeta } from './workflow-group.types';
+export {
+  WORKFLOW_GROUP_DOC_MAP,
+  documentTypeToGroupKey,
+  groupKeyToDocumentMeta,
+} from './workflow-group.types';
+
 // Entities
 export type {
   Organization,

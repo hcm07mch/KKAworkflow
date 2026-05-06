@@ -13,6 +13,7 @@ import type { ProjectStatus, ServiceType, DocumentType, DocumentStatus } from '@
 import {
   PROJECT_STATUS_META,
   PROJECT_STATUS_GROUPS,
+  WORKFLOW_GROUP_DOC_MAP,
 } from '@/lib/domain/types';
 import { useFeedback } from '@/components/ui';
 import styles from './workflow-builder.module.css';
@@ -194,15 +195,19 @@ interface WorkflowDocument {
   type: DocumentType;
   status: DocumentStatus;
   content: Record<string, any>;
+  /** 00026 마이그레이션 이후 도입된 워크플로우 세그먼트 임베드. 레거시 데이터는 null 가능. */
+  segment?: { group_key: string; flow_number: number; position?: number } | null;
 }
 
-/** 그룹 키 → 문서 타입 / 페이지 경로 매핑 */
-const GROUP_NAV_MAP: Record<string, { docType: DocumentType; path: string; label: string }> = {
-  B: { docType: 'estimate', path: '/estimates', label: '견적서 보기' },
-  C: { docType: 'contract', path: '/contracts', label: '계약서 보기' },
-  D: { docType: 'payment', path: '/payments', label: '입금 내역 보기' },
-  E: { docType: 'pre_report', path: '/executions', label: '집행 보고서 보기' },
-};
+/** 그룹 키 → 문서 타입 / 페이지 경로 매핑.
+ *  WORKFLOW_GROUP_DOC_MAP 의 형태를 빌더의 nav 컴포넌트가 기대하는 형태로 어댑트. */
+const GROUP_NAV_MAP: Record<string, { docType: DocumentType; path: string; label: string }> =
+  Object.fromEntries(
+    Object.entries(WORKFLOW_GROUP_DOC_MAP).map(([gk, meta]) => [
+      gk,
+      { docType: meta.docType, path: meta.navPath, label: meta.navLabel },
+    ]),
+  );
 
 /** 스택에서 해당 그룹의 flow_number 계산 (세그먼트 기반: 동일 그룹 세그먼트가 여러 번 나올 때) */
 function getFlowNumber(stack: string[], groupKey: string, segmentIndex: number): number {
@@ -214,16 +219,32 @@ function getFlowNumber(stack: string[], groupKey: string, segmentIndex: number):
   return count;
 }
 
-/** documents 중 해당 그룹/flow_number에 매칭되는 문서 찾기 */
+/** documents 중 해당 그룹/flow_number에 매칭되는 문서 찾기.
+ *
+ *  매칭 우선순위:
+ *   1) 임베드된 segment (00026 마이그레이션) — DB 컬럼 기반이라 결정적이고 환경 의존 없음.
+ *   2) content.flow_number — 레거시 호환.
+ *   3) 배열 인덱스 폴백 — 최후의 수단(레거시 + flow_number 유실 데이터).
+ */
 function findDocForGroup(documents: WorkflowDocument[], groupKey: string, flowNumber: number): WorkflowDocument | null {
   const nav = GROUP_NAV_MAP[groupKey];
   if (!nav) return null;
   const docsOfType = documents.filter((d) => d.type === nav.docType);
-  // flow_number가 있으면 매칭, 없으면 순서대로  
+  // (1) segment 임베드 기반 매칭 — 가장 신뢰도 높음.
+  const bySegment = docsOfType.find(
+    (d) => d.segment?.group_key === groupKey && d.segment?.flow_number === flowNumber,
+  );
+  if (bySegment) return bySegment;
+  // (2) content.flow_number 매칭 — 레거시 호환.
   const byFlow = docsOfType.find((d) => d.content?.flow_number === flowNumber);
   if (byFlow) return byFlow;
-  // flow_number 없으면 n번째 문서
-  return docsOfType[flowNumber - 1] ?? null;
+  // (3) 인덱스 폴백 — flow_number 가 살아있는 문서를 우선하여 안정적 순서로 정렬한 뒤 n번째.
+  const sorted = [...docsOfType].sort((a, b) => {
+    const fa = a.content?.flow_number ?? Number.POSITIVE_INFINITY;
+    const fb = b.content?.flow_number ?? Number.POSITIVE_INFINITY;
+    return fa - fb;
+  });
+  return sorted[flowNumber - 1] ?? null;
 }
 
 interface WorkflowBuilderProps {

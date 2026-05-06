@@ -78,7 +78,7 @@ function ExecutionsContent() {
             docStatus: d.status,
             totalMonthly: content.total_monthly ?? 0,
             createdAt: d.created_at,
-            flowNumber: d.content?.flow_number ?? null,
+            flowNumber: d.segment?.flow_number ?? d.content?.flow_number ?? null,
             content,
           };
         });
@@ -103,8 +103,8 @@ function ExecutionsContent() {
 
   const getFlowSuffix = (e: ExecItem) => {
     if (!projectHasSiblings.has(e.projectId)) return '';
-    const fn = (e.content as Record<string, any>)?.flow_number;
-    return fn >= 1 ? ` #${fn}` : '';
+    const fn = e.flowNumber;
+    return fn != null && fn >= 1 ? ` #${fn}` : '';
   };
 
   const ownerNames = Array.from(new Set(executions.map((ex) => ex.ownerName).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'ko'));

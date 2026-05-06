@@ -27,6 +27,8 @@ interface EstimateListItem {
   sentAt: string | null;
   projectStartDate: string | null;
   projectEndDate: string | null;
+  /** 동일 프로젝트 내 여러 건 구분 번호. segment.flow_number 우선, fallback: content.flow_number. */
+  flowNumber: number | null;
   content: EstimateContent;
 }
 
@@ -89,6 +91,7 @@ function EstimatesContent() {
             sentAt: d.sent_at,
             projectStartDate: d.project?.start_date ?? null,
             projectEndDate: d.project?.end_date ?? null,
+            flowNumber: d.segment?.flow_number ?? content.flow_number ?? null,
             content,
           };
         });
@@ -112,8 +115,8 @@ function EstimatesContent() {
   })();
   const getFlowSuffix = (e: EstimateListItem) => {
     if (!projectHasSiblings.has(e.projectId)) return '';
-    const fn = (e.content as Record<string, any>)?.flow_number;
-    return fn >= 1 ? ` #${fn}` : '';
+    const fn = e.flowNumber;
+    return fn != null && fn >= 1 ? ` #${fn}` : '';
   };
 
   const ownerNames = Array.from(new Set(estimates.map((e) => e.ownerName).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'ko'));
@@ -182,6 +185,7 @@ function EstimatesContent() {
       sentAt: null,
       projectStartDate: null,
       projectEndDate: null,
+      flowNumber: null,
       content: data,
     };
     setEstimates((prev) => [newItem, ...prev]);

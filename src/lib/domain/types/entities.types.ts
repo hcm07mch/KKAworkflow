@@ -104,6 +104,10 @@ export interface ProjectDocument extends BaseEntity {
   sent_to: string | null;
   created_by: string | null;
   metadata: JsonObject;
+  /** 워크플로우 세그먼트 FK (00026 마이그레이션에서 도입). 레거시 데이터는 null 가능. */
+  segment_id?: string | null;
+  /** PostgREST embed 로 함께 셀렉트되는 세그먼트 요약 (문서 ↔ 워크플로우 매핑용). */
+  segment?: { group_key: string; flow_number: number; position: number } | null;
 }
 
 /** Document + ?곌? ?곗댄?議고 ? */

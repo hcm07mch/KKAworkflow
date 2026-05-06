@@ -25,6 +25,8 @@ interface ContractListItem {
   contractMonths: number;
   hasFile: boolean;
   createdAt: string;
+  /** 동일 프로젝트 내 여러 건 구분 번호. segment.flow_number 우선, fallback: content.flow_number. */
+  flowNumber: number | null;
   content: ContractContent;
 }
 
@@ -86,6 +88,7 @@ function ContractsContent() {
             contractMonths,
             hasFile: !!content.file_path,
             createdAt: d.created_at,
+            flowNumber: d.segment?.flow_number ?? content.flow_number ?? null,
             content,
           };
         });
@@ -111,8 +114,8 @@ function ContractsContent() {
   })();
   const getFlowSuffix = (c: ContractListItem) => {
     if (!projectHasSiblings.has(c.projectId)) return '';
-    const fn = (c.content as Record<string, any>)?.flow_number;
-    return fn >= 1 ? ` #${fn}` : '';
+    const fn = c.flowNumber;
+    return fn != null && fn >= 1 ? ` #${fn}` : '';
   };
 
   const ownerNames = Array.from(new Set(contracts.map((c) => c.ownerName).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'ko'));

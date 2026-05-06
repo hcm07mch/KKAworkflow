@@ -44,9 +44,13 @@ export class SupabaseProjectRepository implements IProjectRepository {
         *,
         client:workflow_clients(*),
         owner:workflow_users!workflow_projects_owner_id_fkey(*),
-        documents:workflow_project_documents(*)
+        documents:workflow_project_documents(
+          *,
+          segment:workflow_project_segments(group_key, flow_number, position)
+        )
       `)
       .eq('id', id)
+      .order('created_at', { referencedTable: 'workflow_project_documents', ascending: true })
       .single();
 
     if (error || !data) return null;

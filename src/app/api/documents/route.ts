@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
   let query = serviceClient
     .from('workflow_project_documents')
     .select(
-      '*, project:workflow_projects(id, title, organization_id, service_type, total_amount, start_date, end_date, status, client:workflow_clients(id, name), owner:workflow_users!workflow_projects_owner_id_fkey(id, name))',
+      '*, segment:workflow_project_segments(flow_number, group_key, position), project:workflow_projects(id, title, organization_id, service_type, total_amount, start_date, end_date, status, client:workflow_clients(id, name), owner:workflow_users!workflow_projects_owner_id_fkey(id, name))',
     )
     .in('project_id', allowedProjectIds);
 

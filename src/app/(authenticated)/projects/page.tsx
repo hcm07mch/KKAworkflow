@@ -11,6 +11,7 @@ import {
   PROJECT_STATUS_META, PROJECT_STATUS_GROUPS, PROJECT_STATUS_TRANSITIONS,
   SERVICE_TYPE_META, SERVICE_TYPES, PAYMENT_TYPE_META, PAYMENT_TYPES,
   DOCUMENT_TYPE_META, DOCUMENT_STATUS_META,
+  WORKFLOW_GROUP_DOC_MAP,
 } from '@/lib/domain/types';
 import { WorkflowProgress, WorkflowBuilder } from './[id]/components';
 import panel from '../panel-layout.module.css';
@@ -563,12 +564,14 @@ function ProjectsContent() {
       .catch(() => alert('상태 변경에 실패했습니다.'));
   }
 
-  // 그룹 → 문서 타입 매핑
-  const GROUP_DOC_TYPE_MAP: Record<string, { type: string; suffix: string }> = {
-    B: { type: 'estimate', suffix: '견적서' },
-    C: { type: 'contract', suffix: '계약서' },
-    E: { type: 'pre_report', suffix: '사전보고서' },
-  };
+  // 그룹 → 문서 타입 매핑 (단일 진실 공급원 WORKFLOW_GROUP_DOC_MAP 어댑트).
+  // D(입금)는 결제 모달 → handlePaymentConfirm 에서 별도 생성하므로 여기서는 제외.
+  const GROUP_DOC_TYPE_MAP: Record<string, { type: string; suffix: string }> =
+    Object.fromEntries(
+      Object.entries(WORKFLOW_GROUP_DOC_MAP)
+        .filter(([gk]) => gk !== 'D')
+        .map(([gk, meta]) => [gk, { type: meta.docType, suffix: meta.titleSuffix }]),
+    );
 
   function handleWorkflowAdd(groupKey: string, paymentAmount?: number) {
     if (!detail || !selected) return;
@@ -756,13 +759,15 @@ function ProjectsContent() {
       if (segments[i].key === deletedGroupKey) deletedFlowNumber++;
     }
 
-    // 삭제할 그룹에 연결된 문서 타입 매핑
-    const groupDocTypeMap: Record<string, { type: string; label: string }> = {
-      B: { type: 'estimate', label: '견적서' },
-      C: { type: 'contract', label: '계약서' },
-      D: { type: 'payment', label: '입금확인' },
-      E: { type: 'pre_report', label: '사전보고서' },
-    };
+    // 삭제할 그룹에 연결된 문서 타입 매핑 (단일 진실 공급원 WORKFLOW_GROUP_DOC_MAP 어댑트).
+    // 삭제는 D(입금) 도 포함해야 하므로 전체 그룹 사용.
+    const groupDocTypeMap: Record<string, { type: string; label: string }> =
+      Object.fromEntries(
+        Object.entries(WORKFLOW_GROUP_DOC_MAP).map(([gk, meta]) => [
+          gk,
+          { type: meta.docType, label: meta.label },
+        ]),
+      );
 
     const docConfig = groupDocTypeMap[deletedGroupKey];
     const groupLabel = PROJECT_STATUS_GROUPS.find((g) => g.key === deletedGroupKey)?.label ?? deletedGroupKey;
