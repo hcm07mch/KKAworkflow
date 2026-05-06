@@ -3,7 +3,8 @@
  * POST /api/documents/:documentId/contract-redraft
  *
  * 1. 문서 상태를 in_review → draft 로 전환
- * 2. 프로젝트 상태를 C2_contract_review → C1_contract_draft 로 전환
+ * 2. 프로젝트 상태를 C1_contract_draft 로 되돌린다.
+ *    현재 상태가 C2 뿐만 아니라 전달(C3) 등 C 그룹 내 이후 단계일 때도 지원.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -73,20 +74,29 @@ export async function POST(
       return NextResponse.json({ error: docResult.error }, { status: 400 });
     }
 
-    // 프로젝트 상태를 C1_contract_draft로 전환
+    // 프로젝트 상태를 C1_contract_draft로 되돌림.
+    //   - C 그룹 내 이후 단계(C2/C3/C4)에서도 재작성 허용 (allowRewindWithinGroup).
+    //   - 이미 C1이면 건너뜀.
     const projectId = docResult.data!.project_id;
     const project = await auth.services.projectRepo.findById(projectId);
 
-    if (project && project.status === 'C2_contract_review') {
-      const projectResult = await auth.services.projectService.transitionStatus(
-        { project_id: projectId, to_status: 'C1_contract_draft', reason: '계약서 재작성' },
-        ctx,
-        { systemInitiated: true },
-      );
+    if (project) {
+      const sameGroup = project.status.charAt(0) === 'C';
+      const isAlreadyAtTarget = project.status === 'C1_contract_draft';
+      if (sameGroup && !isAlreadyAtTarget) {
+        const projectResult = await auth.services.projectService.transitionStatus(
+          { project_id: projectId, to_status: 'C1_contract_draft', reason: '계약서 재작성' },
+          ctx,
+          { systemInitiated: true, allowRewindWithinGroup: true },
+        );
 
-      if (!projectResult.success) {
-        console.error('[contract-redraft] Project transition failed:', projectResult.error);
-        return NextResponse.json({ error: projectResult.error }, { status: 400 });
+        if (!projectResult.success) {
+          console.error('[contract-redraft] Project transition failed:', projectResult.error);
+          return NextResponse.json({ error: projectResult.error }, { status: 400 });
+        }
+      } else if (!sameGroup) {
+        console.warn('[contract-redraft] Skipping project rewind: project is in a different group',
+          { projectStatus: project.status });
       }
     }
 

@@ -3,9 +3,9 @@
  * POST /api/documents/:documentId/redraft
  *
  * 1. 문서 상태를 in_review → draft 로 전환
- * 2. 문서 유형에 따라 프로젝트 상태를 전환
- *    - estimate   → B2 → B1_estimate_draft
- *    - pre_report → E2 → E1_prereport_draft
+ * 2. 문서 유형에 따라 프로젝트 상태를 그룹의 draft 단계(B1/E1)로 되돌린다.
+ *    현재 상태가 승인 단계(B2/E2) 뿐만 아니라 전달/응답 등 "그룹 내 이후
+ *    단계"일 때도 재작성을 지원한다 (allowRewindWithinGroup).
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -14,10 +14,11 @@ import { createSupabaseServiceClient } from '@/lib/infrastructure/supabase';
 import { createServices } from '@/lib/service-factory';
 import type { ProjectStatus } from '@/lib/domain/types';
 
-/** 문서 유형 → 재작성 시 프로젝트 전환 매핑 */
-const DOC_REDRAFT_STATUS_MAP: Record<string, { fromStatus: ProjectStatus; toStatus: ProjectStatus; reason: string; label: string }> = {
-  estimate:   { fromStatus: 'B2_estimate_review',  toStatus: 'B1_estimate_draft',   reason: '견적서 재작성',      label: '견적서' },
-  pre_report: { fromStatus: 'E2_prereport_review', toStatus: 'E1_prereport_draft',  reason: '사전 보고서 재작성', label: '진행안' },
+/** 문서 유형 → 재작성 시 프로젝트 되돌림 대상 매핑.
+ *  toStatus 는 언제나 해당 그룹의 draft(첫) 단계. */
+const DOC_REDRAFT_STATUS_MAP: Record<string, { toStatus: ProjectStatus; reason: string; label: string }> = {
+  estimate:   { toStatus: 'B1_estimate_draft',   reason: '견적서 재작성',      label: '견적서' },
+  pre_report: { toStatus: 'E1_prereport_draft',  reason: '사전 보고서 재작성', label: '진행안' },
 };
 
 export async function POST(
@@ -98,20 +99,30 @@ export async function POST(
       await auth.services.documentRepo.update(documentId, { metadata: meta as Record<string, any> });
     }
 
-    // 2) 프로젝트 상태를 draft 단계로 전환 (이미 해당 상태면 건너뜀)
+    // 2) 프로젝트 상태를 draft 단계로 전환.
+    //    - 현재 상태가 이미 toStatus 면 건너뜀.
+    //    - 그 외 그룹이 다르면 아무것도 돌릴 수 없는 설계 (충돌 방지).
+    //    - 그룹이 같고 toStatus보다 하류일 때는 allowRewindWithinGroup 으로 허용.
     const projectId = docResult.data!.project_id;
     const project = await auth.services.projectRepo.findById(projectId);
 
-    if (project && flowInfo && project.status === flowInfo.fromStatus) {
-      const projectResult = await auth.services.projectService.transitionStatus(
-        { project_id: projectId, to_status: flowInfo.toStatus, reason: flowInfo.reason },
-        ctx,
-        { systemInitiated: true },
-      );
+    if (project && flowInfo) {
+      const sameGroup = project.status.charAt(0) === flowInfo.toStatus.charAt(0);
+      const isAlreadyAtTarget = project.status === flowInfo.toStatus;
+      if (sameGroup && !isAlreadyAtTarget) {
+        const projectResult = await auth.services.projectService.transitionStatus(
+          { project_id: projectId, to_status: flowInfo.toStatus, reason: flowInfo.reason },
+          ctx,
+          { systemInitiated: true, allowRewindWithinGroup: true },
+        );
 
-      if (!projectResult.success) {
-        console.error('[redraft] Project transition failed:', projectResult.error);
-        return NextResponse.json({ error: projectResult.error }, { status: 400 });
+        if (!projectResult.success) {
+          console.error('[redraft] Project transition failed:', projectResult.error);
+          return NextResponse.json({ error: projectResult.error }, { status: 400 });
+        }
+      } else if (!sameGroup) {
+        console.warn('[redraft] Skipping project rewind: project is in a different group',
+          { projectStatus: project.status, target: flowInfo.toStatus });
       }
     }
 

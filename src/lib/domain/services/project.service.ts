@@ -18,6 +18,7 @@ import type {
 import {
   canTransitionProjectStatus,
   PROJECT_STATUS_META,
+  PROJECT_STATUS_GROUPS,
 } from '../types';
 import type { IProjectRepository, IClientRepository } from '../repositories/interfaces';
 import type { ActivityLogService } from './activity-log.service';
@@ -173,7 +174,7 @@ export class ProjectService {
   async transitionStatus(
     input: TransitionProjectInput,
     ctx: ProjectServiceContext,
-    options?: { systemInitiated?: boolean },
+    options?: { systemInitiated?: boolean; allowRewindWithinGroup?: boolean },
   ): Promise<ServiceResult<Project>> {
     // [단계 1] 프로젝트 존재 검증
     const project = await this.projectRepo.findById(input.project_id);
@@ -188,7 +189,26 @@ export class ProjectService {
     const toStatus = input.to_status;
 
     // [단계 2] 상태 전환 가능 여부 검증
-    if (!canTransitionProjectStatus(fromStatus, toStatus)) {
+    //   - 단, systemInitiated + allowRewindWithinGroup 이면
+    //     같은 그룹 내에서 이전 단계로 되돌리는 전이는 허용.
+    //   - 이는 재작성(redraft) 경로에서 E3→E1, B3→B1 등 "승인 후
+    //     전달/응답 단계에서도 재작성" 을 지원하기 위함.
+    const isSystemRewind = options?.systemInitiated === true && options?.allowRewindWithinGroup === true;
+    const sameGroupRewindOk = (() => {
+      if (!isSystemRewind) return false;
+      if (fromStatus === toStatus) return false;
+      const fromGroupKey = fromStatus.charAt(0);
+      const toGroupKey = toStatus.charAt(0);
+      if (fromGroupKey !== toGroupKey) return false;
+      const group = PROJECT_STATUS_GROUPS.find((g) => g.key === fromGroupKey);
+      if (!group) return false;
+      const fromIdx = group.statuses.indexOf(fromStatus);
+      const toIdx = group.statuses.indexOf(toStatus);
+      // 그룹 내 이전 단계로만 되돌리는 경우만 허용
+      return fromIdx >= 0 && toIdx >= 0 && toIdx < fromIdx;
+    })();
+
+    if (!sameGroupRewindOk && !canTransitionProjectStatus(fromStatus, toStatus)) {
       return {
         success: false,
         error: {
