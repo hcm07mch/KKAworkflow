@@ -228,7 +228,7 @@ export default function LandingInquiriesPage() {
     } catch (e) {
       toast({
         title: '저장 실패',
-        description: e instanceof Error ? e.message : String(e),
+        message: e instanceof Error ? e.message : String(e),
         variant: 'error',
       });
     } finally {
@@ -258,7 +258,7 @@ export default function LandingInquiriesPage() {
     } catch (e) {
       toast({
         title: '삭제 실패',
-        description: e instanceof Error ? e.message : String(e),
+        message: e instanceof Error ? e.message : String(e),
         variant: 'error',
       });
     } finally {
