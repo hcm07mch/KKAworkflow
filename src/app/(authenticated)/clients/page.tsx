@@ -307,6 +307,7 @@ export default function ClientsPage() {
           contact_email: form.contact_email || null,
           contact_phone: form.contact_phone || null,
           address: form.address || null,
+          notes: form.notes || null,
           tier: form.tier,
           business_number: form.business_number.trim() || null,
           ...(orgChanged ? { organization_id: form.organization_id, migrate_projects: migrateProjects } : {}),

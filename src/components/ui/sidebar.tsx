@@ -10,6 +10,7 @@ import {
   LuFilePen,
   LuCreditCard,
   LuClipboardCheck,
+  LuInbox,
   LuSettings,
 } from 'react-icons/lu';
 import type { IconType } from 'react-icons';
@@ -44,6 +45,11 @@ const MENU_GROUPS: { items: NavItem[] }[] = [
     items: [
       { href: '/payments',   label: '입금 확인',  icon: LuCreditCard },
       { href: '/executions',  label: '집행 관리',  icon: LuClipboardCheck },
+    ],
+  },
+  {
+    items: [
+      { href: '/landing-inquiries', label: '랜딩 문의', icon: LuInbox },
     ],
   },
   {
