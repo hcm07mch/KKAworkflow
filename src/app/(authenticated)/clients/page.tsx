@@ -794,7 +794,7 @@ export default function ClientsPage() {
                     </td>
                   </tr>
                   <tr>
-                    <th>담당자</th>
+                    <th>고객측 담당자</th>
                     <td>
                       <input
                         type="text"
@@ -993,7 +993,7 @@ export default function ClientsPage() {
                     </td>
                   </tr>
                   <tr>
-                    <th>담당자</th>
+                    <th>고객측 담당자</th>
                     <td><span className={panel.fieldValue}>{selected.contactName ?? '-'}</span></td>
                   </tr>
                   <tr>
