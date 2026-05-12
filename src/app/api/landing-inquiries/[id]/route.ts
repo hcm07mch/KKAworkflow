@@ -1,11 +1,11 @@
 /**
  * API Route: Landing Inquiry by ID
- * PATCH  /api/landing-inquiries/[id]  → 상태/메모 업데이트 (admin 전용)
- * DELETE /api/landing-inquiries/[id]  → 삭제 (admin 전용)
+ * PATCH  /api/landing-inquiries/[id]  → 상태/메모 업데이트 (본사 계정 전용, 역할 무관)
+ * DELETE /api/landing-inquiries/[id]  → 삭제 (본사 계정 전용, 역할 무관)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthContext, requireRole } from '@/lib/auth';
+import { getAuthContext, requireRootOrg } from '@/lib/auth';
 import { createSupabaseServiceClient } from '@/lib/infrastructure/supabase/client';
 
 const ALLOWED_STATUSES = ['new', 'contacted', 'closed', 'spam'] as const;
@@ -18,8 +18,8 @@ export async function PATCH(
   const auth = await getAuthContext();
   if (!auth.success) return auth.response;
 
-  const roleError = requireRole(auth.role, 'admin');
-  if (roleError) return roleError;
+  const orgError = requireRootOrg(auth);
+  if (orgError) return orgError;
 
   const { id } = await params;
   const body = await request.json().catch(() => ({}));
@@ -93,8 +93,8 @@ export async function DELETE(
   const auth = await getAuthContext();
   if (!auth.success) return auth.response;
 
-  const roleError = requireRole(auth.role, 'admin');
-  if (roleError) return roleError;
+  const orgError = requireRootOrg(auth);
+  if (orgError) return orgError;
 
   const { id } = await params;
 

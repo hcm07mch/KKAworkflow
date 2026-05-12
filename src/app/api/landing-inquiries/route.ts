@@ -1,12 +1,12 @@
 /**
  * API Route: Landing Inquiries
  * GET /api/landing-inquiries
- *   - 랜딩페이지 문의 목록 조회 (admin 전용)
+ *   - 랜딩페이지 문의 목록 조회 (본사 계정 전용, 역할 무관)
  *   - 쿼리 파라미터: status, q (이름/연락처/메시지 검색), limit
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthContext, requireRole } from '@/lib/auth';
+import { getAuthContext, requireRootOrg } from '@/lib/auth';
 import { createSupabaseServiceClient } from '@/lib/infrastructure/supabase/client';
 
 const ALLOWED_STATUSES = ['new', 'contacted', 'closed', 'spam'] as const;
@@ -15,8 +15,8 @@ export async function GET(request: NextRequest) {
   const auth = await getAuthContext();
   if (!auth.success) return auth.response;
 
-  const roleError = requireRole(auth.role, 'admin');
-  if (roleError) return roleError;
+  const orgError = requireRootOrg(auth);
+  if (orgError) return orgError;
 
   const { searchParams } = new URL(request.url);
   const status = searchParams.get('status');
