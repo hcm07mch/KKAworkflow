@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   LuInbox, LuPhone, LuRefreshCw, LuTrash2, LuCopy, LuMessageSquare,
   LuClock, LuLink, LuChevronRight, LuStickyNote, LuUser, LuCheck,
+  LuBriefcase, LuMapPin, LuPlus,
 } from 'react-icons/lu';
 import { ActionButton, useFeedback } from '@/components/ui';
 import panel from '../panel-layout.module.css';
@@ -27,6 +28,7 @@ interface Inquiry {
   user_agent: string | null;
   ip_address: string | null;
   referrer: string | null;
+  region: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -55,6 +57,15 @@ const STATUS_META: Record<
 };
 
 const STATUS_ORDER: InquiryStatus[] = ['new', 'contacted', 'closed', 'spam'];
+
+// 지역: 광역/도 단위 17개 시·도
+const REGION_OPTIONS = [
+  '서울', '경기', '인천', '강원',
+  '충북', '충남', '대전', '세종',
+  '전북', '전남', '광주',
+  '경북', '경남', '대구', '부산', '울산',
+  '제주',
+] as const;
 
 // ── Helpers ──────────────────────────────────────────────
 
@@ -117,6 +128,19 @@ export default function LandingInquiriesPage() {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [mode, setMode] = useState<'view' | 'new'>('view');
+  const emptyForm = {
+    name: '',
+    phone: '',
+    industry: '',
+    region: '',
+    message: '',
+    admin_note: '',
+    source: 'manual',
+  };
+  const [form, setForm] = useState(emptyForm);
+  const [formError, setFormError] = useState('');
+  const [creating, setCreating] = useState(false);
 
   // 멤버 이름 표시용 + 현재 사용자(헤더 hint) 1회 로드
   useEffect(() => {
@@ -184,6 +208,7 @@ export default function LandingInquiriesPage() {
         (it.name ?? '').toLowerCase().includes(q) ||
         it.phone.toLowerCase().includes(q) ||
         (it.industry ?? '').toLowerCase().includes(q) ||
+        (it.region ?? '').toLowerCase().includes(q) ||
         (it.message ?? '').toLowerCase().includes(q)
       );
     });
@@ -279,6 +304,63 @@ export default function LandingInquiriesPage() {
 
   const noteDirty = !!selected && noteDraft !== (selected.admin_note ?? '');
 
+  function updateForm<K extends keyof typeof emptyForm>(field: K, value: (typeof emptyForm)[K]) {
+    setForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function startNew() {
+    setMode('new');
+    setSelected(null);
+    setForm(emptyForm);
+    setFormError('');
+  }
+
+  function cancelNew() {
+    setMode('view');
+    setFormError('');
+  }
+
+  async function handleCreate() {
+    const phone = form.phone.trim();
+    if (!phone) {
+      setFormError('연락처는 필수입니다');
+      return;
+    }
+    setCreating(true);
+    setFormError('');
+    try {
+      const res = await fetch('/api/landing-inquiries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: form.name.trim() || null,
+          phone,
+          industry: form.industry.trim() || null,
+          region: form.region.trim() || null,
+          message: form.message.trim() || null,
+          admin_note: form.admin_note.trim() || null,
+          source: form.source.trim() || 'manual',
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error?.message ?? '등록에 실패했습니다');
+      }
+      const created: Inquiry = await res.json();
+      setInquiries((list) => [created, ...list]);
+      setSelected(created);
+      setMode('view');
+      setForm(emptyForm);
+      toast({ title: '문의가 등록되었습니다', variant: 'success' });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setFormError(msg);
+      toast({ title: '등록 실패', message: msg, variant: 'error' });
+    } finally {
+      setCreating(false);
+    }
+  }
+
   return (
     <div className={panel.wrapper}>
       {/* ── Left Panel: Filters + List ── */}
@@ -298,7 +380,7 @@ export default function LandingInquiriesPage() {
           </div>
           <input
             className={panel.searchInput}
-            placeholder="이름·연락처·메시지 검색"
+            placeholder="이름·연락처·지역·메시지 검색"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -317,6 +399,9 @@ export default function LandingInquiriesPage() {
         </div>
 
         <div className={panel.itemList}>
+          <div className={panel.addItem} onClick={startNew}>
+            <LuPlus size={14} /> 새 문의 등록
+          </div>
           {loading ? (
             <>
               {Array.from({ length: 5 }).map((_, i) => (
@@ -335,27 +420,43 @@ export default function LandingInquiriesPage() {
             filtered.map((it) => (
               <div
                 key={it.id}
-                className={`${panel.item} ${selected?.id === it.id ? panel.itemActive : ''}`}
-                onClick={() => setSelected(it)}
+                className={`${panel.item} ${styles.listItem} ${selected?.id === it.id && mode !== 'new' ? panel.itemActive : ''}`}
+                onClick={() => { setMode('view'); setSelected(it); }}
               >
-                <div className={panel.itemNameRow}>
-                  <span className={panel.itemName}>
+                <div className={`${panel.itemNameRow} ${styles.listNameRow}`}>
+                  <span className={`${panel.itemName} ${styles.listName}`}>
                     {it.name?.trim() || '(이름 미입력)'}
                   </span>
-                  <span className={panel.itemBadge}>
+                  {(it.industry || it.region) ? (
+                    <div className={`${styles.chipRow} ${styles.chipRowInline}`}>
+                      {it.industry ? (
+                        <span className={`${styles.chip} ${styles.chipIndustry} ${styles.chipSm}`}>
+                          <LuBriefcase size={10} className={styles.chipIcon} />
+                          {it.industry}
+                        </span>
+                      ) : null}
+                      {it.region ? (
+                        <span className={`${styles.chip} ${styles.chipRegion} ${styles.chipSm}`}>
+                          <LuMapPin size={10} className={styles.chipIcon} />
+                          {it.region}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  <span className={`${panel.itemBadge} ${styles.listBadge}`}>
                     <span className={`badge ${STATUS_META[it.status].badgeClass} badge-sm`}>
                       {STATUS_META[it.status].label}
                     </span>
                   </span>
                 </div>
-                <div className={panel.itemMeta}>
-                  <LuPhone size={11} />
-                  <span>{formatPhone(it.phone)}</span>
-                  {it.industry ? <span>· {it.industry}</span> : null}
-                </div>
-                <div className={panel.itemMeta}>
-                  <LuClock size={11} />
-                  <span>{relativeTime(it.created_at)}</span>
+                <div className={styles.listPhoneRow}>
+                  <span className={styles.listPhone}>
+                    <LuPhone size={13} />
+                    {formatPhone(it.phone)}
+                  </span>
+                  <span className={styles.listTime} title={formatDateTime(it.created_at)}>
+                    {relativeTime(it.created_at)}
+                  </span>
                 </div>
               </div>
             ))
@@ -372,6 +473,122 @@ export default function LandingInquiriesPage() {
             <div style={{ color: 'var(--color-secondary)' }}>{error}</div>
             <ActionButton variant="secondary" onClick={load} label="다시 시도" />
           </div>
+        ) : mode === 'new' ? (
+          <>
+            <div className={panel.detailHeader}>
+              <div>
+                <div className={panel.detailTitle}>새 문의 등록</div>
+                <div className={panel.detailSubtitle}>전화·대면 등으로 접수된 문의를 수동으로 등록하세요.</div>
+              </div>
+              <div className={panel.detailActions}>
+                <ActionButton label="취소" variant="ghost" size="sm" onClick={cancelNew} />
+                <ActionButton
+                  label={creating ? '등록 중…' : '등록'}
+                  variant="primary"
+                  size="sm"
+                  onClick={handleCreate}
+                  disabled={creating}
+                  loading={creating}
+                />
+              </div>
+            </div>
+
+            {formError && (
+              <div style={{ padding: '10px 14px', marginBottom: 16, background: '#fee2e2', color: '#b91c1c', borderRadius: 8, fontSize: 13, fontWeight: 500 }}>
+                {formError}
+              </div>
+            )}
+
+            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+              <table className={panel.formTable}>
+                <tbody>
+                  <tr className={panel.requiredRow}>
+                    <th>연락처</th>
+                    <td>
+                      <input
+                        type="tel"
+                        value={form.phone}
+                        onChange={(e) => updateForm('phone', e.target.value)}
+                        placeholder="010-1234-5678"
+                        autoFocus
+                      />
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>이름</th>
+                    <td>
+                      <input
+                        type="text"
+                        value={form.name}
+                        onChange={(e) => updateForm('name', e.target.value)}
+                        placeholder="고객명"
+                      />
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>업종</th>
+                    <td>
+                      <input
+                        type="text"
+                        value={form.industry}
+                        onChange={(e) => updateForm('industry', e.target.value)}
+                        placeholder="예: 식당, 의료, 서비스"
+                      />
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>지역</th>
+                    <td>
+                      <select
+                        value={form.region}
+                        onChange={(e) => updateForm('region', e.target.value)}
+                      >
+                        <option value="">선택 안 함</option>
+                        {REGION_OPTIONS.map((r) => (
+                          <option key={r} value={r}>{r}</option>
+                        ))}
+                      </select>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>유입 경로</th>
+                    <td>
+                      <input
+                        type="text"
+                        value={form.source}
+                        onChange={(e) => updateForm('source', e.target.value)}
+                        placeholder="예: 수기 입력, 전화, 추천, 랜딩 페이지"
+                      />
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>문의 내용</th>
+                    <td>
+                      <textarea
+                        value={form.message}
+                        onChange={(e) => updateForm('message', e.target.value)}
+                        rows={4}
+                        style={{ resize: 'vertical' }}
+                        placeholder="고객이 문의한 내용을 입력하세요"
+                      />
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>관리자 메모</th>
+                    <td>
+                      <textarea
+                        value={form.admin_note}
+                        onChange={(e) => updateForm('admin_note', e.target.value.slice(0, 2000))}
+                        rows={3}
+                        style={{ resize: 'vertical' }}
+                        placeholder="통화 메모·해장 메모 등"
+                      />
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </>
         ) : !selected ? (
           <div className={panel.emptyState}>
             <LuInbox className={panel.emptyIcon} />
@@ -401,13 +618,23 @@ export default function LandingInquiriesPage() {
                   <span>{formatDate(selected.created_at)}</span>
                   <span className={styles.heroMetaDot} />
                   <span>{selected.source ?? 'landing'}</span>
-                  {selected.industry ? (
-                    <>
-                      <span className={styles.heroMetaDot} />
-                      <span>{selected.industry}</span>
-                    </>
-                  ) : null}
                 </div>
+                {(selected.industry || selected.region) ? (
+                  <div className={styles.chipRow}>
+                    {selected.industry ? (
+                      <span className={`${styles.chip} ${styles.chipIndustry}`}>
+                        <LuBriefcase size={12} className={styles.chipIcon} />
+                        {selected.industry}
+                      </span>
+                    ) : null}
+                    {selected.region ? (
+                      <span className={`${styles.chip} ${styles.chipRegion}`}>
+                        <LuMapPin size={12} className={styles.chipIcon} />
+                        {selected.region}
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
               <div className={styles.heroActions}>
                 <ActionButton
@@ -608,6 +835,14 @@ export default function LandingInquiriesPage() {
                     <span className={styles.metaLabel}>IP 주소</span>
                     <span className={styles.metaValue}>
                       {selected.ip_address || (
+                        <span className={styles.metaValueMuted}>-</span>
+                      )}
+                    </span>
+                  </div>
+                  <div className={styles.metaField}>
+                    <span className={styles.metaLabel}>지역</span>
+                    <span className={styles.metaValue}>
+                      {selected.region || (
                         <span className={styles.metaValueMuted}>-</span>
                       )}
                     </span>

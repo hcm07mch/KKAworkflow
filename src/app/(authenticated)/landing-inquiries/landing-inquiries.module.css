@@ -78,6 +78,136 @@
   flex-shrink: 0;
 }
 
+/* ── Highlight chips (industry / region) ─────────────────────────────────── */
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.chipRowTight {
+  margin-top: 2px;
+  gap: 4px;
+}
+
+/* ── List item (compact) ─────────────────────────────────────────────────── */
+
+.listItem {
+  gap: 4px !important;
+  padding-top: 8px !important;
+  padding-bottom: 8px !important;
+}
+
+.listNameRow {
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.listName {
+  line-height: 1.1;
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+}
+
+.listBadge {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.chipRowInline {
+  margin-top: 0;
+  gap: 4px;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+/* Status badges inside the list: thin border + tight line-height so they
+   remain visible against the active-item background and align vertically
+   with the name text. */
+.listItem :global(.badge) {
+  line-height: 1;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+}
+
+.listPhoneRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 1px;
+}
+
+.listPhone {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.listPhone > svg {
+  color: var(--color-text-muted);
+}
+
+.listTime {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.chipIcon {
+  display: inline-flex;
+  align-items: center;
+  opacity: 0.9;
+}
+
+.chipIndustry {
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface));
+  color: var(--color-primary);
+  border-color: color-mix(in srgb, var(--color-primary) 28%, transparent);
+}
+
+.chipRegion {
+  background: color-mix(in srgb, #16a34a 12%, var(--color-surface));
+  color: #15803d;
+  border-color: color-mix(in srgb, #16a34a 28%, transparent);
+}
+
+/* Compact variant used in list rows */
+.chipSm {
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  gap: 4px;
+}
+
 /* ── Quick Action Bar (call / sms / copy) ────────────────────────────────── */
 
 .quickRow {
