@@ -47,6 +47,13 @@
   flex-wrap: wrap;
 }
 
+.heroTitleRow :global(.badge) {
+  border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+  line-height: 14px;
+  padding: 2px 6px;
+  font-size: 12px;
+}
+
 .heroName {
   font-size: 20px;
   font-weight: 700;

@@ -50,7 +50,7 @@ const STATUS_META: Record<
   InquiryStatus,
   { label: string; badgeClass: string; dotClass: string }
 > = {
-  new:       { label: '신규',     badgeClass: 'badge-blue',   dotClass: styles.dotNew },
+  new:       { label: '신규',     badgeClass: 'badge-indigo',   dotClass: styles.dotNew },
   contacted: { label: '연락 완료', badgeClass: 'badge-yellow', dotClass: styles.dotContacted },
   closed:    { label: '종료',     badgeClass: 'badge-green',  dotClass: styles.dotClosed },
   spam:      { label: '스팸',     badgeClass: 'badge-gray',   dotClass: styles.dotSpam },
