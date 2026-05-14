@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
   LuInbox, LuPhone, LuRefreshCw, LuTrash2, LuCopy, LuMessageSquare,
   LuClock, LuLink, LuChevronRight, LuStickyNote, LuUser, LuCheck,
-  LuBriefcase, LuMapPin, LuPlus,
+  LuBriefcase, LuMapPin, LuPlus, LuBuilding2, LuPencil,
 } from 'react-icons/lu';
 import { ActionButton, useFeedback } from '@/components/ui';
+import { LuArrowRight, LuHistory } from 'react-icons/lu';
 import panel from '../panel-layout.module.css';
 import styles from './landing-inquiries.module.css';
 
@@ -29,6 +30,7 @@ interface Inquiry {
   ip_address: string | null;
   referrer: string | null;
   region: string | null;
+  organization_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -112,8 +114,134 @@ function formatPhone(phone: string): string {
 
 // ── Page ─────────────────────────────────────────────────
 
+interface TransferRecord {
+  id: string;
+  inquiry_id: string;
+  from_organization_id: string | null;
+  from_organization_name: string | null;
+  to_organization_id: string | null;
+  to_organization_name: string | null;
+  transferred_by: string | null;
+  transferred_by_name: string | null;
+  note: string | null;
+  created_at: string;
+}
+
+// ── Inline Editable Field ────────────────────────────────────────────────
+interface EditableInlineProps {
+  value: string | null;
+  onCommit: (next: string) => void;
+  displayValue?: React.ReactNode;
+  placeholder?: string;
+  emptyPlaceholder?: string;
+  required?: boolean;
+  maxLength?: number;
+  inputMode?: 'text' | 'tel';
+  ariaLabel: string;
+  viewClassName?: string;
+  inputClassName?: string;
+  confirmLabel?: string;
+}
+
+function EditableInline({
+  value,
+  onCommit,
+  displayValue,
+  placeholder,
+  emptyPlaceholder,
+  required = false,
+  maxLength,
+  inputMode = 'text',
+  ariaLabel,
+  viewClassName,
+  inputClassName,
+  confirmLabel,
+}: EditableInlineProps) {
+  const { confirm } = useFeedback();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value ?? '');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setDraft(value ?? '');
+  }, [value, editing]);
+
+  async function commit() {
+    const next = draft.trim();
+    setEditing(false);
+    if (required && next === '') {
+      setDraft(value ?? '');
+      return;
+    }
+    if (next === (value ?? '').trim()) return;
+    const label = confirmLabel ?? ariaLabel;
+    const prev = (value ?? '').trim();
+    const ok = await confirm({
+      title: `${label} 변경`,
+      description: `${label}을(를) "${prev || '(비어 있음)'}" → "${next || '(비어 있음)'}" (으)로 변경하시겠습니까?`,
+      confirmLabel: '저장',
+      cancelLabel: '취소',
+    });
+    if (!ok) {
+      setDraft(value ?? '');
+      return;
+    }
+    onCommit(next);
+  }
+
+  function cancel() {
+    setDraft(value ?? '');
+    setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        autoFocus
+        className={inputClassName}
+        value={draft}
+        onChange={(e) =>
+          setDraft(maxLength ? e.target.value.slice(0, maxLength) : e.target.value)
+        }
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            (e.currentTarget as HTMLInputElement).blur();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            cancel();
+          }
+        }}
+        placeholder={placeholder}
+        inputMode={inputMode}
+        aria-label={ariaLabel}
+      />
+    );
+  }
+
+  const hasValue = !!(value && value.trim());
+  return (
+    <span className={viewClassName}>
+      <span>
+        {hasValue ? displayValue ?? value : emptyPlaceholder ?? '-'}
+      </span>
+      <button
+        type="button"
+        className={styles.editablePencilBtn}
+        onClick={() => setEditing(true)}
+        title="편집"
+        aria-label={`${ariaLabel} 편집`}
+      >
+        <LuPencil size={11} className={styles.editablePencil} aria-hidden />
+      </button>
+    </span>
+  );
+}
+
 export default function LandingInquiriesPage() {
-  const { confirm, toast } = useFeedback();
+  const { confirm, prompt, toast } = useFeedback();
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -125,9 +253,15 @@ export default function LandingInquiriesPage() {
   const [statusSaving, setStatusSaving] = useState<InquiryStatus | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [traceOpen, setTraceOpen] = useState(false);
+  const [transferHistoryOpen, setTransferHistoryOpen] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [orgInfo, setOrgInfo] = useState<{ id: string; name: string; parent_id: string | null } | null>(null);
+  const [childOrgs, setChildOrgs] = useState<Array<{ id: string; name: string }>>([]);
+  const [orgSaving, setOrgSaving] = useState(false);
+  const [transfers, setTransfers] = useState<TransferRecord[]>([]);
+  const [transfersLoading, setTransfersLoading] = useState(false);
   const [mode, setMode] = useState<'view' | 'new'>('view');
   const emptyForm = {
     name: '',
@@ -137,6 +271,7 @@ export default function LandingInquiriesPage() {
     message: '',
     admin_note: '',
     source: 'manual',
+    organization_id: '',
   };
   const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState('');
@@ -154,6 +289,13 @@ export default function LandingInquiriesPage() {
         if (Array.isArray(list)) setMembers(list);
       })
       .catch(() => {});
+    Promise.all([
+      fetch('/api/settings/org').then((r) => (r.ok ? r.json() : null)),
+      fetch('/api/settings/departments').then((r) => (r.ok ? r.json() : [])),
+    ]).then(([org, depts]) => {
+      if (org) setOrgInfo({ id: org.id, name: org.name, parent_id: org.parent_id ?? null });
+      setChildOrgs((depts ?? []).map((d: any) => ({ id: d.id, name: d.name })));
+    }).catch(() => {});
   }, []);
 
   const load = useCallback(() => {
@@ -185,6 +327,29 @@ export default function LandingInquiriesPage() {
     setNoteDraft(selected?.admin_note ?? '');
   }, [selected?.id, selected?.admin_note]);
 
+  const loadTransfers = useCallback(async (inquiryId: string) => {
+    setTransfersLoading(true);
+    try {
+      const res = await fetch(`/api/landing-inquiries/${inquiryId}/transfers`);
+      if (!res.ok) {
+        // 권한 없음(403) 등은 조용히 무시
+        setTransfers([]);
+        return;
+      }
+      const data: TransferRecord[] = await res.json();
+      setTransfers(Array.isArray(data) ? data : []);
+    } catch {
+      setTransfers([]);
+    } finally {
+      setTransfersLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selected?.id) loadTransfers(selected.id);
+    else setTransfers([]);
+  }, [selected?.id, loadTransfers]);
+
   // landing_inquiries.handled_by 는 auth.users(id) 외래키이므로 workflow_users.auth_id 로 매칭
   const memberByAuthId = useMemo(() => {
     const map = new Map<string, Member>();
@@ -197,6 +362,62 @@ export default function LandingInquiriesPage() {
   function handlerName(authId: string | null | undefined): string {
     if (!authId) return '미지정';
     return memberByAuthId.get(authId)?.name?.trim() || `${authId.slice(0, 8)}…`;
+  }
+
+  const allowedOrgOptions = useMemo(
+    () => (orgInfo ? [{ id: orgInfo.id, name: orgInfo.name }, ...childOrgs] : []),
+    [orgInfo, childOrgs],
+  );
+
+  function orgName(orgId: string | null | undefined): string {
+    if (!orgId) return '미지정';
+    return allowedOrgOptions.find((o) => o.id === orgId)?.name ?? '미지정';
+  }
+
+  async function updateInquiryOrg(id: string, newOrgId: string) {
+    if (!newOrgId) return;
+    const currentOrgId = selected?.organization_id ?? null;
+    if (newOrgId === currentOrgId) return;
+    const fromLabel = orgName(currentOrgId);
+    const toLabel = orgName(newOrgId);
+    const note = await prompt({
+      title: '이 문의를 다른 조직으로 이전하시겠습니까?',
+      description: `"${fromLabel}" → "${toLabel}"이전 사유를 남기면\n 이력에서 함께 확인할 수 있습니다.`,
+
+      variant: 'warning',
+      confirmLabel: '이전',
+      input: { label: '이전 사유 (선택)', placeholder: '예: 담당 지역 변경', required: false },
+    });
+    if (note === null) return;
+    setOrgSaving(true);
+    try {
+      const res = await fetch(`/api/landing-inquiries/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ organization_id: newOrgId, transfer_note: note || undefined }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error?.message ?? '소속 조직 변경에 실패했습니다');
+      }
+      const updated: Inquiry = await res.json();
+      setInquiries((list) => list.map((it) => (it.id === id ? updated : it)));
+      setSelected(updated);
+      // 이전 이력 갱신
+      loadTransfers(updated.id);
+      toast({
+        title: `소속 조직이 "${orgName(updated.organization_id)}"(으)로 변경되었습니다`,
+        variant: 'success',
+      });
+    } catch (e) {
+      toast({
+        title: '소속 조직 변경 실패',
+        message: e instanceof Error ? e.message : String(e),
+        variant: 'error',
+      });
+    } finally {
+      setOrgSaving(false);
+    }
   }
 
   const filtered = useMemo(() => {
@@ -224,7 +445,14 @@ export default function LandingInquiriesPage() {
 
   async function updateInquiry(
     id: string,
-    patch: { status?: InquiryStatus; admin_note?: string },
+    patch: {
+      status?: InquiryStatus;
+      admin_note?: string;
+      name?: string | null;
+      phone?: string;
+      industry?: string | null;
+      region?: string | null;
+    },
   ) {
     if (patch.status) setStatusSaving(patch.status);
     if (patch.admin_note !== undefined) setSaving(true);
@@ -249,6 +477,21 @@ export default function LandingInquiriesPage() {
         });
       } else if (patch.admin_note !== undefined) {
         toast({ title: '메모가 저장되었습니다', variant: 'success' });
+      } else if (
+        patch.name !== undefined ||
+        patch.phone !== undefined ||
+        patch.industry !== undefined ||
+        patch.region !== undefined
+      ) {
+        const fieldLabel =
+          patch.name !== undefined
+            ? '이름'
+            : patch.phone !== undefined
+            ? '연락처'
+            : patch.industry !== undefined
+            ? '업종'
+            : '지역';
+        toast({ title: `${fieldLabel}이(가) 저장되었습니다`, variant: 'success' });
       }
     } catch (e) {
       toast({
@@ -311,7 +554,7 @@ export default function LandingInquiriesPage() {
   function startNew() {
     setMode('new');
     setSelected(null);
-    setForm(emptyForm);
+    setForm({ ...emptyForm, organization_id: orgInfo?.id ?? '' });
     setFormError('');
   }
 
@@ -340,6 +583,7 @@ export default function LandingInquiriesPage() {
           message: form.message.trim() || null,
           admin_note: form.admin_note.trim() || null,
           source: form.source.trim() || 'manual',
+          organization_id: form.organization_id || undefined,
         }),
       });
       if (!res.ok) {
@@ -502,6 +746,21 @@ export default function LandingInquiriesPage() {
             <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
               <table className={panel.formTable}>
                 <tbody>
+                  {allowedOrgOptions.length > 1 ? (
+                    <tr>
+                      <th>소속 조직</th>
+                      <td>
+                        <select
+                          value={form.organization_id}
+                          onChange={(e) => updateForm('organization_id', e.target.value)}
+                        >
+                          {allowedOrgOptions.map((o) => (
+                            <option key={o.id} value={o.id}>{o.name}</option>
+                          ))}
+                        </select>
+                      </td>
+                    </tr>
+                  ) : null}
                   <tr className={panel.requiredRow}>
                     <th>연락처</th>
                     <td>
@@ -595,22 +854,25 @@ export default function LandingInquiriesPage() {
             <div>왼쪽 목록에서 문의를 선택하세요</div>
           </div>
         ) : (
-          <div className={styles.detailStack}>
-            {/* ── Hero ── */}
-            <div className={styles.hero}>
-              <div className={styles.avatar} aria-hidden>
-                {getInitial(selected.name, selected.phone)}
-              </div>
-              <div className={styles.heroBody}>
-                <div className={styles.heroTitleRow}>
-                  <span className={styles.heroName}>
-                    {selected.name?.trim() || '(이름 미입력)'}
-                  </span>
+          <>
+            {/* ── Detail Header ── */}
+            <div className={panel.detailHeader}>
+              <div style={{ minWidth: 0 }}>
+                <div className={panel.detailTitle} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <EditableInline
+                    value={selected.name}
+                    onCommit={(next) => updateInquiry(selected.id, { name: next === '' ? null : next })}
+                    emptyPlaceholder="(이름 미입력)"
+                    ariaLabel="이름"
+                    maxLength={100}
+                    viewClassName={styles.editableTitle}
+                    inputClassName={styles.editableTitleInput}
+                  />
                   <span className={`badge ${STATUS_META[selected.status].badgeClass} badge-md`}>
                     {STATUS_META[selected.status].label}
                   </span>
                 </div>
-                <div className={styles.heroMeta}>
+                <div className={panel.detailSubtitle} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
                   <span title={formatDateTime(selected.created_at)}>
                     {relativeTime(selected.created_at)} 접수
                   </span>
@@ -619,26 +881,11 @@ export default function LandingInquiriesPage() {
                   <span className={styles.heroMetaDot} />
                   <span>{selected.source ?? 'landing'}</span>
                 </div>
-                {(selected.industry || selected.region) ? (
-                  <div className={styles.chipRow}>
-                    {selected.industry ? (
-                      <span className={`${styles.chip} ${styles.chipIndustry}`}>
-                        <LuBriefcase size={12} className={styles.chipIcon} />
-                        {selected.industry}
-                      </span>
-                    ) : null}
-                    {selected.region ? (
-                      <span className={`${styles.chip} ${styles.chipRegion}`}>
-                        <LuMapPin size={12} className={styles.chipIcon} />
-                        {selected.region}
-                      </span>
-                    ) : null}
-                  </div>
-                ) : null}
               </div>
-              <div className={styles.heroActions}>
+              <div className={panel.detailActions}>
                 <ActionButton
                   variant="danger"
+                  size="sm"
                   onClick={() => deleteInquiry(selected.id)}
                   disabled={deleting}
                   loading={deleting}
@@ -648,152 +895,301 @@ export default function LandingInquiriesPage() {
               </div>
             </div>
 
-            {/* ── Quick Actions ── */}
-            <div className={styles.quickRow}>
-              <div className={styles.phoneBlock}>
-                <span className={styles.phoneLabel}>연락처</span>
-                <span className={styles.phoneValue}>{formatPhone(selected.phone)}</span>
-              </div>
-              <a
-                href={`tel:${selected.phone}`}
-                className={`${styles.iconBtn} ${styles.iconBtnPrimary}`}
-                title="전화 걸기"
-              >
-                <LuPhone size={14} /> 전화
-              </a>
-              <a
-                href={`sms:${selected.phone}`}
-                className={styles.iconBtn}
-                title="문자 보내기"
-              >
-                <LuMessageSquare size={14} /> 문자
-              </a>
-              <button
-                type="button"
-                className={styles.iconBtn}
-                onClick={() => copyToClipboard(selected.phone, 'phone', '연락처')}
-                title="번호 복사"
-              >
-                {copiedKey === 'phone' ? <LuCheck size={14} /> : <LuCopy size={14} />}
-                {copiedKey === 'phone' ? '복사됨' : '복사'}
-              </button>
-            </div>
+            {/* ── Main Field Table ── */}
+            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+              <table className={panel.formTable}>
+                <tbody>
+                  <tr>
+                    <th>소속 조직</th>
+                    <td>
+                      <div className={styles.tableCellPad}>
+                        {allowedOrgOptions.length > 1 ? (
+                          <div className={styles.orgChipGroup} role="radiogroup" aria-label="소속 조직 선택">
+                            {allowedOrgOptions.map((o) => {
+                              const isActive = o.id === selected.organization_id;
+                              return (
+                                <button
+                                  key={o.id}
+                                  type="button"
+                                  role="radio"
+                                  aria-checked={isActive}
+                                  disabled={orgSaving || isActive}
+                                  onClick={() => {
+                                    if (!isActive) updateInquiryOrg(selected.id, o.id);
+                                  }}
+                                  className={`${styles.orgChip} ${isActive ? styles.orgChipActive : ''}`}
+                                  title={o.name}
+                                >
+                                  <LuBuilding2 size={11} />
+                                  <span>{o.name}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <span className={panel.fieldValue} style={{ padding: 0 }}>
+                            <LuBuilding2 size={12} style={{ verticalAlign: '-2px', marginRight: 4 }} />
+                            {orgName(selected.organization_id)}
+                          </span>
+                        )}
+                        {transfers.length > 0 ? (
+                          <div className={styles.transferHistory}>
+                            <button
+                              type="button"
+                              className={styles.transferHistoryToggle}
+                              onClick={() => setTransferHistoryOpen((o) => !o)}
+                              aria-expanded={transferHistoryOpen}
+                            >
+                              <span className={styles.transferHistoryToggleLabel}>
+                                <LuHistory size={12} />
+                                이전 이력 ({transfers.length})
+                              </span>
+                              <LuChevronRight
+                                size={12}
+                                className={`${styles.traceToggleIcon} ${transferHistoryOpen ? styles.traceToggleIconOpen : ''}`}
+                              />
+                            </button>
+                            {transferHistoryOpen ? (
+                              <div className={styles.transferTableWrap}>
+                                <table className={styles.transferTable}>
+                                  <thead>
+                                    <tr>
+                                      <th>이전</th>
+                                      <th>작업자</th>
+                                      <th>사유</th>
+                                      <th>시각</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {transfers.map((t) => (
+                                      <tr key={t.id}>
+                                        <td className={styles.transferCellOrg}>
+                                          <span>{t.from_organization_name ?? '-'}</span>
+                                          <LuArrowRight size={10} className={styles.transferArrow} />
+                                          <span>{t.to_organization_name ?? '-'}</span>
+                                        </td>
+                                        <td className={styles.transferCellUser}>
+                                          {t.transferred_by_name?.trim() || '시스템'}
+                                        </td>
+                                        <td
+                                          className={styles.transferCellNote}
+                                          title={t.note ?? ''}
+                                        >
+                                          {t.note?.trim() || '-'}
+                                        </td>
+                                        <td
+                                          className={styles.transferCellTime}
+                                          title={formatDateTime(t.created_at)}
+                                        >
+                                          {relativeTime(t.created_at)}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
 
-            {/* ── Status Switcher ── */}
-            <div className={styles.statusCard}>
-              <div className={styles.statusCardHeader}>
-                <span className={styles.statusCardTitle}>상태 관리</span>
-                <span className={styles.statusCardHint}>
-                  {selected.handled_at
-                    ? `처리: ${handlerName(selected.handled_by)} · ${formatDateTime(selected.handled_at)}`
-                    : '아직 처리되지 않음'}
-                </span>
-              </div>
+                  <tr>
+                    <th>상태</th>
+                    <td>
+                      <div className={styles.tableCellPad}>
+                        <div className={styles.segments} role="tablist" aria-label="상태">
+                          {STATUS_ORDER.map((s) => {
+                            const active = selected.status === s;
+                            const isSavingThis = statusSaving === s;
+                            return (
+                              <button
+                                key={s}
+                                type="button"
+                                role="tab"
+                                aria-selected={active}
+                                className={`${styles.segment} ${active ? styles.segmentActive : ''}`}
+                                onClick={() => {
+                                  if (active) return;
+                                  updateInquiry(selected.id, { status: s });
+                                }}
+                                disabled={!!statusSaving || active}
+                              >
+                                <span className={`${styles.segmentDot} ${STATUS_META[s].dotClass}`} />
+                                {STATUS_META[s].label}
+                                {isSavingThis ? '…' : ''}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div className={styles.statusHelp} style={{ marginTop: 8 }}>
+                          {selected.handled_at
+                            ? `처리: ${handlerName(selected.handled_by)} · ${formatDateTime(selected.handled_at)}`
+                            : '아직 처리되지 않음'}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
 
-              <div className={styles.segments} role="tablist" aria-label="상태">
-                {STATUS_ORDER.map((s) => {
-                  const active = selected.status === s;
-                  const isSavingThis = statusSaving === s;
-                  return (
-                    <button
-                      key={s}
-                      type="button"
-                      role="tab"
-                      aria-selected={active}
-                      className={`${styles.segment} ${active ? styles.segmentActive : ''}`}
-                      onClick={() => {
-                        if (active) return;
-                        updateInquiry(selected.id, { status: s });
-                      }}
-                      disabled={!!statusSaving || active}
-                    >
-                      <span className={`${styles.segmentDot} ${STATUS_META[s].dotClass}`} />
-                      {STATUS_META[s].label}
-                      {isSavingThis ? '…' : ''}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className={styles.statusHelp}>
-                상태 변경 시 처리자는 현재 로그인 계정
-                {currentUser?.name ? <strong>「{currentUser.name}」</strong> : null}
-                (으)로 자동 기록됩니다.
-              </div>
-            </div>
+                  <tr>
+                    <th>연락처</th>
+                    <td>
+                      <div className={styles.tableInlineRow}>
+                        <span className={styles.tableInlineValue}>
+                          <EditableInline
+                            value={selected.phone}
+                            onCommit={(next) => {
+                              if (!next) {
+                                toast({ title: '연락처는 필수입니다', variant: 'error' });
+                                return;
+                              }
+                              updateInquiry(selected.id, { phone: next });
+                            }}
+                            displayValue={formatPhone(selected.phone)}
+                            required
+                            maxLength={30}
+                            inputMode="tel"
+                            ariaLabel="연락처"
+                            viewClassName={styles.editablePhone}
+                            inputClassName={styles.editablePhoneInput}
+                          />
+                        </span>
+                        <div className={styles.tableInlineActions}>
+                          <a
+                            href={`tel:${selected.phone}`}
+                            className={styles.subtleIconBtn}
+                            title="전화 걸기"
+                            aria-label="전화 걸기"
+                          >
+                            <LuPhone size={14} />
+                          </a>
+                          <a
+                            href={`sms:${selected.phone}`}
+                            className={styles.subtleIconBtn}
+                            title="문자 보내기"
+                            aria-label="문자 보내기"
+                          >
+                            <LuMessageSquare size={14} />
+                          </a>
+                          <button
+                            type="button"
+                            className={styles.subtleIconBtn}
+                            onClick={() => copyToClipboard(selected.phone, 'phone', '연락처')}
+                            title={copiedKey === 'phone' ? '복사됨' : '번호 복사'}
+                            aria-label={copiedKey === 'phone' ? '복사됨' : '번호 복사'}
+                          >
+                            {copiedKey === 'phone' ? <LuCheck size={14} /> : <LuCopy size={14} />}
+                          </button>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
 
-            {/* ── Message ── */}
-            <div className={styles.card}>
-              <div className={styles.cardHeader}>
-                <span className={styles.cardTitle}>
-                  <span className={styles.cardTitleIcon}><LuMessageSquare size={14} /></span>
-                  문의 내용
-                </span>
-                {selected.message?.trim() ? (
-                  <button
-                    type="button"
-                    className={styles.iconBtn}
-                    onClick={() => copyToClipboard(selected.message ?? '', 'message', '문의 내용')}
-                  >
-                    {copiedKey === 'message' ? <LuCheck size={14} /> : <LuCopy size={14} />}
-                    복사
-                  </button>
-                ) : null}
-              </div>
-              <div className={styles.messageBox}>
-                {selected.message?.trim() ? (
-                  selected.message
-                ) : (
-                  <span className={styles.messageEmpty}>(내용 없음)</span>
-                )}
-              </div>
-            </div>
+                  <tr>
+                    <th>문의 내용</th>
+                    <td>
+                      <div className={styles.tableCellPad}>
+                        <div className={styles.messageBox}>
+                          {selected.message?.trim() ? (
+                            <>
+                              {selected.message}
+                              <button
+                                type="button"
+                                className={styles.subtleLink}
+                                onClick={() => copyToClipboard(selected.message ?? '', 'message', '문의 내용')}
+                                title={copiedKey === 'message' ? '복사됨' : '내용 복사'}
+                                aria-label={copiedKey === 'message' ? '복사됨' : '내용 복사'}
+                              >
+                                {copiedKey === 'message' ? <LuCheck size={12} /> : <LuCopy size={12} />}
+                              </button>
+                            </>
+                          ) : (
+                            <span className={styles.messageEmpty}>(내용 없음)</span>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
 
-            {/* ── Admin Note ── */}
-            <div className={styles.card}>
-              <div className={styles.cardHeader}>
-                <span className={styles.cardTitle}>
-                  <span className={styles.cardTitleIcon}><LuStickyNote size={14} /></span>
-                  관리자 메모
-                </span>
-                <span className={styles.cardSubtle}>
-                  {noteDraft.length} / 2000
-                </span>
-              </div>
-              <textarea
-                className={styles.noteEditor}
-                value={noteDraft}
-                onChange={(e) => setNoteDraft(e.target.value.slice(0, 2000))}
-                rows={4}
-                placeholder="처리 결과·통화 메모 등을 기록하세요"
-              />
-              <div className={styles.noteFooter}>
-                <span
-                  className={`${styles.noteStatus} ${noteDirty ? styles.noteStatusDirty : ''}`}
-                >
-                  {saving
-                    ? '저장 중…'
-                    : noteDirty
-                    ? '저장되지 않은 변경사항이 있습니다'
-                    : selected.admin_note
-                    ? `최종 수정 ${relativeTime(selected.updated_at)}`
-                    : '메모 없음'}
-                </span>
-                <div className={styles.noteActions}>
-                  <ActionButton
-                    variant="secondary"
-                    onClick={() => setNoteDraft(selected.admin_note ?? '')}
-                    disabled={saving || !noteDirty}
-                    label="취소"
-                  />
-                  <ActionButton
-                    variant="primary"
-                    onClick={() => updateInquiry(selected.id, { admin_note: noteDraft })}
-                    disabled={saving || !noteDirty}
-                    loading={saving}
-                    label="메모 저장"
-                  />
-                </div>
-              </div>
+                  <tr>
+                    <th>업종</th>
+                    <td>
+                      <EditableInline
+                        value={selected.industry}
+                        onCommit={(next) =>
+                          updateInquiry(selected.id, { industry: next === '' ? null : next })
+                        }
+                        emptyPlaceholder="-"
+                        ariaLabel="업종"
+                        maxLength={100}
+                        viewClassName={styles.editableCell}
+                        inputClassName={styles.editableCellInput}
+                      />
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <th>지역</th>
+                    <td>
+                      <EditableInline
+                        value={selected.region}
+                        onCommit={(next) =>
+                          updateInquiry(selected.id, { region: next === '' ? null : next })
+                        }
+                        emptyPlaceholder="-"
+                        ariaLabel="지역"
+                        maxLength={100}
+                        viewClassName={styles.editableCell}
+                        inputClassName={styles.editableCellInput}
+                      />
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <th>관리자 메모</th>
+                    <td>
+                      <div className={styles.tableCellPad}>
+                        <textarea
+                          className={styles.noteEditor}
+                          value={noteDraft}
+                          onChange={(e) => setNoteDraft(e.target.value.slice(0, 2000))}
+                          rows={4}
+                          placeholder="처리 결과·통화 메모 등을 기록하세요"
+                        />
+                        <div className={styles.noteFooter}>
+                          <span
+                            className={`${styles.noteStatus} ${noteDirty ? styles.noteStatusDirty : ''}`}
+                          >
+                            {saving
+                              ? '저장 중…'
+                              : noteDirty
+                              ? `저장되지 않은 변경사항 · ${noteDraft.length} / 2000`
+                              : selected.admin_note
+                              ? `최종 수정 ${relativeTime(selected.updated_at)} · ${noteDraft.length} / 2000`
+                              : `메모 없음 · ${noteDraft.length} / 2000`}
+                          </span>
+                          <div className={styles.noteActions}>
+                            <ActionButton
+                              variant="secondary"
+                              onClick={() => setNoteDraft(selected.admin_note ?? '')}
+                              disabled={saving || !noteDirty}
+                              label="취소"
+                            />
+                            <ActionButton
+                              variant="primary"
+                              onClick={() => updateInquiry(selected.id, { admin_note: noteDraft })}
+                              disabled={saving || !noteDirty}
+                              loading={saving}
+                              label="메모 저장"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
 
             {/* ── Trace (collapsible) ── */}
@@ -803,8 +1199,8 @@ export default function LandingInquiriesPage() {
               onClick={() => setTraceOpen((o) => !o)}
               aria-expanded={traceOpen}
             >
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                <LuLink size={14} /> 유입 정보
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <LuLink size={12} /> 유입 정보
               </span>
               <LuChevronRight
                 size={14}
@@ -891,7 +1287,7 @@ export default function LandingInquiriesPage() {
                 </div>
               </div>
             ) : null}
-          </div>
+          </>
         )}
       </main>
     </div>

@@ -31,25 +31,19 @@ const MENU_GROUPS: { items: NavItem[] }[] = [
   },
   {
     items: [
+      { href: '/landing-inquiries', label: '랜딩 문의', icon: LuInbox },
       { href: '/clients',    label: '고객 관리',  icon: LuBuilding2 },
       { href: '/projects',   label: '프로젝트',   icon: LuFolderOpen },
+
     ],
   },
   {
     items: [
       { href: '/estimates',  label: '견적서',     icon: LuFileText },
-      { href: '/contracts',  label: '계약서',     icon: LuFilePen },
-    ],
-  },
-  {
-    items: [
+      { href: '/contracts',  label: '계약서',     icon: LuFilePen },      
       { href: '/payments',   label: '입금 확인',  icon: LuCreditCard },
       { href: '/executions',  label: '집행 관리',  icon: LuClipboardCheck },
-    ],
-  },
-  {
-    items: [
-      { href: '/landing-inquiries', label: '랜딩 문의', icon: LuInbox },
+
     ],
   },
   {

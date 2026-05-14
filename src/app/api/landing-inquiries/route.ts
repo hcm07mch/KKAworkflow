@@ -24,10 +24,13 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(Math.max(parseInt(limitParam ?? '200', 10) || 200, 1), 500);
 
   const serviceClient = createSupabaseServiceClient();
+  // 본사(root) 계정은 활성 스코프와 무관하게 본사+모든 지사 문의를 볼 수 있어야 함
+  // (지사로 이전된 문의를 다시 가져오는 운영 작업 포함)
+  const visibleOrgIds = auth.isRootOrg ? auth.fullAllowedOrgIds : auth.allowedOrgIds;
   let query = serviceClient
     .from('landing_inquiries')
     .select('*')
-    .in('organization_id', auth.allowedOrgIds)
+    .in('organization_id', visibleOrgIds)
     .order('created_at', { ascending: false })
     .limit(limit);
 

@@ -44,7 +44,9 @@ export async function PATCH(
       { status: 404 },
     );
   }
-  if (!auth.allowedOrgIds.includes(existing.organization_id as string)) {
+  // 본사 계정은 활성 스코프와 무관하게 본사+모든 지사 문의를 조작할 수 있어야 함
+  const accessibleOrgIds = auth.isRootOrg ? auth.fullAllowedOrgIds : auth.allowedOrgIds;
+  if (!accessibleOrgIds.includes(existing.organization_id as string)) {
     return NextResponse.json(
       { error: { code: 'FORBIDDEN_ORG', message: '이 문의에 접근할 권한이 없습니다' } },
       { status: 403 },
@@ -78,7 +80,38 @@ export async function PATCH(
     update.admin_note = body.admin_note === '' ? null : String(body.admin_note);
   }
 
+  // 기본 정보 필드 (이름/연락처/업종/지역) — 길이 제한 적용
+  if (body.name !== undefined) {
+    const trimmed = body.name === null ? '' : String(body.name).trim();
+    update.name = trimmed === '' ? null : trimmed.slice(0, 100);
+  }
+  if (body.phone !== undefined) {
+    const trimmed = String(body.phone ?? '').trim();
+    if (trimmed === '') {
+      return NextResponse.json(
+        { error: { code: 'PHONE_REQUIRED', message: '연락처는 필수입니다' } },
+        { status: 400 },
+      );
+    }
+    update.phone = trimmed.slice(0, 30);
+  }
+  if (body.industry !== undefined) {
+    const trimmed = body.industry === null ? '' : String(body.industry).trim();
+    update.industry = trimmed === '' ? null : trimmed.slice(0, 100);
+  }
+  if (body.region !== undefined) {
+    const trimmed = body.region === null ? '' : String(body.region).trim();
+    update.region = trimmed === '' ? null : trimmed.slice(0, 100);
+  }
+
+  let transferNote: string | null = null;
   if (body.organization_id !== undefined) {
+    if (!auth.isRootOrg) {
+      return NextResponse.json(
+        { error: { code: 'FORBIDDEN', message: '조직 이전은 본사 계정만 가능합니다' } },
+        { status: 403 },
+      );
+    }
     const newOrgId = body.organization_id ? String(body.organization_id) : null;
     if (!newOrgId) {
       return NextResponse.json(
@@ -86,15 +119,18 @@ export async function PATCH(
         { status: 400 },
       );
     }
-    // 본사 계정만 재이관 가능 (지사 계정은 자기 조직 범위를 벗어나는 변경 불가)
-    const allowed = auth.isRootOrg ? auth.fullAllowedOrgIds : auth.allowedOrgIds;
-    if (!allowed.includes(newOrgId)) {
+    // 본사 계정 본인 조직 또는 하위 지사로만 이동 허용
+    if (!auth.fullAllowedOrgIds.includes(newOrgId)) {
       return NextResponse.json(
         { error: { code: 'FORBIDDEN_ORG', message: '허용되지 않은 조직입니다' } },
         { status: 403 },
       );
     }
     update.organization_id = newOrgId;
+    if (body.transfer_note !== undefined && body.transfer_note !== null) {
+      const trimmed = String(body.transfer_note).trim();
+      transferNote = trimmed === '' ? null : trimmed.slice(0, 500);
+    }
   }
 
   if (Object.keys(update).length === 0) {
@@ -103,6 +139,8 @@ export async function PATCH(
       { status: 400 },
     );
   }
+
+  const previousOrgId = (existing as { organization_id: string | null }).organization_id ?? null;
 
   const { data, error } = await serviceClient
     .from('landing_inquiries')
@@ -128,6 +166,30 @@ export async function PATCH(
       },
       { status: 500 },
     );
+  }
+
+  // 조직이 실제로 변경된 경우 이전 이력 기록
+  if (
+    update.organization_id !== undefined &&
+    previousOrgId !== (update.organization_id as string)
+  ) {
+    const { error: transferError } = await serviceClient
+      .from('landing_inquiry_transfers')
+      .insert({
+        inquiry_id: id,
+        from_organization_id: previousOrgId,
+        to_organization_id: update.organization_id as string,
+        transferred_by: auth.authUser.id,
+        note: transferNote,
+      });
+    if (transferError) {
+      console.error('[landing-inquiries PATCH] transfer log failed', {
+        id,
+        previousOrgId,
+        newOrgId: update.organization_id,
+        error: transferError,
+      });
+    }
   }
 
   return NextResponse.json(data);
@@ -162,7 +224,9 @@ export async function DELETE(
       { status: 404 },
     );
   }
-  if (!auth.allowedOrgIds.includes(existing.organization_id as string)) {
+  // 본사 계정은 활성 스코프와 무관하게 본사+모든 지사 문의를 삭제할 수 있어야 함
+  const accessibleOrgIds = auth.isRootOrg ? auth.fullAllowedOrgIds : auth.allowedOrgIds;
+  if (!accessibleOrgIds.includes(existing.organization_id as string)) {
     return NextResponse.json(
       { error: { code: 'FORBIDDEN_ORG', message: '이 문의에 접근할 권한이 없습니다' } },
       { status: 403 },

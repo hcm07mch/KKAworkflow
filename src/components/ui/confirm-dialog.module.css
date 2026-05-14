@@ -78,6 +78,8 @@
   color: var(--color-text-secondary);
   margin: 0;
   line-height: 1.55;
+  text-align: center;
+  white-space: pre-wrap;
 }
 
 .inputWrap {

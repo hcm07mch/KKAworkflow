@@ -8,13 +8,6 @@
   display: flex;
   align-items: flex-start;
   gap: 16px;
-  padding: 20px 24px;
-  background: linear-gradient(180deg,
-    color-mix(in srgb, var(--color-primary) 6%, var(--color-surface)) 0%,
-    var(--color-surface) 100%);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-card);
 }
 
 .avatar {
@@ -207,6 +200,55 @@
   border-color: color-mix(in srgb, #16a34a 28%, transparent);
 }
 
+.chipOrg {
+  background: color-mix(in srgb, #f59e0b 14%, var(--color-surface));
+  color: #b45309;
+  border-color: color-mix(in srgb, #f59e0b 32%, transparent);
+}
+
+.orgChipGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.orgChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1;
+}
+
+.orgChip:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--color-primary-ring, color-mix(in srgb, var(--color-primary) 8%, transparent));
+}
+
+.orgChip:disabled {
+  cursor: not-allowed;
+}
+
+.orgChipActive {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+  font-weight: 600;
+}
+
+.orgChipActive:disabled {
+  opacity: 1;
+}
+
 /* Compact variant used in list rows */
 .chipSm {
   padding: 2px 8px;
@@ -222,11 +264,6 @@
   grid-template-columns: 1fr auto auto auto;
   align-items: center;
   gap: 10px;
-  padding: 14px 18px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-card);
 }
 
 .phoneBlock {
@@ -287,24 +324,24 @@
 /* ── Status Segmented Switcher ───────────────────────────────────────────── */
 
 .statusCard {
-  padding: 16px 18px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
 }
 
 .statusCardHeader {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   margin-bottom: 10px;
+  gap: 8px;
 }
 
 .statusCardTitle {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--color-text-primary);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .statusCardHint {
@@ -425,35 +462,289 @@
   font-weight: 600;
 }
 
+/* ── Transfer history ────────────────────────────────────────────────────── */
+
+.transferHistory {
+  margin-top: 10px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--color-border);
+}
+
+.transferHistoryToggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 2px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  letter-spacing: -0.01em;
+}
+
+.transferHistoryToggle:hover {
+  color: var(--color-text-primary);
+}
+
+.transferHistoryToggleLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.transferTableWrap {
+  margin-top: 8px;
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+
+.transferTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+  table-layout: fixed;
+}
+
+.transferTable thead th {
+  position: sticky;
+  top: 0;
+  background: var(--color-bg-subtle, #f9fafb);
+  text-align: left;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.transferTable tbody td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transferTable tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.transferTable thead th:nth-child(1) { width: 50px; }
+
+/* .transferTable tbody td:nth-child(1) { width: 130px; } */
+.transferTable thead th:nth-child(2),
+.transferTable tbody td:nth-child(2) { width: 50px; }
+.transferTable thead th:nth-child(4),
+.transferTable tbody td:nth-child(4) { width: 34px; }
+
+.transferCellTime {
+  color: var(--color-text-muted);
+}
+
+.transferCellOrg {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+  min-width: 0;
+}
+
+.transferCellOrg > span {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transferCellUser {
+  color: var(--color-text-secondary);
+}
+
+.transferCellNote {
+  color: var(--color-text-secondary);
+}
+
+.transferArrow {
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
 /* ── Generic Card / Section ──────────────────────────────────────────────── */
 
 .detailStack {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+}
+
+.detailStack > * + * {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--color-border);
+}
+
+/* ── Inline content within formTable cells ──────────────────────────────── */
+
+.tableInlineRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 10px;
+  flex-wrap: wrap;
+}
+
+.tableInlineValue {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  letter-spacing: -0.01em;
+}
+
+.tableInlineActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.tableCellPad {
+  padding: 10px 10px 5px 10px;
+}
+
+/* ── Inline editable fields ──────────────────────────────────────────────── */
+
+.editablePencil {
+  opacity: 0;
+  color: var(--color-text-muted);
+  transition: opacity 0.12s;
+  flex-shrink: 0;
+}
+
+.editablePencilBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  transition: background 0.12s, color 0.12s;
+}
+
+.editablePencilBtn:hover {
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+}
+
+.editableTitle,
+.editablePhone,
+.editableCell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  border-radius: 4px;
+}
+
+.editableTitle:hover .editablePencil,
+.editablePhone:hover .editablePencil,
+.editableCell:hover .editablePencil,
+.editablePencilBtn:focus-visible .editablePencil {
+  opacity: 1;
+}
+
+.editableTitle {
+  padding: 2px 6px;
+  margin: -2px -6px;
+}
+
+.editablePhone {
+  padding: 4px 8px;
+  margin: -4px -8px;
+  font: inherit;
+  color: inherit;
+}
+
+.editableCell {
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  width: 100%;
+}
+
+.editableTitleInput,
+.editablePhoneInput,
+.editableCellInput {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--color-primary);
+  border-radius: 4px;
+  background: var(--color-bg-elevated, #fff);
+  color: var(--color-text-primary);
+  outline: none;
+  font: inherit;
+}
+
+.editableTitleInput {
+  padding: 2px 6px;
+  margin: -2px -6px;
+  font-size: 18px;
+  font-weight: 700;
+  width: auto;
+  min-width: 200px;
+}
+
+.editablePhoneInput {
+  padding: 4px 8px;
+  margin: -4px -8px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  min-width: 160px;
+}
+
+.editableCellInput {
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  padding: 18px 20px;
-  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
 }
 
 .cardHeader {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
   gap: 8px;
 }
 
 .cardTitle {
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 700;
-  color: var(--color-text-primary);
-  display: flex;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
 }
@@ -501,6 +792,46 @@
 }
 
 /* ── Message bubble ──────────────────────────────────────────────────────── */
+
+.subtleLink {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  margin-top: 10px;
+  padding: 2px 0;
+  background: transparent;
+  border: none;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color 0.12s;
+}
+
+.subtleLink:hover {
+  color: var(--color-primary);
+}
+
+.subtleIconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 0.12s, background 0.12s;
+}
+
+.subtleIconBtn:hover {
+  color: var(--color-primary);
+  background: var(--color-bg);
+}
 
 .messageBox {
   position: relative;
@@ -589,19 +920,20 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--color-text-secondary);
+  margin-top: 20px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   cursor: pointer;
-  transition: background 0.12s, color 0.12s;
+  transition: color 0.12s;
 }
 
 .traceToggle:hover {
-  background: var(--color-surface-hover);
   color: var(--color-text-primary);
 }
 
@@ -614,12 +946,11 @@
 }
 
 .traceContent {
-  margin-top: 10px;
-  padding: 16px 20px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-card);
+  margin-top: 12px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
 .traceUA {
