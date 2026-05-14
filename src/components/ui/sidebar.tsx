@@ -31,7 +31,7 @@ const MENU_GROUPS: { items: NavItem[] }[] = [
   },
   {
     items: [
-      { href: '/landing-inquiries', label: '랜딩 문의', icon: LuInbox },
+      { href: '/landing-inquiries', label: '랜딩 DB', icon: LuInbox },
       { href: '/clients',    label: '고객 관리',  icon: LuBuilding2 },
       { href: '/projects',   label: '프로젝트',   icon: LuFolderOpen },
 

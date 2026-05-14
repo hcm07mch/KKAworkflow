@@ -611,7 +611,7 @@ export default function LandingInquiriesPage() {
       <aside className={panel.leftPanel}>
         <div className={panel.leftHeader}>
           <div className={panel.leftTitleRow}>
-            <div className={panel.leftTitle}>랜딩 문의</div>
+            <div className={panel.leftTitle}>랜딩 DB</div>
             <button
               type="button"
               className={panel.expandBtn}
