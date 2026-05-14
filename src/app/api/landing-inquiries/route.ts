@@ -2,8 +2,9 @@
  * API Route: Landing Inquiries
  * GET /api/landing-inquiries
  *   - 랜딩페이지 문의 목록 조회
- *   - 본사 계정: 활성 스코프(allowedOrgIds) 기준으로 조회
- *   - 지사 계정: 본인 조직(allowedOrgIds)으로 이관(handover)된 문의만 조회
+ *   - 활성 스코프(allowedOrgIds) 기준으로 조회
+ *   - 본사 스코프: 본사로 배정된 문의만 표시
+ *   - 지사 스코프: 해당 지사로 이관(handover)된 문의만 표시
  *   - 쿼리 파라미터: status, q (이름/연락처/메시지 검색), limit
  */
 
@@ -24,9 +25,8 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(Math.max(parseInt(limitParam ?? '200', 10) || 200, 1), 500);
 
   const serviceClient = createSupabaseServiceClient();
-  // 본사(root) 계정은 활성 스코프와 무관하게 본사+모든 지사 문의를 볼 수 있어야 함
-  // (지사로 이전된 문의를 다시 가져오는 운영 작업 포함)
-  const visibleOrgIds = auth.isRootOrg ? auth.fullAllowedOrgIds : auth.allowedOrgIds;
+  // 활성 스코프 기준으로만 조회 (본사 스코프 → 본사 문의만, 지사 스코프 → 지사 문의만)
+  const visibleOrgIds = auth.allowedOrgIds;
   let query = serviceClient
     .from('landing_inquiries')
     .select('*')
