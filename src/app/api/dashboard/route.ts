@@ -20,7 +20,7 @@ export async function GET() {
 
   // ── 병렬로 필요한 데이터 조회 ──
 
-  const [projectsRes, statusHistoryRes] = await Promise.all([
+  const [projectsRes, statusHistoryRes, newInquiriesRes] = await Promise.all([
     // 1) 전체 프로젝트 (파이프라인 + 미입금 + 집행대기 + 갱신 계산)
     supabase
       .from('workflow_projects')
@@ -34,6 +34,13 @@ export async function GET() {
       .select('project_id, to_status, created_at')
       .eq('to_status', 'D1_payment_pending')
       .order('created_at', { ascending: false }),
+
+    // 3) 랜딩 DB 신규 유입 수 (활성 스코프 기준, status='new')
+    supabase
+      .from('landing_inquiries')
+      .select('id', { count: 'exact', head: true })
+      .in('organization_id', allowedOrgIds)
+      .eq('status', 'new'),
   ]);
 
   const projects = projectsRes.data ?? [];
@@ -50,8 +57,9 @@ export async function GET() {
     }));
 
   // ── 견적 승인 현황 (workflow_stack 기반) ──
-  // B그룹(견적) 플로우가 스택에 존재하는 프로젝트 = 견적 진행
-  // → D그룹(입금) 도달 = 승인 / G1(환불)·H1(종료) = 거절
+  // B그룹(견적) 세그먼트가 이후 C/D/E/F 세그먼트로 이어지면 견적 승인 완료.
+  // (퍼포먼스: B→C→D, 바이럴: B→D 직행 모두 포함)
+  // 마지막 세그먼트가 B 인 경우 = 진행 중(=대기). 단, 상태가 G1/H1 이면 거절.
 
   // 상태 이력에서 D1 진입 날짜 (미입금 경과일용)
   const statusHistory = (statusHistoryRes.data ?? []) as any[];
@@ -66,15 +74,16 @@ export async function GET() {
   let estRejected = 0;
   let estPending = 0;
 
+  // 승인된 것으로 간주하는 후속 그룹 (계약/입금/보고서/집행)
+  const APPROVAL_FOLLOWERS = new Set(['C', 'D', 'E', 'F']);
+
   for (const p of projects) {
     const stack: string[] = ((p as any).metadata as any)?.workflow_stack ?? [];
     const status = (p as any).status as string;
 
-    // 스택을 순회하며 B→D 사이클 카운트
-    // B 세그먼트가 나오면 견적 1건, 이후 D가 나오면 승인, 다음 B 전에 D 없으면 미승인
     let inB = false;
-    let bCount = 0; // 총 견적 플로우 수
-    let dAfterB = 0; // B 이후 D 도달 수
+    let bCount = 0; // 총 견적 플로우(세그먼트) 수
+    let bResolved = 0; // 이후 C/D/E/F 로 이어진 견적 수 = 승인
 
     for (const s of stack) {
       const key = s.charAt(0);
@@ -84,8 +93,8 @@ export async function GET() {
           inB = true;
         }
       } else {
-        if (key === 'D' && inB) {
-          dAfterB++;
+        if (inB && APPROVAL_FOLLOWERS.has(key)) {
+          bResolved++;
         }
         inB = false;
       }
@@ -93,10 +102,9 @@ export async function GET() {
 
     if (bCount === 0) continue; // 견적 플로우가 없는 프로젝트는 제외
 
-    estApproved += dAfterB;
+    estApproved += bResolved;
 
-    // 마지막 B 세그먼트 이후 D가 없는 경우
-    const unresolvedB = bCount - dAfterB;
+    const unresolvedB = bCount - bResolved;
     if (unresolvedB > 0) {
       if (status === 'G1_refund' || status === 'H1_closed') {
         estRejected += unresolvedB;
@@ -192,8 +200,11 @@ export async function GET() {
   const renewDecided = totalRenewed + totalCancelled;
   const renewRate = renewDecided > 0 ? Math.round((totalRenewed / renewDecided) * 100) : 0;
 
+  const newInquiriesCount = newInquiriesRes.count ?? 0;
+
   return NextResponse.json({
     pipeline,
+    newInquiries: { count: newInquiriesCount },
     estimateStats: {
       pending: estPending,
       approved: estApproved,

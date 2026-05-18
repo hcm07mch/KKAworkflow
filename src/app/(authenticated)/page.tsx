@@ -9,6 +9,7 @@ import {
   LuClock,
   LuExternalLink,
   LuInfo,
+  LuShieldCheck,
 } from 'react-icons/lu';
 import styles from './dashboard.module.css';
 
@@ -24,6 +25,7 @@ interface PipelineProject {
 
 interface DashboardData {
   pipeline: PipelineProject[];
+  newInquiries: { count: number };
   estimateStats: {
     pending: number; approved: number; rejected: number; total: number;
     approveRate: number; rejectRate: number;
@@ -109,15 +111,44 @@ function PipelineDotMap({ projects }: { projects: PipelineProject[] }) {
   );
 }
 
+interface MyPendingEstimate {
+  approvalId: string;
+  documentId: string;
+  projectId: string;
+  projectTitle: string;
+  clientName: string;
+  ownerName: string | null;
+  step: number;
+  stepLabel: string | null;
+  requestedAt: string;
+  amount: number;
+}
+
+function relativeTime(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return '방금 전';
+  if (diffMin < 60) return `${diffMin}분 전`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}시간 전`;
+  const diffDay = Math.floor(diffHr / 24);
+  return `${diffDay}일 전`;
+}
+
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [myPending, setMyPending] = useState<MyPendingEstimate[] | null>(null);
 
   useEffect(() => {
     fetch('/api/dashboard')
       .then((r) => r.json())
       .then((d) => { setData(d); setLoading(false); })
       .catch(() => setLoading(false));
+    fetch('/api/dashboard/my-pending-estimates')
+      .then((r) => (r.ok ? r.json() : { items: [] }))
+      .then((d) => setMyPending(Array.isArray(d.items) ? d.items : []))
+      .catch(() => setMyPending([]));
   }, []);
 
   if (loading || !data || !data.pipeline) {
@@ -130,7 +161,7 @@ export default function DashboardPage() {
         </div>
         {/* Stat strip skeleton */}
         <div className={styles.statStrip}>
-          {[1,2,3,4].map((i) => (
+          {[1,2,3,4,5].map((i) => (
             <React.Fragment key={i}>
               {i > 1 && <div className={styles.statDivider} />}
               <div className={styles.statItem}>
@@ -155,7 +186,7 @@ export default function DashboardPage() {
     );
   }
 
-  const { pipeline, estimateStats, unpaid, executionQueue, renewal } = data;
+  const { pipeline, newInquiries, estimateStats, unpaid, executionQueue, renewal } = data;
   const pipelineTotal = pipeline.length;
 
   return (
@@ -169,6 +200,12 @@ export default function DashboardPage() {
 
       {/* -- 핵심 수치 (inline stat strip) -- */}
       <div className={styles.statStrip}>
+        <Link href="/landing-inquiries" className={`${styles.statItem} ${styles.statItemLink}`}>
+          <span className={styles.statLabel}>DB 신규 유입</span>
+          <span className={styles.statValue}>{newInquiries.count}건</span>
+          <span className={styles.statSub}>미처리 문의</span>
+        </Link>
+        <div className={styles.statDivider} />
         <div className={styles.statItem}>
           <span className={styles.statLabel}>견적 승인율</span>
           <span className={styles.statValue}>{estimateStats.approveRate}%</span>
@@ -259,6 +296,51 @@ export default function DashboardPage() {
         </section>
 
         <div className={styles.rightStack}>
+          {/* 내가 처리할 견적 승인 */}
+          <section className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <h2 className={styles.sectionTitle}>
+                <LuShieldCheck size={14} style={{ marginRight: 6, verticalAlign: '-2px' }} />
+                내가 처리할 견적 승인
+              </h2>
+              <span className={styles.sectionSub}>
+                {myPending === null ? '...' : `${myPending.length}건`}
+              </span>
+              <Link href="/estimates" className={styles.sectionLink}>전체보기 <LuArrowRight size={12} /></Link>
+            </div>
+            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+              {myPending === null ? (
+                <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>
+                  불러오는 중...
+                </div>
+              ) : myPending.length === 0 ? (
+                <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>
+                  처리할 견적이 없습니다
+                </div>
+              ) : (
+                myPending.map((row) => (
+                  <Link
+                    key={row.approvalId}
+                    href={`/estimates?selected=${row.documentId}`}
+                    className={styles.queueRow}
+                    style={{ textDecoration: 'none', color: 'inherit' }}
+                  >
+                    <div className={styles.queueInfo}>
+                      <span className={styles.queueClient}>{row.clientName || '(고객 미지정)'}</span>
+                      <span className={styles.queueProject}>
+                        {row.projectTitle || '(프로젝트 미지정)'}
+                        {row.stepLabel ? ` · ${row.stepLabel}` : ` · ${row.step}단계`}
+                      </span>
+                    </div>
+                    <div className={styles.queueRight}>
+                      <LuClock size={12} /><span>{relativeTime(row.requestedAt)}</span>
+                    </div>
+                  </Link>
+                ))
+              )}
+            </div>
+          </section>
+
           {/* 집행 대기 */}
           <section className={styles.section}>
             <div className={styles.sectionHeader}>

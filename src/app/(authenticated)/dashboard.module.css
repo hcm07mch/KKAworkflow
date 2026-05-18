@@ -39,6 +39,23 @@
   gap: 2px;
 }
 
+.statItemLink {
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.15s ease;
+  padding: 4px 0;
+  border-radius: 6px;
+}
+
+.statItemLink:hover {
+  background: var(--color-table-row-hover);
+}
+
+.statItemLink:hover .statLabel {
+  color: var(--color-primary);
+}
+
 .statLabel {
   font-size: 11px;
   font-weight: 500;
@@ -597,5 +614,240 @@
   }
   .twoCol {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================================
+   Mobile (<= 768px)
+   - Stat strip: 2-col grid + 마지막 항목 풀폭
+   - 프로젝트 현황(파이프라인): 6-col → 3-col
+   ============================================================================ */
+
+@media (max-width: 768px) {
+  /* -- Stat Strip -- */
+  .statStrip {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1px;
+    padding: 0;
+    background: var(--color-border);
+    overflow: hidden;
+    align-items: stretch;
+  }
+  .statDivider {
+    display: none;
+  }
+  .statItem {
+    background: var(--color-surface);
+    padding: 14px 8px;
+    min-width: 0;
+  }
+  /* 5개 항목 중 마지막은 풀폭 — 위치(짝/홀수) 비대칭 방지 */
+  .statStrip > :last-child {
+    grid-column: 1 / -1;
+  }
+  .statValue {
+    font-size: 22px;
+  }
+  .statSub {
+    text-align: center;
+    padding: 0 4px;
+    line-height: 1.35;
+  }
+
+  /* -- 섹션 헤더 좁은 폭 정리 -- */
+  .sectionHeader {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+
+  /* -- 미입금 테이블 → 카드형 2x2 그리드 (줄바꿈 압축) --
+     마크업은 그대로(table)이고 CSS 만으로 reflow.
+     ┌──────────────────────────┐
+     │ 고객             경과    │
+     │ 프로젝트         금액    │
+     └──────────────────────────┘ */
+  .table {
+    display: block;
+  }
+  .table thead {
+    display: none;
+  }
+  .table tbody {
+    display: block;
+  }
+  .table tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "client elapsed"
+      "project amount";
+    column-gap: 12px;
+    row-gap: 2px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--color-table-border);
+  }
+  .table tbody tr:last-child {
+    border-bottom: none;
+  }
+  .table tbody tr:hover {
+    background: transparent;
+  }
+  .table tbody td {
+    display: block;
+    padding: 0;
+    border: none;
+    min-width: 0;
+  }
+  .table tbody td:nth-of-type(1) {
+    grid-area: client;
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+  .table tbody td:nth-of-type(2) {
+    grid-area: project;
+    font-size: 12px;
+    color: var(--color-text-muted);
+  }
+  .table tbody td:nth-of-type(3) {
+    grid-area: amount;
+    text-align: right;
+    font-size: 12px;
+    color: var(--color-text-secondary);
+  }
+  .table tbody td:nth-of-type(4) {
+    grid-area: elapsed;
+    text-align: right;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  /* 빈 상태(colSpan) 는 한 줄 풀폭 — 인라인 스타일(textAlign/padding)이 그대로 적용됨 */
+  .table tbody td[colspan] {
+    grid-column: 1 / -1;
+    text-align: center;
+  }
+
+  /* -- Pipeline Dot Grid (3-col) --
+     주의: 툴팁이 카드 밖으로 떠야 하므로 pipelineCard 의 overflow 는
+     건드리지 않음(데스크탑 기본 overflow: visible 그대로 유지).
+     셀 구분은 실제 border 로 — gap+background 트릭은 overflow:hidden 을 강제하여 툴팁이 잘림. */
+  .dotGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .dotCell {
+    border-right: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-border);
+  }
+  /* 매 3번째 셀(우측 컬럼) 우측 보더 제거 */
+  .dotCell:nth-child(3n) {
+    border-right: none;
+  }
+  /* 마지막 행(끝에서 3개 셀) 하단 보더 제거 — 셀 총 개수와 무관하게 동작 */
+  .dotCell:nth-last-child(-n+3) {
+    border-bottom: none;
+  }
+  /* 다중 행에서 형제 dotCellBody 가 같은 z-index(=1) 로 후속 행이 이전 행 툴팁을 덮는 문제 해결.
+     hover 중인 셀의 body 만 위로 끌어올림. */
+  .dotCellBody:has(.dotWrap:hover) {
+    z-index: 10;
+  }
+
+  /* -- 툴팁 좌/우 클리핑 방지 --
+     좁은 화면에서 dotWrap 기준 중앙 정렬(left:50%)이면 우측 컬럼 셀의 점은 뷰포트 밖으로 흘러나간다.
+     모바일에서는 anchor 를 dotCellBody(셀 본문) 로 바꾸고 컬럼별로 좌/우 정렬한다.
+     ::before 브릿지는 데스크탑 hover 지속용이라 터치에서는 무관해서 그대로 둠. */
+  .dotWrap {
+    position: static;
+  }
+  .dotTooltip {
+    top: calc(100% + 8px);
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%) translateY(-4px);
+    max-width: min(280px, calc(100vw - 32px));
+  }
+  .dotWrap:hover .dotTooltip {
+    transform: translateX(-50%) translateY(0);
+  }
+  /* 3-col: 좌측 컬럼(1,4) 좌측 정렬 / 우측 컬럼(3,6) 우측 정렬 / 가운데(2,5) 중앙 유지 */
+  .dotCell:nth-child(3n+1) .dotTooltip {
+    left: 0;
+    right: auto;
+    transform: translateX(0) translateY(-4px);
+  }
+  .dotCell:nth-child(3n+1) .dotWrap:hover .dotTooltip {
+    transform: translateX(0) translateY(0);
+  }
+  .dotCell:nth-child(3n) .dotTooltip {
+    left: auto;
+    right: 0;
+    transform: translateX(0) translateY(-4px);
+  }
+  .dotCell:nth-child(3n) .dotWrap:hover .dotTooltip {
+    transform: translateX(0) translateY(0);
+  }
+
+  .dotCellHeader {
+    padding: 8px 10px;
+  }
+  .dotCellLabel {
+    font-size: 11px;
+  }
+  .dotCellKey {
+    width: 18px;
+    height: 18px;
+  }
+  .dotCellBody {
+    padding: 10px;
+    min-height: 60px;
+  }
+}
+
+/* ============================================================================
+   Small Mobile (<= 480px)
+   ============================================================================ */
+
+@media (max-width: 480px) {
+  .dotGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  /* 2-col 보더 재구성 — 768px 의 3n / -n+3 규칙을 한 번 되돌리고 2n / -n+2 로 다시 정리 */
+  .dotCell:nth-child(3n) {
+    border-right: 1px solid var(--color-border);
+  }
+  .dotCell:nth-child(2n) {
+    border-right: none;
+  }
+  .dotCell:nth-last-child(-n+3) {
+    border-bottom: 1px solid var(--color-border);
+  }
+  .dotCell:nth-last-child(-n+2) {
+    border-bottom: none;
+  }
+
+  /* 툴팁 정렬: 2-col 에서는 홀수=좌측 컬럼, 짝수=우측 컬럼.
+     768px 에서 3n / 3n+1 로 설정된 정렬을 2n / 2n+1 로 다시 덮어씀. */
+  .dotCell:nth-child(2n+1) .dotTooltip {
+    left: 0;
+    right: auto;
+    transform: translateX(0) translateY(-4px);
+  }
+  .dotCell:nth-child(2n+1) .dotWrap:hover .dotTooltip {
+    transform: translateX(0) translateY(0);
+  }
+  .dotCell:nth-child(2n) .dotTooltip {
+    left: auto;
+    right: 0;
+    transform: translateX(0) translateY(-4px);
+  }
+  .dotCell:nth-child(2n) .dotWrap:hover .dotTooltip {
+    transform: translateX(0) translateY(0);
+  }
+
+  .statValue {
+    font-size: 20px;
+  }
+  .pageTitle {
+    font-size: 18px;
   }
 }
