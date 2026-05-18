@@ -434,3 +434,80 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* ============================================================================
+   Mobile View Tabs — 편집 ↔ 미리보기 토글 (모바일 전용)
+   ============================================================================ */
+
+.mobileViewTabs {
+  display: none;
+}
+
+.mobileViewTab {
+  flex: 1;
+  padding: 11px 0;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.mobileViewTab:hover {
+  color: var(--color-text-primary);
+}
+
+.mobileViewTabActive {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+
+/* ============================================================================
+   Mobile (<= 768px) — editorRoot 세로 스택 + 탭 기반 toggle
+   ============================================================================ */
+
+@media (max-width: 768px) {
+  .editorRoot {
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .mobileViewTabs {
+    display: flex;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-surface);
+    padding: 0 12px;
+    gap: 4px;
+  }
+
+  .sidePanel {
+    width: 100% !important;
+    max-width: none;
+    min-width: 0;
+    border-right: none;
+    flex: 1 1 0;
+    min-height: 0;
+  }
+
+  .resizeHandle {
+    display: none;
+  }
+
+  .previewScroll {
+    flex: 1 1 0;
+    min-height: 0;
+    width: 100%;
+  }
+
+  .editorRoot[data-mobile-view="aside"] .previewScroll {
+    display: none;
+  }
+
+  .editorRoot[data-mobile-view="preview"] .sidePanel {
+    display: none;
+  }
+}

@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
   LuInbox, LuPhone, LuRefreshCw, LuTrash2, LuCopy, LuMessageSquare,
   LuClock, LuLink, LuChevronRight, LuStickyNote, LuUser, LuCheck,
-  LuBriefcase, LuMapPin, LuPlus, LuBuilding2, LuPencil,
+  LuBriefcase, LuMapPin, LuPlus, LuBuilding2, LuPencil, LuChevronLeft,
 } from 'react-icons/lu';
 import { ActionButton, useFeedback } from '@/components/ui';
 import { LuArrowRight, LuHistory } from 'react-icons/lu';
@@ -62,11 +62,11 @@ const STATUS_ORDER: InquiryStatus[] = ['new', 'contacted', 'closed', 'spam'];
 
 // 지역: 광역/도 단위 17개 시·도
 const REGION_OPTIONS = [
-  '서울', '경기', '인천', '강원',
-  '충북', '충남', '대전', '세종',
-  '전북', '전남', '광주',
-  '경북', '경남', '대구', '부산', '울산',
-  '제주',
+  '서울특별시', '경기도', '인천광역시', '강원특별자치도',
+  '충청북도', '충청남도', '대전광역시', '세종특별자치시',
+  '전라북도', '전라남도', '광주광역시',
+  '경상북도', '경상남도', '대구광역시', '부산광역시', '울산광역시',
+  '제주특별자치도',
 ] as const;
 
 // ── Helpers ──────────────────────────────────────────────
@@ -270,7 +270,7 @@ export default function LandingInquiriesPage() {
     region: '',
     message: '',
     admin_note: '',
-    source: 'manual',
+    source: '수동 입력',
     organization_id: '',
   };
   const [form, setForm] = useState(emptyForm);
@@ -719,6 +719,10 @@ export default function LandingInquiriesPage() {
           </div>
         ) : mode === 'new' ? (
           <>
+            <button type="button" className={panel.mobileBack} onClick={cancelNew}>
+              <LuChevronLeft size={16} /> 목록
+            </button>
+            <span className={panel.mobileBackTitle}>새 문의 등록</span>
             <div className={panel.detailHeader}>
               <div>
                 <div className={panel.detailTitle}>새 문의 등록</div>
@@ -855,6 +859,12 @@ export default function LandingInquiriesPage() {
           </div>
         ) : (
           <>
+            <button type="button" className={panel.mobileBack} onClick={() => setSelected(null)}>
+              <LuChevronLeft size={16} /> 목록
+            </button>
+            <span className={panel.mobileBackTitle}>
+              {selected.name?.trim() || formatPhone(selected.phone)}
+            </span>
             {/* ── Detail Header ── */}
             <div className={panel.detailHeader}>
               <div style={{ minWidth: 0 }}>

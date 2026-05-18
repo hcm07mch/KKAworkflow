@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { LuRocket, LuExternalLink } from 'react-icons/lu';
+import { LuRocket, LuExternalLink, LuChevronLeft } from 'react-icons/lu';
 import { StatusBadge, useFeedback } from '@/components/ui';
 import { useProjectAssignees } from '@/components/hooks/use-project-assignees';
 import type { DocumentStatus, PreReportContent } from '@/lib/domain/types';
@@ -381,6 +381,17 @@ function ExecutionsContent() {
             <span className={panel.emptyIcon}><LuRocket size={32} /></span>
             <span>집행 건을 선택하세요</span>
           </div>
+        )}
+
+        {panelMode !== 'empty' && (
+          <>
+            <button type="button" className={panel.mobileBack} onClick={handleCancel} style={{ padding: '10px 16px' }}>
+              <LuChevronLeft size={16} /> 목록
+            </button>
+            <span className={panel.mobileBackTitle}>
+              {selected?.projectTitle || selected?.clientName || '집행'}
+            </span>
+          </>
         )}
 
         {panelMode === 'edit' && selected && (

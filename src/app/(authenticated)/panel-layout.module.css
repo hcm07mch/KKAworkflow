@@ -9,6 +9,12 @@
   min-height: calc(100vh - 48px); /* below topBar */
 }
 
+/* settings 처럼 master-detail swap 이 부적절한 페이지는 이 modifier 로 mobile swap 비활성화.
+   실제 동작은 @media 안의 :not(.wrapperStacked) 선택자에서 처리. */
+.wrapperStacked {
+  --panel-mobile-swap: off;
+}
+
 /* ── Left Panel (fixed-width list) ── */
 
 .leftPanel {
@@ -604,4 +610,155 @@
   text-align: center;
   font-size: 11px;
   color: var(--color-text-muted);
+}
+
+/* 모바일에서 숨길 요소용 유틸리티 클래스 (kanban toggle 등 모바일에서 무의미한 컨트롤).
+   데스크탑은 그대로 노출. 모바일 미디어쿼리에서 display: none 처리. */
+.hideOnMobile {
+  --panel-mobile-hide: on;
+}
+
+/* ============================================================================
+   Mobile Back Button (각 페이지가 detail header 안에 배치)
+   - 데스크탑에서는 숨김, 모바일에서만 노출
+   - 클릭 시 페이지의 cancel/deselect 핸들러 호출
+   ============================================================================ */
+
+.mobileBack {
+  display: none;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 6px 8px 6px 0;
+  margin-bottom: 4px;
+  transition: color 0.12s;
+  vertical-align: middle;
+}
+
+.mobileBack:hover {
+  color: var(--color-primary);
+}
+
+/* mobileBack 버튼 오른쪽에 현재 문서 이름을 라벨로 표시 (모바일 전용).
+   각 페이지가 <button class=mobileBack/> 바로 뒤에 sibling <span class=mobileBackTitle/> 을 둠. */
+.mobileBackTitle {
+  display: none;
+}
+
+/* ============================================================================
+   Mobile (<= 768px) — Master-detail swap + Settings vertical stack
+   ============================================================================ */
+
+@media (max-width: 768px) {
+  .wrapper {
+    flex-direction: column;
+    height: calc(100vh - 48px);
+    min-height: auto;
+  }
+
+  .leftPanel,
+  .rightPanel {
+    width: 100%;
+    min-width: 0;
+    flex: 1 1 0;
+    min-height: 0;
+    border-right: none;
+  }
+
+  .leftPanel {
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .rightPanel {
+    padding: 16px;
+  }
+
+  .leftHeader {
+    padding: 12px 14px 10px;
+  }
+
+  /* === Master-detail swap ===
+     신호:
+       (a) rightPanel > .emptyState  → 목록만 (rightPanel 숨김)
+       (b) rightPanel 안에 .mobileBack 존재 → detail 만 (leftPanel 숨김)
+     master-detail 페이지는 detail 영역에 .mobileBack 버튼을 렌더하면 자동으로 swap 발동.
+     settings 처럼 swap 이 부적절한 페이지는 wrapperStacked 로 opt-out. */
+
+  .wrapper:not(.wrapperStacked):has(.rightPanel > .emptyState) .rightPanel {
+    display: none;
+  }
+  .wrapper:not(.wrapperStacked):has(.rightPanel > .emptyState) .leftPanel {
+    flex: 1 1 100%;
+    border-bottom: none;
+  }
+
+  .wrapper:not(.wrapperStacked):has(.rightPanel .mobileBack) .leftPanel {
+    display: none;
+  }
+  .wrapper:not(.wrapperStacked):has(.rightPanel .mobileBack) .rightPanel {
+    flex: 1 1 100%;
+  }
+
+  /* === Detail 안의 모바일 back 버튼 노출 === */
+  .mobileBack {
+    display: inline-flex;
+  }
+
+  /* mobileBack 옆에 문서 이름 라벨 노출 */
+  .mobileBack + .mobileBackTitle {
+    display: inline-block;
+    vertical-align: middle;
+    margin-left: 4px;
+    margin-bottom: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    max-width: calc(100vw - 120px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* === 모바일에서 숨길 컨트롤 (kanban toggle 등) === */
+  .hideOnMobile {
+    display: none !important;
+  }
+
+  /* === Detail header 모바일 정리 === */
+  .detailHeader {
+    flex-wrap: wrap;
+    row-gap: 8px;
+    margin-bottom: 14px;
+  }
+  .detailTitle {
+    font-size: 16px;
+  }
+
+  /* === Form table: th 너비 축소 + 라벨/입력 한 줄 비율 보존 === */
+  .formTable th {
+    width: 90px;
+    min-width: 90px;
+    max-width: 90px;
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+  .formTable td {
+    padding: 2px 4px;
+  }
+  .formTable td input,
+  .formTable td select,
+  .formTable td textarea {
+    padding: 8px 8px;
+    font-size: 13px;
+  }
+
+  /* === Filter tabs: 모바일에서도 가로 스크롤 가능하도록 (기본 동작 유지) === */
+  .filterTabs {
+    margin-top: 6px;
+  }
 }

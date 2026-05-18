@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { LuFileText, LuPlus, LuExternalLink } from 'react-icons/lu';
+import { LuFileText, LuPlus, LuExternalLink, LuChevronLeft } from 'react-icons/lu';
 import { StatusBadge, useFeedback, FullScreenLoader } from '@/components/ui';
 import { useProjectAssignees } from '@/components/hooks/use-project-assignees';
 import type { DocumentStatus, ServiceType, EstimateContent } from '@/lib/domain/types';
@@ -58,6 +58,12 @@ function EstimatesContent() {
   const [ownerFilter, setOwnerFilter] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('estimates_ownerFilter') ?? 'all';
+    }
+    return 'all';
+  });
+  const [statusFilter, setStatusFilter] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('estimates_statusFilter') ?? 'all';
     }
     return 'all';
   });
@@ -123,6 +129,7 @@ function EstimatesContent() {
 
   const filtered = estimates.filter((e) => {
     if (ownerFilter !== 'all' && e.ownerName !== ownerFilter) return false;
+    if (statusFilter !== 'all' && e.status !== statusFilter) return false;
     if (!search) return true;
     const q = search.toLowerCase();
     return e.projectTitle.toLowerCase().includes(q) || e.clientName.toLowerCase().includes(q);
@@ -373,6 +380,28 @@ function EstimatesContent() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
+          <div className={panel.filterTabs}>
+            {([
+              ['all', '전체'],
+              ['draft', '작성중'],
+              ['in_review', '검토중'],
+              ['approved', '승인됨'],
+              ['rejected', '반려됨'],
+              ['sent', '발송됨'],
+            ] as const).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                className={`${panel.filterTab} ${statusFilter === key ? panel.filterTabActive : ''}`}
+                onClick={() => {
+                  setStatusFilter(key);
+                  localStorage.setItem('estimates_statusFilter', key);
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
         <div className={panel.itemList}>
           {loading
@@ -431,6 +460,19 @@ function EstimatesContent() {
             <span className={panel.emptyIcon}><LuFileText size={32} /></span>
             <span>견적서를 선택하거나 새로 작성하세요</span>
           </div>
+        )}
+
+        {panelMode !== 'empty' && (
+          <>
+            <button type="button" className={panel.mobileBack} onClick={handleCancel} style={{ padding: '10px 16px' }}>
+              <LuChevronLeft size={16} /> 목록
+            </button>
+            <span className={panel.mobileBackTitle}>
+              {panelMode === 'new'
+                ? '새 견적서'
+                : selected?.projectTitle || selected?.clientName || '견적서'}
+            </span>
+          </>
         )}
 
         {panelMode === 'new' && (

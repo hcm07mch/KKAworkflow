@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { LuBuilding2, LuLoader, LuPlus, LuUpload, LuFileText, LuX } from 'react-icons/lu';
+import { LuBuilding2, LuLoader, LuPlus, LuUpload, LuFileText, LuX, LuChevronLeft } from 'react-icons/lu';
 import { ActionButton } from '@/components/ui';
 import {
   SERVICE_TYPE_META, PAYMENT_TYPE_META, CLIENT_TIER_META,
@@ -570,6 +570,10 @@ export default function ClientsPage() {
       <div className={panel.rightPanel}>
         {mode === 'newProject' && selected ? (
           <>
+            <button type="button" className={panel.mobileBack} onClick={() => setMode('view')}>
+              <LuChevronLeft size={16} /> 목록
+            </button>
+            <span className={panel.mobileBackTitle}>새 프로젝트 · {selected.name}</span>
             <div className={panel.detailHeader}>
               <div>
                 <div className={panel.detailTitle}>새 프로젝트 생성</div>
@@ -665,6 +669,20 @@ export default function ClientsPage() {
           </>
         ) : mode === 'new' || mode === 'edit' ? (
           <>
+            <button
+              type="button"
+              className={panel.mobileBack}
+              onClick={() => {
+                if (mode === 'new') setSelected(null);
+                setMode('view');
+                setFormError('');
+              }}
+            >
+              <LuChevronLeft size={16} /> 목록
+            </button>
+            <span className={panel.mobileBackTitle}>
+              {mode === 'new' ? '새 고객사 등록' : (selected?.name || '고객사 정보 수정')}
+            </span>
             <div className={panel.detailHeader}>
               <div>
                 <div className={panel.detailTitle}>{mode === 'new' ? '새 고객사 등록' : '고객사 정보 수정'}</div>
@@ -943,6 +961,10 @@ export default function ClientsPage() {
           </div>
         ) : (
           <>
+            <button type="button" className={panel.mobileBack} onClick={() => setSelected(null)}>
+              <LuChevronLeft size={16} /> 목록
+            </button>
+            <span className={panel.mobileBackTitle}>{selected.name}</span>
             <div className={panel.detailHeader}>
               <div>
                 <div className={panel.detailTitle}>{selected.name}</div>

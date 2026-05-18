@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { LuCreditCard, LuExternalLink, LuCheck, LuFileText, LuFileCheck, LuChevronDown, LuChevronRight, LuRotateCcw } from 'react-icons/lu';
+import { LuCreditCard, LuExternalLink, LuCheck, LuFileText, LuFileCheck, LuChevronDown, LuChevronRight, LuRotateCcw, LuChevronLeft } from 'react-icons/lu';
 import { StatusBadge, useFeedback } from '@/components/ui';
 import { SERVICE_TYPE_META, PAYMENT_TYPE_META, DOCUMENT_STATUS_META, PROJECT_STATUS_GROUPS } from '@/lib/domain/types';
 import type { ServiceType, ProjectStatus, DocumentStatus, DocumentType } from '@/lib/domain/types';
@@ -422,6 +422,12 @@ function PaymentsContent() {
           <div className={panel.emptyState}><span className={panel.emptyIcon}><LuCreditCard size={32} /></span><span>입금 건을 선택하세요</span></div>
         ) : (
           <>
+            <button type="button" className={panel.mobileBack} onClick={() => setSelected(null)}>
+              <LuChevronLeft size={16} /> 목록
+            </button>
+            <span className={panel.mobileBackTitle}>
+              {selected.title || selected.projectTitle || selected.clientName || '입금'}
+            </span>
             <div className={panel.detailHeader}>
               <div>
                 <div className={panel.detailTitle}>{selected.title || selected.clientName}</div>

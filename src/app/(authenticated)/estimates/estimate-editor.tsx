@@ -226,6 +226,8 @@ export function EstimateEditor({ mode, initialData, documentId, defaultClientId,
   const [catalogSearch, setCatalogSearch] = useState('');
   const [catalogCollapsedGroups, setCatalogCollapsedGroups] = useState<Set<string>>(new Set());
   const [catalogExpandedItem, setCatalogExpandedItem] = useState<string | null>(null);
+  // 모바일에서 편집(aside) / 미리보기(preview) 토글. 데스크탑은 양쪽 동시 노출이라 무시됨.
+  const [mobileView, setMobileView] = useState<'aside' | 'preview'>('aside');
 
   // Fetch real clients and catalog from API
   useEffect(() => {
@@ -689,7 +691,29 @@ ${styleSheets}
   // =============== RENDER ===============
 
   return (
-    <div className={s.editorRoot}>
+    <div className={s.editorRoot} data-mobile-view={mobileView}>
+      {/* ═══ Mobile View Tabs (모바일에서만 노출, 데스크탑은 CSS 로 숨김) ═══ */}
+      <div className={s.mobileViewTabs} role="tablist" aria-label="문서 보기 전환">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mobileView === 'aside'}
+          className={`${s.mobileViewTab} ${mobileView === 'aside' ? s.mobileViewTabActive : ''}`}
+          onClick={() => setMobileView('aside')}
+        >
+          편집
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mobileView === 'preview'}
+          className={`${s.mobileViewTab} ${mobileView === 'preview' ? s.mobileViewTabActive : ''}`}
+          onClick={() => setMobileView('preview')}
+        >
+          미리보기
+        </button>
+      </div>
+
       {/* ═══ Side Panel ═══ */}
       <aside className={s.sidePanel} style={{ width: panelWidth }}>
         {/* 헤더: 금액 요약 + 액션 */}

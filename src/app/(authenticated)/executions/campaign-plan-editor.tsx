@@ -225,6 +225,8 @@ export function CampaignPlanEditor({
   const [openDrawer, setOpenDrawer] = useState<DrawerSection>(mode === 'new' ? 'info' : null);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [dragOverServices, setDragOverServices] = useState(false);
+  // 모바일 편집/미리보기 토글 (데스크탑 무시)
+  const [mobileView, setMobileView] = useState<'aside' | 'preview'>('aside');
   const [campaignCatalog, setCampaignCatalog] = useState<CampaignCatalogItem[]>([]);
   const [catalogSearch, setCatalogSearch] = useState('');
   const [catalogCollapsedGroups, setCatalogCollapsedGroups] = useState<Set<string>>(new Set());
@@ -522,7 +524,29 @@ export function CampaignPlanEditor({
   // =============== RENDER ===============
 
   return (
-    <div className={s.editorRoot}>
+    <div className={s.editorRoot} data-mobile-view={mobileView}>
+      {/* ═══ Mobile View Tabs ═══ */}
+      <div className={s.mobileViewTabs} role="tablist" aria-label="문서 보기 전환">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mobileView === 'aside'}
+          className={`${s.mobileViewTab} ${mobileView === 'aside' ? s.mobileViewTabActive : ''}`}
+          onClick={() => setMobileView('aside')}
+        >
+          편집
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mobileView === 'preview'}
+          className={`${s.mobileViewTab} ${mobileView === 'preview' ? s.mobileViewTabActive : ''}`}
+          onClick={() => setMobileView('preview')}
+        >
+          미리보기
+        </button>
+      </div>
+
       {/* ═══ Side Panel ═══ */}
       <aside className={s.sidePanel} style={{ width: panelWidth }}>
         <div className={s.panelHeader}>

@@ -53,7 +53,14 @@ const MENU_GROUPS: { items: NavItem[] }[] = [
   },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  /** 모바일 드로어 열림 상태 (데스크탑에서는 무시됨) */
+  mobileOpen?: boolean;
+  /** 모바일에서 링크 클릭 시 호출 (드로어 닫기용) */
+  onNavigate?: () => void;
+}
+
+export function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps) {
   const pathname = usePathname();
 
   function isActive(href: string) {
@@ -62,7 +69,10 @@ export function Sidebar() {
   }
 
   return (
-    <aside className={styles.sidebar}>
+    <aside
+      className={`${styles.sidebar} ${mobileOpen ? styles.sidebarMobileOpen : ''}`}
+      aria-hidden={!mobileOpen ? undefined : false}
+    >
       {/* Content (scrollable) */}
       <div className={styles.sidebarContent}>
         {MENU_GROUPS.map((group, gi) => (
@@ -78,6 +88,7 @@ export function Sidebar() {
                       href={item.href}
                       className={`${styles.sidebarLink} ${active ? styles.sidebarLinkActive : ''}`}
                       title={item.label}
+                      onClick={onNavigate}
                     >
                       <span className={styles.sidebarIcon}><Icon size={18} /></span>
                       <span className={styles.sidebarLabel}>{item.label}</span>

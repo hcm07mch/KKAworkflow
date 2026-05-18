@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 
-import { LuFolderOpen, LuPanelLeftOpen, LuPanelLeftClose, LuDownload, LuPencil, LuX, LuCheck, LuExternalLink, LuChevronDown, LuChevronUp, LuRefreshCw, LuTrash2, LuBan } from 'react-icons/lu';
+import { LuFolderOpen, LuPanelLeftOpen, LuPanelLeftClose, LuDownload, LuPencil, LuX, LuCheck, LuExternalLink, LuChevronDown, LuChevronUp, LuRefreshCw, LuTrash2, LuBan, LuChevronLeft } from 'react-icons/lu';
 import { StatusBadge, ActionButton, useFeedback } from '@/components/ui';
 import { useProjectAssignees } from '@/components/hooks/use-project-assignees';
 import type { ProjectStatus, ServiceType, PaymentType, DocumentStatus, DocumentType } from '@/lib/domain/types';
@@ -256,6 +256,19 @@ function ProjectsContent() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [manualStatuses, setManualStatuses] = useState<Set<string>>(new Set());
+
+  // 모바일 폭에서는 kanban expanded 뷰가 무의미하므로 강제 collapse.
+  // 데스크탑에서 펼친 상태로 모바일로 리사이즈/회전되는 케이스 보호.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(max-width: 768px)');
+    function sync() {
+      if (mq.matches) setExpanded(false);
+    }
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
 
   // 수정 모드
   const [editing, setEditing] = useState(false);
@@ -1063,7 +1076,7 @@ function ProjectsContent() {
               </select>
               <button
                 type="button"
-                className={panel.expandBtn}
+                className={`${panel.expandBtn} ${panel.hideOnMobile}`}
                 onClick={() => setExpanded((v) => !v)}
                 title={expanded ? '접기' : '펼치기'}
               >
@@ -1196,6 +1209,10 @@ function ProjectsContent() {
           </div>
         ) : (
           <>
+            <button type="button" className={panel.mobileBack} onClick={() => setSelected(null)}>
+              <LuChevronLeft size={16} /> 목록
+            </button>
+            <span className={panel.mobileBackTitle}>{selected.title}</span>
             <div className={panel.detailHeader}>
               <div>
                 <div className={panel.detailTitle}>{selected.title}</div>

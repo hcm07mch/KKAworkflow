@@ -212,7 +212,7 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className={panel.wrapper}>
+      <div className={`${panel.wrapper} ${panel.wrapperStacked}`}>
         <div className={panel.leftPanel}>
           <div className={panel.leftHeader}>
             <span className={panel.leftTitle}>설정</span>

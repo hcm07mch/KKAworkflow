@@ -33,6 +33,51 @@
   gap: 12px;
 }
 
+/* ── Mobile Nav Toggle (햄버거) ── */
+
+.mobileNavToggle {
+  display: none;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--color-text-primary);
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 0;
+  margin-left: -6px;
+  transition: background 0.12s;
+}
+
+.mobileNavToggle:hover {
+  background: var(--color-surface-hover);
+}
+
+.mobileNavToggle:active {
+  background: var(--color-surface-active, var(--color-surface-hover));
+}
+
+/* ── Mobile Drawer Backdrop ── */
+
+.mobileBackdrop {
+  display: none;
+  position: fixed;
+  top: 48px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 45;
+  animation: backdropFadeIn 0.18s ease-out;
+}
+
+@keyframes backdropFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 .topBarBrand {
   font-size: 14px;
   font-weight: 700;
@@ -233,4 +278,67 @@
 
 .sidebar:hover .sidebarLabel {
   opacity: 1;
+}
+
+/* ============================================================================
+   Mobile (<= 768px) — 햄버거 드로어 패턴
+   ============================================================================ */
+
+@media (max-width: 768px) {
+  .topBar {
+    padding: 0 12px;
+  }
+
+  .mobileNavToggle {
+    display: inline-flex;
+  }
+
+  /* 사이드바: 기본 숨김 + 슬라이드 인 (드로어) */
+  .sidebar {
+    width: 240px;
+    transform: translateX(-100%);
+    transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: none;
+  }
+
+  /* 모바일에서는 hover 확장 비활성화 */
+  .sidebar:hover {
+    width: 240px;
+    box-shadow: none;
+  }
+
+  .sidebarMobileOpen {
+    transform: translateX(0);
+    box-shadow: 4px 0 16px rgba(0, 0, 0, 0.12);
+  }
+
+  /* 모바일에서는 라벨 항상 표시 (hover 의존 제거) */
+  .sidebarLabel {
+    opacity: 1;
+    transition: none;
+  }
+
+  /* 본문 옆 spacer 제거 — 드로어가 오버레이로 동작 */
+  .sidebarSpacer {
+    display: none;
+  }
+
+  /* 백드롭 노출 */
+  .mobileBackdrop {
+    display: block;
+  }
+
+  /* 상단 브랜드는 좁아진 공간에서도 유지 */
+  .topBarBrand {
+    font-size: 13px;
+  }
+}
+
+/* 데스크탑 폭일 때 모바일 드로어 클래스가 남아있어도 영향 없음 보장 */
+@media (min-width: 769px) {
+  .sidebarMobileOpen {
+    /* desktop 에서는 동작 무효화 */
+    transform: none;
+    box-shadow: none;
+  }
 }

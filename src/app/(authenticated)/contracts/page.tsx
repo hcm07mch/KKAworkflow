@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { LuFilePen, LuExternalLink } from 'react-icons/lu';
+import { LuFilePen, LuExternalLink, LuChevronLeft } from 'react-icons/lu';
 import { StatusBadge, useFeedback } from '@/components/ui';
 import { useProjectAssignees } from '@/components/hooks/use-project-assignees';
 import type { DocumentStatus, ServiceType, ContractContent } from '@/lib/domain/types';
@@ -386,6 +386,22 @@ function ContractsContent() {
             <span className={panel.emptyIcon}><LuFilePen size={32} /></span>
             <span>계약서를 선택하세요</span>
           </div>
+        )}
+
+        {panelMode !== 'empty' && (
+          <>
+            <button
+              type="button"
+              className={panel.mobileBack}
+              onClick={() => { setSelectedId(null); setPanelMode('empty'); }}
+              style={{ padding: '10px 16px' }}
+            >
+              <LuChevronLeft size={16} /> 목록
+            </button>
+            <span className={panel.mobileBackTitle}>
+              {selected?.projectTitle || selected?.clientName || '계약서'}
+            </span>
+          </>
         )}
 
         {panelMode === 'edit' && selected && (
