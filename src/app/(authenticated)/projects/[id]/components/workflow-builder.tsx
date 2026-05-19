@@ -671,6 +671,12 @@ export function WorkflowBuilder({ serviceType, projectStatus, workflowStack, man
                     <ul className={styles.overviewSteps}>
                       {group.statuses.map((item) => {
                         const meta = PROJECT_STATUS_META[item.status];
+                        const isManual = manualStatuses.has(item.status);
+                        const isSystem = !isManual;
+                        const nav = GROUP_NAV_MAP[group.groupKey];
+                        const flowNum = segCountSoFar[group.groupKey];
+                        const doc = nav ? findDocForGroup(documents, group.groupKey, flowNum) : null;
+                        const navHref = nav && doc ? `${nav.path}?selected=${doc.id}` : null;
                         return (
                           <li
                             key={`overview-${item.status}`}
@@ -679,6 +685,19 @@ export function WorkflowBuilder({ serviceType, projectStatus, workflowStack, man
                             <span className={styles.overviewStepDot} />
                             <span className={styles.overviewStepLabel}>{meta.shortLabel}</span>
                             <span className={styles.overviewStepDesc}>{meta.description}</span>
+                            {isSystem && navHref && (
+                              <a
+                                href={navHref}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={styles.overviewStepNav}
+                                title={nav!.label}
+                                aria-label={nav!.label}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <LuExternalLink size={12} />
+                              </a>
+                            )}
                           </li>
                         );
                       })}
