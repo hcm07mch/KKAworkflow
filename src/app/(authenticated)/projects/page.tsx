@@ -1428,6 +1428,7 @@ function ProjectsContent() {
                   workflowStack={(detail?.metadata?.workflow_stack as string[]) ?? []}
                   manualStatuses={manualStatuses}
                   documents={detail?.documents}
+                  statusHistory={statusHistory}
                   onAdd={handleWorkflowAdd}
                   onDelete={handleWorkflowDelete}
                   onStatusChange={handleWorkflowStatusChange}
@@ -1449,26 +1450,81 @@ function ProjectsContent() {
                 </div>
               ) : (
                 <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>구분</th>
-                        <th>제목</th>
-                        <th>상태</th>
-                        <th>버전</th>
-                        <th>최종 수정</th>
-                        <th></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {detail.documents.filter((doc) => doc.type !== 'payment').map((doc) => (
-                        <tr key={doc.id}>
-                          <td>{DOCUMENT_TYPE_META[doc.type]?.label ?? doc.type}</td>
-                          <td style={{ fontWeight: 500 }}>{doc.title}</td>
-                          <td><StatusBadge status={doc.status} type="document" /></td>
-                          <td>v{doc.version}</td>
-                          <td style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{formatDateTime(doc.updated_at)}</td>
-                          <td>
+                  {/* 데스크탑: 테이블 */}
+                  <div className={panel.docTableWrap}>
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>구분</th>
+                          <th>제목</th>
+                          <th>상태</th>
+                          <th>버전</th>
+                          <th>최종 수정</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {detail.documents.filter((doc) => doc.type !== 'payment').map((doc) => (
+                          <tr key={doc.id}>
+                            <td>{DOCUMENT_TYPE_META[doc.type]?.label ?? doc.type}</td>
+                            <td style={{ fontWeight: 500 }}>{doc.title}</td>
+                            <td><StatusBadge status={doc.status} type="document" /></td>
+                            <td>v{doc.version}</td>
+                            <td style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{formatDateTime(doc.updated_at)}</td>
+                            <td>
+                              {doc.metadata?.pdf_path && doc.status === 'approved' && (
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost btn-sm"
+                                  title="PDF 다운로드"
+                                  onClick={async () => {
+                                    const res = await fetch(`/api/documents/${doc.id}/pdf`);
+                                    if (!res.ok) { alert('PDF를 불러올 수 없습니다.'); return; }
+                                    const { url } = await res.json();
+                                    window.open(url, '_blank');
+                                  }}
+                                >
+                                  <LuDownload size={14} />
+                                </button>
+                              )}
+                              {doc.type === 'contract' && doc.content?.file_path && (
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost btn-sm"
+                                  title="계약서 다운로드"
+                                  onClick={async () => {
+                                    const res = await fetch(`/api/documents/${doc.id}/file-url`);
+                                    if (!res.ok) { alert('파일을 불러올 수 없습니다.'); return; }
+                                    const { url } = await res.json();
+                                    window.open(url, '_blank');
+                                  }}
+                                >
+                                  <LuDownload size={14} />
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* 모바일: 카드 리스트 */}
+                  <div className={panel.docCardList}>
+                    {detail.documents.filter((doc) => doc.type !== 'payment').map((doc) => (
+                      <div key={doc.id} className={panel.docCard}>
+                        <div className={panel.docCardTop}>
+                          <span className={panel.docCardType}>{DOCUMENT_TYPE_META[doc.type]?.label ?? doc.type}</span>
+                          <StatusBadge status={doc.status} type="document" />
+                        </div>
+                        <div className={panel.docCardTitle}>{doc.title}</div>
+                        <div className={panel.docCardMeta}>
+                          <span className={panel.docCardMetaInfo}>
+                            <span>v{doc.version}</span>
+                            <span>·</span>
+                            <span>{formatDateTime(doc.updated_at)}</span>
+                          </span>
+                          <span className={panel.docCardActions}>
                             {doc.metadata?.pdf_path && doc.status === 'approved' && (
                               <button
                                 type="button"
@@ -1499,11 +1555,11 @@ function ProjectsContent() {
                                 <LuDownload size={14} />
                               </button>
                             )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

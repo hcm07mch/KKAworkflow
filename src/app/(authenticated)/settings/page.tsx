@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
-import { LuBuilding2, LuUsers, LuShieldCheck, LuLoader, LuPlus, LuTrash2, LuPencil, LuX, LuCheck, LuBookOpen, LuFileText, LuSearch, LuGripVertical, LuCopy, LuRotateCcw } from 'react-icons/lu';
+import { LuBuilding2, LuUsers, LuShieldCheck, LuLoader, LuPlus, LuTrash2, LuPencil, LuX, LuCheck, LuBookOpen, LuFileText, LuSearch, LuGripVertical, LuCopy, LuRotateCcw, LuChevronDown } from 'react-icons/lu';
 import { ActionButton, useFeedback } from '@/components/ui';
 import type { ConfirmOptions } from '@/components/ui/confirm-dialog';
 import type { ToastOptions } from '@/components/ui/toast';
@@ -123,6 +123,7 @@ export default function SettingsPage() {
   const [executionCategories, setExecutionCategories] = useState<CatalogCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeSection, setActiveSection] = useState<SettingsSection>('org');
+  const [itemListOpen, setItemListOpen] = useState(true);
   const [orgName, setOrgName] = useState('');
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
 
@@ -234,10 +235,22 @@ export default function SettingsPage() {
     <div className={panel.wrapper}>
       {/* ── Left Panel ── */}
       <div className={panel.leftPanel}>
-        <div className={panel.leftHeader}>
+        <button
+          type="button"
+          className={`${panel.leftHeader} ${panel.leftHeaderToggle}`}
+          onClick={() => setItemListOpen((v) => !v)}
+          aria-expanded={itemListOpen}
+          aria-controls="settings-item-list"
+        >
           <span className={panel.leftTitle}>설정</span>
-        </div>
-        <div className={panel.itemList}>
+          <span className={panel.collapseChevron} aria-hidden="true" data-open={itemListOpen}>
+            <LuChevronDown size={16} />
+          </span>
+        </button>
+        <div
+          id="settings-item-list"
+          className={`${panel.itemList} ${itemListOpen ? '' : panel.itemListCollapsed}`}
+        >
           {SECTIONS.filter((s) => {
             // 조직/멤버/승인정책은 본사(루트) 계정만 접근
             const rootOnly: SettingsSection[] = ['org', 'members', 'approval'];
@@ -247,7 +260,11 @@ export default function SettingsPage() {
             <div
               key={s.key}
               className={`${panel.item} ${activeSection === s.key ? panel.itemActive : ''}`}
-              onClick={() => setActiveSection(s.key)}
+              onClick={() => {
+                setActiveSection(s.key);
+                // 모바일에서 항목 선택 시 자연스럽게 목록 접기 (데스크탑에서는 CSS로 무시됨)
+                setItemListOpen(false);
+              }}
             >
               <span className={panel.itemName} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>{SECTION_ICONS[s.key]} {s.label}</span>
             </div>
@@ -334,69 +351,140 @@ export default function SettingsPage() {
                 <ActionButton label="+ 멤버 초대" variant="primary" size="sm" onClick={() => setInviteModalOpen(true)} />
               </div>
             </div>
-            <div className="card" style={{ padding: 0 }}>
-              <table className="data-table">
-                <thead>
-                  <tr><th>이름</th><th>이메일</th><th>조직</th><th>역할</th><th>상태</th><th>가입일</th><th></th></tr>
-                </thead>
-                <tbody>
-                  {members.map((m) => (
-                    <tr key={m.id}>
-                      <td style={{ fontWeight: 500, color: 'var(--color-text-primary)' }}>{m.name}</td>
-                      <td style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>{m.email}</td>
-                      <td>
+            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+              {/* 데스크탑: 테이블 */}
+              <div className={panel.memberTableWrap}>
+                <table className="data-table">
+                  <thead>
+                    <tr><th>이름</th><th>이메일</th><th>조직</th><th>역할</th><th>상태</th><th>가입일</th><th></th></tr>
+                  </thead>
+                  <tbody>
+                    {members.map((m) => (
+                      <tr key={m.id}>
+                        <td style={{ fontWeight: 500, color: 'var(--color-text-primary)' }}>{m.name}</td>
+                        <td style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>{m.email}</td>
+                        <td>
+                          <select
+                            value={m.organization_id}
+                            onChange={async (e) => {
+                              const newOrgId = e.target.value;
+                              try {
+                                const res = await fetch(`/api/settings/members/${m.id}`, {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ organization_id: newOrgId }),
+                                });
+                                if (!res.ok) {
+                                  toast({ title: '조직 변경에 실패했습니다', variant: 'error' });
+                                  return;
+                                }
+                                setMembers((prev) => prev.map((x) => x.id === m.id ? { ...x, organization_id: newOrgId } : x));
+                                toast({ title: '조직이 변경되었습니다', variant: 'success' });
+                              } catch {
+                                toast({ title: '조직 변경에 실패했습니다', variant: 'error' });
+                              }
+                            }}
+                            className="form-input"
+                            style={{ fontSize: 12, width: 120, padding: '4px 6px' }}
+                          >
+                            {org && <option value={org.id}>{org.name}</option>}
+                            {departments.map((d) => (
+                              <option key={d.id} value={d.id}>{d.name}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td><span className={`badge badge-sm ${ROLE_BADGE[m.role]}`}>{USER_ROLE_META[m.role]?.label ?? m.role}</span></td>
+                        <td><span className={`badge badge-sm ${m.is_active ? 'badge-green' : 'badge-slate'}`}>{m.is_active ? '활성' : '비활성'}</span></td>
+                        <td style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{formatDate(m.created_at)}</td>
+                        <td><ActionButton label="삭제" variant="danger" size="sm" onClick={async () => {
+                          const ok = await confirm({ title: `"${m.name}" 멤버를 삭제하시겠습니까?`, description: '삭제된 멤버는 더 이상 시스템에 접근할 수 없습니다.', variant: 'danger' });
+                          if (!ok) return;
+                          try {
+                            const res = await fetch(`/api/settings/members/${m.id}`, { method: 'DELETE' });
+                            if (!res.ok) {
+                              const err = await res.json().catch(() => ({}));
+                              toast({ title: err?.error?.message || '삭제에 실패했습니다.', variant: 'error' });
+                              return;
+                            }
+                            setMembers((prev) => prev.filter((x) => x.id !== m.id));
+                            toast({ title: `${m.name} 멤버가 삭제되었습니다.`, variant: 'success' });
+                          } catch {
+                            toast({ title: '삭제에 실패했습니다.', variant: 'error' });
+                          }
+                        }} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* 모바일: 카드 리스트 */}
+              <div className={panel.memberCardList}>
+                {members.map((m) => {
+                  const handleOrgChange = async (newOrgId: string) => {
+                    try {
+                      const res = await fetch(`/api/settings/members/${m.id}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ organization_id: newOrgId }),
+                      });
+                      if (!res.ok) {
+                        toast({ title: '조직 변경에 실패했습니다', variant: 'error' });
+                        return;
+                      }
+                      setMembers((prev) => prev.map((x) => x.id === m.id ? { ...x, organization_id: newOrgId } : x));
+                      toast({ title: '조직이 변경되었습니다', variant: 'success' });
+                    } catch {
+                      toast({ title: '조직 변경에 실패했습니다', variant: 'error' });
+                    }
+                  };
+                  const handleDelete = async () => {
+                    const ok = await confirm({ title: `"${m.name}" 멤버를 삭제하시겠습니까?`, description: '삭제된 멤버는 더 이상 시스템에 접근할 수 없습니다.', variant: 'danger' });
+                    if (!ok) return;
+                    try {
+                      const res = await fetch(`/api/settings/members/${m.id}`, { method: 'DELETE' });
+                      if (!res.ok) {
+                        const err = await res.json().catch(() => ({}));
+                        toast({ title: err?.error?.message || '삭제에 실패했습니다.', variant: 'error' });
+                        return;
+                      }
+                      setMembers((prev) => prev.filter((x) => x.id !== m.id));
+                      toast({ title: `${m.name} 멤버가 삭제되었습니다.`, variant: 'success' });
+                    } catch {
+                      toast({ title: '삭제에 실패했습니다.', variant: 'error' });
+                    }
+                  };
+                  return (
+                    <div key={m.id} className={panel.memberCard}>
+                      <div className={panel.memberCardTop}>
+                        <span className={panel.memberCardName}>{m.name}</span>
+                        <span className={panel.memberCardBadges}>
+                          <span className={`badge badge-sm ${ROLE_BADGE[m.role]}`}>{USER_ROLE_META[m.role]?.label ?? m.role}</span>
+                          <span className={`badge badge-sm ${m.is_active ? 'badge-green' : 'badge-slate'}`}>{m.is_active ? '활성' : '비활성'}</span>
+                        </span>
+                      </div>
+                      <div className={panel.memberCardEmail}>{m.email}</div>
+                      <div className={panel.memberCardRow}>
                         <select
                           value={m.organization_id}
-                          onChange={async (e) => {
-                            const newOrgId = e.target.value;
-                            try {
-                              const res = await fetch(`/api/settings/members/${m.id}`, {
-                                method: 'PATCH',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ organization_id: newOrgId }),
-                              });
-                              if (!res.ok) {
-                                toast({ title: '조직 변경에 실패했습니다', variant: 'error' });
-                                return;
-                              }
-                              setMembers((prev) => prev.map((x) => x.id === m.id ? { ...x, organization_id: newOrgId } : x));
-                              toast({ title: '조직이 변경되었습니다', variant: 'success' });
-                            } catch {
-                              toast({ title: '조직 변경에 실패했습니다', variant: 'error' });
-                            }
-                          }}
-                          className="form-input"
-                          style={{ fontSize: 12, width: 120, padding: '4px 6px' }}
+                          onChange={(e) => handleOrgChange(e.target.value)}
+                          className={`form-input ${panel.memberCardOrgSelect}`}
+                          style={{ fontSize: 12, padding: '4px 6px' }}
                         >
                           {org && <option value={org.id}>{org.name}</option>}
                           {departments.map((d) => (
                             <option key={d.id} value={d.id}>{d.name}</option>
                           ))}
                         </select>
-                      </td>
-                      <td><span className={`badge badge-sm ${ROLE_BADGE[m.role]}`}>{USER_ROLE_META[m.role]?.label ?? m.role}</span></td>
-                      <td><span className={`badge badge-sm ${m.is_active ? 'badge-green' : 'badge-slate'}`}>{m.is_active ? '활성' : '비활성'}</span></td>
-                      <td style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{formatDate(m.created_at)}</td>
-                      <td><ActionButton label="삭제" variant="danger" size="sm" onClick={async () => {
-                        const ok = await confirm({ title: `"${m.name}" 멤버를 삭제하시겠습니까?`, description: '삭제된 멤버는 더 이상 시스템에 접근할 수 없습니다.', variant: 'danger' });
-                        if (!ok) return;
-                        try {
-                          const res = await fetch(`/api/settings/members/${m.id}`, { method: 'DELETE' });
-                          if (!res.ok) {
-                            const err = await res.json().catch(() => ({}));
-                            toast({ title: err?.error?.message || '삭제에 실패했습니다.', variant: 'error' });
-                            return;
-                          }
-                          setMembers((prev) => prev.filter((x) => x.id !== m.id));
-                          toast({ title: `${m.name} 멤버가 삭제되었습니다.`, variant: 'success' });
-                        } catch {
-                          toast({ title: '삭제에 실패했습니다.', variant: 'error' });
-                        }
-                      }} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        <span className={panel.memberCardDate}>{formatDate(m.created_at)}</span>
+                      </div>
+                      <div className={panel.memberCardActions}>
+                        <ActionButton label="삭제" variant="danger" size="sm" onClick={handleDelete} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             {/* 멤버 초대 모달 */}

@@ -8,7 +8,7 @@
  */
 
 import { useState, useRef, useEffect } from 'react';
-import { LuPlus, LuTrash2, LuExternalLink, LuRefreshCw, LuLoader } from 'react-icons/lu';
+import { LuPlus, LuTrash2, LuExternalLink, LuRefreshCw, LuLoader, LuList, LuX } from 'react-icons/lu';
 import type { ProjectStatus, ServiceType, DocumentType, DocumentStatus } from '@/lib/domain/types';
 import {
   PROJECT_STATUS_META,
@@ -247,21 +247,60 @@ function findDocForGroup(documents: WorkflowDocument[], groupKey: string, flowNu
   return sorted[flowNumber - 1] ?? null;
 }
 
+/** 상태 변경 이력 (생성 시점 표시용) */
+interface WorkflowStatusHistoryItem {
+  to_status: string;
+  created_at: string;
+}
+
+/** 각 세그먼트(그룹 진입 시점)의 시작 시각을 계산.
+ *  key: `${groupKey}#${1-based segment index}` (예: 'B#1', 'B#2') */
+function buildSegmentStartTimes(history: WorkflowStatusHistoryItem[]): Map<string, string> {
+  const sorted = [...history].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+  );
+  const result = new Map<string, string>();
+  const segCount: Record<string, number> = {};
+  let prevGroup: string | null = null;
+  for (const h of sorted) {
+    const g = h.to_status.charAt(0);
+    if (g !== prevGroup) {
+      segCount[g] = (segCount[g] ?? 0) + 1;
+      result.set(`${g}#${segCount[g]}`, h.created_at);
+      prevGroup = g;
+    }
+  }
+  return result;
+}
+
+function formatOverviewDateTime(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleString('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 interface WorkflowBuilderProps {
   serviceType: ServiceType;
   projectStatus: ProjectStatus;
   workflowStack: string[];
   manualStatuses: Set<string>;
   documents?: WorkflowDocument[];
+  statusHistory?: WorkflowStatusHistoryItem[];
   onAdd: (groupKey: string, paymentAmount?: number) => void;
   onDelete: (index: number) => void;
   onStatusChange: (toStatus: ProjectStatus) => void;
   onRefresh?: () => void;
 }
 
-export function WorkflowBuilder({ serviceType, projectStatus, workflowStack, manualStatuses, documents = [], onAdd, onDelete, onStatusChange, onRefresh }: WorkflowBuilderProps) {
+export function WorkflowBuilder({ serviceType, projectStatus, workflowStack, manualStatuses, documents = [], statusHistory = [], onAdd, onDelete, onStatusChange, onRefresh }: WorkflowBuilderProps) {
   const { confirm } = useFeedback();
   const [open, setOpen] = useState(false);
+  const [overviewOpen, setOverviewOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const addBtnRef = useRef<HTMLButtonElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -383,16 +422,27 @@ export function WorkflowBuilder({ serviceType, projectStatus, workflowStack, man
     <>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h2 className="section-title" style={{ margin: 0 }}>워크플로우</h2>
-        {onRefresh && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <button
             type="button"
-            onClick={onRefresh}
+            onClick={() => setOverviewOpen(true)}
             className={styles.refreshBtn}
-            title="워크플로우 새로고침"
+            title="전체 단계 보기"
+            aria-label="전체 단계 보기"
           >
-            <LuRefreshCw size={14} />
+            <LuList size={14} />
           </button>
-        )}
+          {onRefresh && (
+            <button
+              type="button"
+              onClick={onRefresh}
+              className={styles.refreshBtn}
+              title="워크플로우 새로고침"
+            >
+              <LuRefreshCw size={14} />
+            </button>
+          )}
+        </div>
       </div>
       <section className="card">
 
@@ -555,6 +605,93 @@ export function WorkflowBuilder({ serviceType, projectStatus, workflowStack, man
         </div>
       </div>
     </section>
+
+    {/* ── 전체 단계 보기 모달 ── */}
+    {overviewOpen && (
+      <div
+        className={styles.overviewOverlay}
+        onClick={() => setOverviewOpen(false)}
+        role="dialog"
+        aria-modal="true"
+        aria-label="워크플로우 전체 단계"
+      >
+        <div
+          className={styles.overviewModal}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className={styles.overviewHeader}>
+            <h3 className={styles.overviewTitle}>워크플로우 전체 단계</h3>
+            <button
+              type="button"
+              className={styles.overviewClose}
+              onClick={() => setOverviewOpen(false)}
+              aria-label="닫기"
+            >
+              <LuX size={18} />
+            </button>
+          </div>
+          <div className={styles.overviewBody}>
+            {stack.length === 0 ? (
+              <div className={styles.overviewEmpty}>워크플로우가 없습니다</div>
+            ) : (
+              (() => {
+                const segmentTimes = buildSegmentStartTimes(statusHistory);
+                const segCountSoFar: Record<string, number> = {};
+                return stack.map((group, gIdx) => {
+                  const color = GROUP_COLORS[group.groupKey] ?? '#6b7280';
+                  segCountSoFar[group.groupKey] = (segCountSoFar[group.groupKey] ?? 0) + 1;
+                  const startedAt = segmentTimes.get(`${group.groupKey}#${segCountSoFar[group.groupKey]}`);
+                  return (
+                  <div key={`overview-${group.groupKey}-${gIdx}`} className={styles.overviewGroup}>
+                    <div className={styles.overviewGroupHeader}>
+                      <span
+                        className={styles.overviewGroupBadge}
+                        style={
+                          group.isDone
+                            ? { background: color, borderColor: color, color: '#fff' }
+                            : group.isCurrent
+                            ? { borderColor: color, color, boxShadow: `0 0 0 3px ${color}22` }
+                            : { borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }
+                        }
+                      >
+                        {group.isDone ? '✓' : gIdx + 1}
+                      </span>
+                      <span className={styles.overviewGroupLabel}>{group.label}</span>
+                      {group.isCurrent && (
+                        <span className={styles.overviewGroupCurrentTag} style={{ color, borderColor: color }}>
+                          진행 중
+                        </span>
+                      )}
+                      {startedAt && (
+                        <span className={styles.overviewGroupTime} title={`시작: ${formatOverviewDateTime(startedAt)}`}>
+                          {formatOverviewDateTime(startedAt)}
+                        </span>
+                      )}
+                    </div>
+                    <ul className={styles.overviewSteps}>
+                      {group.statuses.map((item) => {
+                        const meta = PROJECT_STATUS_META[item.status];
+                        return (
+                          <li
+                            key={`overview-${item.status}`}
+                            className={`${styles.overviewStep} ${styles[`overviewStep_${item.state}`]}`}
+                          >
+                            <span className={styles.overviewStepDot} />
+                            <span className={styles.overviewStepLabel}>{meta.shortLabel}</span>
+                            <span className={styles.overviewStepDesc}>{meta.description}</span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                  );
+                });
+              })()
+            )}
+          </div>
+        </div>
+      </div>
+    )}
     </>
   );
 }

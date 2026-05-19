@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { LuBuilding2, LuLoader, LuPlus, LuUpload, LuFileText, LuX, LuChevronLeft } from 'react-icons/lu';
+import { LuBuilding2, LuLoader, LuPlus, LuUpload, LuFileText, LuFileDown, LuCircleCheck, LuX, LuChevronLeft } from 'react-icons/lu';
 import { ActionButton } from '@/components/ui';
 import {
   SERVICE_TYPE_META, PAYMENT_TYPE_META, CLIENT_TIER_META,
@@ -993,24 +993,31 @@ export default function ClientsPage() {
                     <th>사업자 등록증</th>
                     <td>
                       {selected.businessRegFileName ? (
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            const res = await fetch(`/api/clients/${selected.id}/business-registration`);
-                            if (!res.ok) {
-                              alert('파일을 열 수 없습니다.');
-                              return;
-                            }
-                            const { url } = await res.json();
-                            window.open(url, '_blank', 'noopener,noreferrer');
-                          }}
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-primary, #2563eb)', padding: 0, fontSize: 13, textDecoration: 'underline' }}
-                        >
-                          <LuFileText size={14} />
-                          {selected.businessRegFileName}
-                        </button>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, fontSize: 13}}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#047857', fontWeight: 600 ,paddingLeft: 9 }}>
+                            <LuCircleCheck size={14} />
+                            등록됨
+                          </span>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const res = await fetch(`/api/clients/${selected.id}/business-registration`);
+                              if (!res.ok) {
+                                alert('파일을 열 수 없습니다.');
+                                return;
+                              }
+                              const { url } = await res.json();
+                              window.open(url, '_blank', 'noopener,noreferrer');
+                            }}
+                            title="사업자 등록증 다운로드"
+                            aria-label="사업자 등록증 다운로드"
+                            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer', color: 'var(--color-text-secondary)', padding: 0 }}
+                          >
+                            <LuFileDown size={16} />
+                          </button>
+                        </span>
                       ) : (
-                        <span className={panel.fieldValue}>-</span>
+                        <span className={panel.fieldValue} style={{ color: 'var(--color-text-muted)' }}>등록되지 않음</span>
                       )}
                     </td>
                   </tr>
@@ -1032,7 +1039,14 @@ export default function ClientsPage() {
                   </tr>
                   <tr>
                     <th>주소</th>
-                    <td><span className={panel.fieldValue}>{selected.address ?? '-'}</span></td>
+                    <td>
+                      <span
+                        className={panel.fieldValue}
+                        style={{ display: 'block', whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere' }}
+                      >
+                        {selected.address ?? '-'}
+                      </span>
+                    </td>
                   </tr>
                   <tr>
                     <th>프로젝트 수</th>
@@ -1075,11 +1089,9 @@ export default function ClientsPage() {
                             >
                               <th>{meta?.shortLabel ?? p.status}</th>
                               <td>
-                                <span className={panel.fieldValue}>
-                                  {p.title}
-                                  <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--color-text-muted)' }}>
-                                    {formatDate(p.createdAt)}
-                                  </span>
+                                <span className={`${panel.fieldValue} ${panel.historyValue}`}>
+                                  <span className={panel.historyValueTitle}>{p.title}</span>
+                                  <span className={panel.historyValueDate}>{formatDate(p.createdAt)}</span>
                                 </span>
                               </td>
                             </tr>
