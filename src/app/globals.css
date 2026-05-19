@@ -272,6 +272,25 @@ a:hover { color: var(--color-primary); }
   color: var(--color-text-muted);
 }
 
+/* iOS Safari가 16px 미만 입력에 포커스 시 자동 확대(zoom-in) 하는 동작 방지 */
+@media (max-width: 768px) {
+  .form-input,
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="number"],
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
 /* ============================================================================
    Print — 가이드 PDF 출력 시 레이아웃 크롬 숨기기
    ============================================================================ */
