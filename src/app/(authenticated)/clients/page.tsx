@@ -119,10 +119,20 @@ export default function ClientsPage() {
       }));
       setClients(items);
       setLoading(false);
-      const savedId = localStorage.getItem('clients_selectedId');
+      // URL의 ?selected= 쿼리 파라미터 우선, 없으면 localStorage 사용
+      const urlSelectedId = typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('selected')
+        : null;
+      const savedId = urlSelectedId ?? localStorage.getItem('clients_selectedId');
       if (savedId) {
         const target = items.find((c) => c.id === savedId);
-        if (target) { setSelected(target); setMode('view'); }
+        if (target) {
+          setSelected(target);
+          setMode('view');
+          if (urlSelectedId) {
+            localStorage.setItem('clients_selectedId', urlSelectedId);
+          }
+        }
       }
     }).catch(() => setLoading(false));
   }, []);
