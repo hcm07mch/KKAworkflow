@@ -55,7 +55,7 @@ const STATUS_META: Record<
   new:       { label: '신규',     badgeClass: 'badge-indigo',   dotClass: styles.dotNew },
   contacted: { label: '연락 완료', badgeClass: 'badge-yellow', dotClass: styles.dotContacted },
   closed:    { label: '종료',     badgeClass: 'badge-green',  dotClass: styles.dotClosed },
-  spam:      { label: '스팸',     badgeClass: 'badge-gray',   dotClass: styles.dotSpam },
+  spam:      { label: '스팸',     badgeClass: 'badge-red',    dotClass: styles.dotSpam },
 };
 
 const STATUS_ORDER: InquiryStatus[] = ['new', 'contacted', 'closed', 'spam'];
@@ -1164,7 +1164,7 @@ export default function LandingInquiriesPage() {
                           className={styles.noteEditor}
                           value={noteDraft}
                           onChange={(e) => setNoteDraft(e.target.value.slice(0, 2000))}
-                          rows={4}
+                          rows={10}
                           placeholder="처리 결과·통화 메모 등을 기록하세요"
                         />
                         <div className={styles.noteFooter}>

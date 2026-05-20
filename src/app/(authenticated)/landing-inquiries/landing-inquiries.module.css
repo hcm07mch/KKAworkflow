@@ -403,7 +403,7 @@
 .dotNew       { background: #3b82f6; }
 .dotContacted { background: #eab308; }
 .dotClosed    { background: #16a34a; }
-.dotSpam      { background: #9ca3af; }
+.dotSpam      { background: #dc2626; }
 
 /* ── Handler Picker Row ─────────────────────────────────────────────────── */
 
@@ -869,7 +869,7 @@
 
 .noteEditor {
   width: 100%;
-  min-height: 96px;
+  min-height: 300px;
   padding: 12px 14px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
